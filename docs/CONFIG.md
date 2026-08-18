@@ -86,15 +86,22 @@ This document provides a detailed reference for configuration handling in Moonca
 
 ---
 
-## 🍰 `mooncake.json` Specification
+## 🍰 `mooncake.json` Transport Configuration
 
-`mooncake.json` configures the low-level RDMA / TCP transport layer for Mooncake KV Cache transfer:
+`mooncake.json` configures the Mooncake KV Cache transfer engine transport layer to use **TCP Sockets** (`protocol: "tcp"`) for cross-node KV cache transfers:
 
 ```json
 {
+  "metadata_server": "P2PHANDSHAKE",
+  "global_segment_size": "0",
+  "local_buffer_size": "17179869184",
   "protocol": "tcp",
-  "device_name": "eth0",
-  "local_server_name": "127.0.0.1:8998",
-  "metadata_server_name": "127.0.0.1:8998"
+  "device_name": ""
 }
 ```
+
+### Mooncake Parameters Breakdown
+
+- **`protocol`: `"tcp"`**: Enforces TCP transport layer protocol for KV cache streaming (compatible with standard Ethernet without requiring specialized InfiniBand / RoCE RDMA hardware).
+- **`metadata_server`: `"P2PHANDSHAKE"`**: Delegates metadata server negotiation to Mooncake Client P2P handshake mechanism.
+- **`local_buffer_size`: `"17179869184"`**: Allocates 16 GB (`16 * 1024^3` bytes) local RAM buffer for KV cache staging.

@@ -300,6 +300,18 @@ Default settings in `config.json`:
 }
 ```
 
+Mooncake transport settings in `mooncake.json` (`"protocol": "tcp"`):
+
+```json
+{
+  "metadata_server": "P2PHANDSHAKE",
+  "global_segment_size": "0",
+  "local_buffer_size": "17179869184",
+  "protocol": "tcp",
+  "device_name": ""
+}
+```
+
 ---
 
 ## 🙏 Acknowledgements & Credits
