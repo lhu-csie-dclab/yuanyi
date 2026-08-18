@@ -43,6 +43,7 @@ This document provides an exhaustive, multi-layered architectural specification 
   5. Executes `app.Start(ctx)` and enters main event loop.
 
 ### 1.2 `app.go` - Master Engine Container
+- **Detailed Specification**: **[📖 `app.go` Technical Manual (`docs/APP_CONTAINER.md`)](APP_CONTAINER.md)**
 - **Module Name**: App Central Application Container
 - **System Role**:
   The central dependency injection container holding pointers to all 4 core subsystems: Configuration, TUI, Hardware Telemetry, P2P Network, and Process Runner.

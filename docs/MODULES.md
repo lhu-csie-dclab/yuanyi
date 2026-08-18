@@ -9,7 +9,7 @@ This document indexes all source code files in the **Mooncake 2.0 Client Agent**
 | Source File | Module Role | Key Structs | Primary Functions |
 | :--- | :--- | :--- | :--- |
 | **[`main.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/main.go)** | Entry Point & Signal Listener | `main` | `main()` |
-| **[`app.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/app.go)** | Master Application Container | `App` | `NewApp()`, `Start()`, `Stop()` |
+| **[`app.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/app.go)** ([Manual](APP_CONTAINER.md)) | Master Application Container | `App` | `NewApp()`, `Start()`, `Stop()` |
 | **[`config.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/config.go)** | Config Parser & NIC Auto-Detector | `ClientConfig`, `VLLMConfig`, `DockerConfig`, `PathsConfig`, `P2PConfig` | `LoadOrCreateConfig()`, `detectActiveNetworkInterface()`, `removeCommentLines()` |
 | **[`proxy.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/proxy.go)** | API Gateway & Local-First Proxy | `LocalDispatcher`, `BackendInfo`, `ClusterTopologyResponse` | `StartLocalDispatcher()`, `proxyToLocalVLLMDirect()`, `handleProxyRequest()`, `handleKVTunnel()`, `startVLLMHealthChecker()` |
 | **[`p2p.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/p2p.go)** | libp2p Mesh & GossipSub Network | `NetworkNode`, `GPUInfo`, `discoveryNotifee` | `Start()`, `setupStreams()`, `bootstrapNode()`, `keepAlive()`, `generateVIP()`, `startLocalProxyForPeer()`, `gossipPublisher()`, `gossipSubscriber()` |
