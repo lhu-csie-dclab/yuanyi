@@ -24,6 +24,7 @@ For deep-dive technical documentation, multi-layered architectural specification
 - **[🏃 Process Management & Docker Stack Guide (`docs/RUNNER_DOCKER.md`)](docs/RUNNER_DOCKER.md)**: Detailed guide for `runner.go`, `Dockerfile`, `docker-compose.yml`, and Ray/vLLM orchestration.
 - **[📊 System Telemetry & Metrics Guide (`docs/TELEMETRY_SYS.md`)](docs/TELEMETRY_SYS.md)**: Detailed guide for `sys.go`, vLLM Prometheus metrics scraping, NVML GPU stats, and `stats.json`.
 - **[🖥️ User Interfaces & Web Dashboard Guide (`docs/DASHBOARD_UI.md`)](docs/DASHBOARD_UI.md)**: Detailed guide for `tui.go` (4-tab terminal console, headless mode) and `web.go` (embedded Web UI on port `50007`).
+- **[📈 NVIDIA AIPerf Benchmark & Stress Test Results (`docs/test/BENCHMARK_RESULTS.md`)](docs/test/BENCHMARK_RESULTS.md)**: Official 10,000 requests stress test results evaluated on 10 x RTX A2000 8GB GPUs using NVIDIA AIPerf.
 - **[🗂 Module & Function Reference Guide (`docs/MODULES.md`)](docs/MODULES.md)**: File-by-file index of data structures, struct definitions, and cross-module call matrices.
 
 ---
