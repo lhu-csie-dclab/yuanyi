@@ -29,16 +29,16 @@ Mooncake 2.0 Client 提供兼容于 OpenAI 规范的 API 网关 Gateway (`/v1/ch
 
 关于深入的技术文档、多层次架构规范与模块参考手册，请参阅：
 
-- **[📖 多层次系统架构规范 (`docs/ARCHITECTURE.md`)](docs/ARCHITECTURE.md)**：包含 7 大功能层级（编排器、网关、P2P Swarm、进程管理器、遥测、UI）与算法说明。
-- **[📦 Master App 容器规范 (`docs/APP_CONTAINER.md`)](docs/APP_CONTAINER.md)**：`app.go` 主容器结构体、依赖注入、启动与关机顺序。
-- **[⚙️ 配置管理与参数手册 (`docs/CONFIG.md`)](docs/CONFIG.md)**：`config.go`、`config.json`、`.env.example` 与 `mooncake.json` 的完整指南。
-- **[🌐 P2P 网络与 Swarm Key 手册 (`docs/P2P_NETWORK.md`)](docs/P2P_NETWORK.md)**：`p2p.go`、Badger DB Peerstore、GossipSub、VIP 代理与 `swarm.key` 密钥生成教程。
-- **[🔀 OpenAI API 网关与代理手册 (`docs/GATEWAY_PROXY.md`)](docs/GATEWAY_PROXY.md)**：`proxy.go` 本地优先透明 SSE 流式传输、vLLM 健康检查与 P/D 调度器。
-- **[🏃 进程管理与 Docker 堆栈手册 (`docs/RUNNER_DOCKER.md`)](docs/RUNNER_DOCKER.md)**：`runner.go`、`Dockerfile`、`docker-compose.yml` 与 Ray/vLLM 编排。
-- **[📊 系统遥测与指标手册 (`docs/TELEMETRY_SYS.md`)](docs/TELEMETRY_SYS.md)**：`sys.go`、vLLM Prometheus 数据爬虫、NVML 显卡遥测与 `stats.json` 存档。
-- **[🖥️ 终端 TUI 面板与 Web 仪表板手册 (`docs/DASHBOARD_UI.md`)](docs/DASHBOARD_UI.md)**：`tui.go`（4 分页终端面板、Headless 模式）与 `web.go`（`50007` 端口内嵌 Web Console）。
-- **[📈 NVIDIA AIPerf 压测数据报告 (`docs/test/BENCHMARK_RESULTS.md`)](docs/test/BENCHMARK_RESULTS.md)**：在 10 张 RTX A2000 8GB 显卡上进行 1 万次请求压测的官方数据。
-- **[🗂 模块与 Function 参考指南 (`docs/MODULES.md`)](docs/MODULES.md)**：文件对照表、数据结构与跨模块调用矩阵。
+- **[📖 多层次系统架构规范 (`docs/zh_cn/ARCHITECTURE.md`)](docs/zh_cn/ARCHITECTURE.md)**：包含 7 大功能层级（编排器、网关、P2P Swarm、进程管理器、遥测、UI）与算法说明。
+- **[📦 Master App 容器规范 (`docs/zh_cn/APP_CONTAINER.md`)](docs/zh_cn/APP_CONTAINER.md)**：`app.go` 主容器结构体、依赖注入、启动与关机顺序。
+- **[⚙️ 配置管理与参数手册 (`docs/zh_cn/CONFIG.md`)](docs/zh_cn/CONFIG.md)**：`config.go`、`config.json`、`.env.example` 与 `mooncake.json` 的完整指南。
+- **[🌐 P2P 网络与 Swarm Key 手册 (`docs/zh_cn/P2P_NETWORK.md`)](docs/zh_cn/P2P_NETWORK.md)**：`p2p.go`、Badger DB Peerstore、GossipSub、VIP 代理与 `swarm.key` 密钥生成教程。
+- **[🔀 OpenAI API 网关与代理手册 (`docs/zh_cn/GATEWAY_PROXY.md`)](docs/zh_cn/GATEWAY_PROXY.md)**：`proxy.go` 本地优先透明 SSE 流式传输、vLLM 健康检查与 P/D 调度器。
+- **[🏃 进程管理与 Docker 堆栈手册 (`docs/zh_cn/RUNNER_DOCKER.md`)](docs/zh_cn/RUNNER_DOCKER.md)**：`runner.go`、`Dockerfile`、`docker-compose.yml` 与 Ray/vLLM 编排。
+- **[📊 系统遥测与指标手册 (`docs/zh_cn/TELEMETRY_SYS.md`)](docs/zh_cn/TELEMETRY_SYS.md)**：`sys.go`、vLLM Prometheus 数据爬虫、NVML 显卡遥测与 `stats.json` 存档。
+- **[🖥️ 终端 TUI 面板与 Web 仪表板手册 (`docs/zh_cn/DASHBOARD_UI.md`)](docs/zh_cn/DASHBOARD_UI.md)**：`tui.go`（4 分页终端面板、Headless 模式）与 `web.go`（`50007` 端口内嵌 Web Console）。
+- **[📈 NVIDIA AIPerf 压测数据报告 (`docs/zh_cn/test/BENCHMARK_RESULTS.md`)](docs/zh_cn/test/BENCHMARK_RESULTS.md)**：在 10 张 RTX A2000 8GB 显卡上进行 1 万次请求压测的官方数据。
+- **[🗂 模块与 Function 参考指南 (`docs/zh_cn/MODULES.md`)](docs/zh_cn/MODULES.md)**：文件对照表、数据结构与跨模块调用矩阵。
 
 ---
 
@@ -105,15 +105,15 @@ flowchart TB
 
 | 源代码文件 / 组件 | 主要职责与功能 | 对应技术手册直达链接 |
 | :--- | :--- | :--- |
-| **[`main.go`](main.go)** | 程序入口点与 OS 信号监听 | [📖 Architecture Manual (`docs/ARCHITECTURE.md`)](docs/ARCHITECTURE.md#11-maingo---application-bootstrapper) |
-| **[`app.go`](app.go)** | 主应用容器与模块编排 | [📦 Master App Specification (`docs/APP_CONTAINER.md`)](docs/APP_CONTAINER.md) |
-| **[`config.go`](config.go)** / **[`config.json`](config.json)** | 配置解析与实体网卡自动检测 | [⚙️ Config Guide (`docs/CONFIG.md`)](docs/CONFIG.md) |
-| **[`proxy.go`](proxy.go)** | OpenAI API 网关与 Local-First 代理 | [🔀 Gateway Proxy Guide (`docs/GATEWAY_PROXY.md`)](docs/GATEWAY_PROXY.md) |
-| **[`p2p.go`](p2p.go)** / **[`swarm.key.example`](swarm.key.example)** | libp2p 私网、GossipSub 与 VIP 代理 | [🌐 P2P Network & Key Guide (`docs/P2P_NETWORK.md`)](docs/P2P_NETWORK.md) |
-| **[`runner.go`](runner.go)** / **[`Dockerfile`](Dockerfile)** | Ray Head 与 vLLM 推理进程管理 | [🏃 Process & Docker Guide (`docs/RUNNER_DOCKER.md`)](docs/RUNNER_DOCKER.md) |
-| **[`sys.go`](sys.go)** / **[`stats.json`](stats.json)** | 显卡 NVML 遥测与 Prometheus 爬虫 | [📊 Telemetry & Metrics Guide (`docs/TELEMETRY_SYS.md`)](docs/TELEMETRY_SYS.md) |
-| **[`tui.go`](tui.go)** / **[`web.go`](web.go)** | TUI 终端面板与 Web 仪表板 | [🖥️ User Interfaces Guide (`docs/DASHBOARD_UI.md`)](docs/DASHBOARD_UI.md) |
-| **`docs/test/`** | 10 x RTX A2000 压测数据集 | [📈 AIPerf Benchmark Results (`docs/test/BENCHMARK_RESULTS.md`)](docs/test/BENCHMARK_RESULTS.md) |
+| **[`main.go`](main.go)** | 程序入口点与 OS 信号监听 | [📖 Architecture Manual (`docs/zh_cn/ARCHITECTURE.md`)](docs/zh_cn/ARCHITECTURE.md#11-maingo---应用程序启动器) |
+| **[`app.go`](app.go)** | 主应用容器与模块编排 | [📦 Master App Specification (`docs/zh_cn/APP_CONTAINER.md`)](docs/zh_cn/APP_CONTAINER.md) |
+| **[`config.go`](config.go)** / **[`config.json`](config.json)** | 配置解析与实体网卡自动检测 | [⚙️ Config Guide (`docs/zh_cn/CONFIG.md`)](docs/zh_cn/CONFIG.md) |
+| **[`proxy.go`](proxy.go)** | OpenAI API 网关与 Local-First 代理 | [🔀 Gateway Proxy Guide (`docs/zh_cn/GATEWAY_PROXY.md`)](docs/zh_cn/GATEWAY_PROXY.md) |
+| **[`p2p.go`](p2p.go)** / **[`swarm.key.example`](swarm.key.example)** | libp2p 私网、GossipSub 与 VIP 代理 | [🌐 P2P Network & Key Guide (`docs/zh_cn/P2P_NETWORK.md`)](docs/zh_cn/P2P_NETWORK.md) |
+| **[`runner.go`](runner.go)** / **[`Dockerfile`](Dockerfile)** | Ray Head 与 vLLM 推理进程管理 | [🏃 Process & Docker Guide (`docs/zh_cn/RUNNER_DOCKER.md`)](docs/zh_cn/RUNNER_DOCKER.md) |
+| **[`sys.go`](sys.go)** / **[`stats.json`](stats.json)** | 显卡 NVML 遥测与 Prometheus 爬虫 | [📊 Telemetry & Metrics Guide (`docs/zh_cn/TELEMETRY_SYS.md`)](docs/zh_cn/TELEMETRY_SYS.md) |
+| **[`tui.go`](tui.go)** / **[`web.go`](web.go)** | TUI 终端面板与 Web 仪表板 | [🖥️ User Interfaces Guide (`docs/zh_cn/DASHBOARD_UI.md`)](docs/zh_cn/DASHBOARD_UI.md) |
+| **`docs/test/`** | 10 x RTX A2000 压测数据集 | [📈 AIPerf Benchmark Results (`docs/zh_cn/test/BENCHMARK_RESULTS.md`)](docs/zh_cn/test/BENCHMARK_RESULTS.md) |
 
 ---
 
