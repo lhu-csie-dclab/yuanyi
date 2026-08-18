@@ -189,6 +189,17 @@ docker --version
 ### 4. NVIDIA GPU Container Toolkit
 Ensure the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) is installed so Docker containers can access local GPU accelerators.
 
+#### 🧪 Verified Test Environment (測試環境驗證規格)
+The system has been fully benchmarked and verified under the following LXC container environment:
+
+| Category | Specification |
+| :--- | :--- |
+| **Virtualization / Hypervisor** | **Proxmox VE 9.1** (LXC Container) |
+| **LXC OS Template** | `ubuntu-26.04-standard_26.04-1_amd64.tar.zst` |
+| **NVIDIA Host Driver Version** | `595.71.05` |
+| **CUDA Toolkit Version** | `13.2` |
+| **GPU Compute Capability** | **`7.5`** (Turing Architecture) |
+
 ### 5. Download Demonstration Model (`Qwen3-4B-AWQ`)
 The recommended demonstration model is **[Qwen/Qwen3-4B-AWQ](https://huggingface.co/Qwen/Qwen3-4B-AWQ)** from Hugging Face:
 
