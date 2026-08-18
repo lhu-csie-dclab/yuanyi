@@ -184,10 +184,7 @@ docker --version
 ```
 
 > [!NOTE]
-> **Docker Build 依赖说明**：容器构建时会自动安装 CUDA 13 Mooncake 传输引擎：
-> ```dockerfile
-> RUN pip install --no-cache-dir "ray[default,adag]" "mooncake-transfer-engine-cuda13==0.3.10.post2"
-> ```
+> **内置包版本说明**：已内置官方 CUDA 13 Mooncake 传输引擎版本 `mooncake-transfer-engine-cuda13==0.3.10.post2`。
 
 ### 4. NVIDIA GPU Container Toolkit
 请确保已安装 [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)，使 Docker 容器能访问显卡硬件。

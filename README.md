@@ -190,10 +190,7 @@ docker --version
 ```
 
 > [!NOTE]
-> **Docker Build Dependency**: The runtime container installs the official CUDA 13 Mooncake Transfer Engine package:
-> ```dockerfile
-> RUN pip install --no-cache-dir "ray[default,adag]" "mooncake-transfer-engine-cuda13==0.3.10.post2"
-> ```
+> **Built-in Package Version**: Pre-installed with official CUDA 13 Mooncake Transfer Engine version `mooncake-transfer-engine-cuda13==0.3.10.post2`.
 
 ### 4. NVIDIA GPU Container Toolkit
 Ensure the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) is installed so Docker containers can access local GPU accelerators.
