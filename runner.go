@@ -1,3 +1,6 @@
+// Copyright 2026 LHU CSIE DCLAB (yuanyi) Authors.
+// SPDX-License-Identifier: Apache-2.0
+//
 // Package main implements process management and execution of Ray and vLLM inference engine containers.
 package main
 

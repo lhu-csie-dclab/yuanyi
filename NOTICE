@@ -1,36 +1,179 @@
 Mooncake 2.0 P2P LLM Client Agent
 Copyright 2026 LHU CSIE DCLAB (yuanyi) Authors.
 
-This product includes software developed by third parties under open source licenses:
+Licensed under the Apache License, Version 2.0.
 
-1. vLLM (Apache License 2.0)
-   Copyright vLLM Team & Authors
-   https://github.com/vllm-project/vllm
+================================================================================
 
-2. Mooncake Transfer Engine (Apache License 2.0)
-   Copyright KVCache-AI Team
-   https://github.com/kvcache-ai/Mooncake
+This product includes software developed by third parties under open source
+licenses. Full license texts are available from the respective project URLs.
 
-3. go-libp2p (MIT / Apache License 2.0)
-   Copyright Protocol Labs & IPFS
+================================================================================
+DIRECT RUNTIME DEPENDENCIES (go.mod require block)
+================================================================================
+
+1. go-libp2p (Apache License 2.0 / MIT)
+   Copyright Protocol Labs, Inc. & IPFS Contributors
    https://github.com/libp2p/go-libp2p
+   Used for: P2P mesh networking, private swarm (PSK), hole-punching, relay.
 
-4. Ray (Apache License 2.0)
-   Copyright Anyscale & Ray Authors
-   https://github.com/ray-project/ray
+2. go-libp2p-kad-dht (MIT)
+   Copyright Protocol Labs, Inc.
+   https://github.com/libp2p/go-libp2p-kad-dht
+   Used for: Kademlia DHT peer discovery and routing.
 
-5. AIPerf (Apache License 2.0)
-   Copyright NVIDIA Corporation
-   https://github.com/ai-dynamo/aiperf
+3. go-libp2p-pubsub (MIT)
+   Copyright Protocol Labs, Inc.
+   https://github.com/libp2p/go-libp2p-pubsub
+   Used for: GossipSub GPU telemetry broadcast across P2P mesh.
 
-6. tview (MIT License)
-   Copyright Rivo Tapufer
+4. go-multiaddr (MIT)
+   Copyright Protocol Labs, Inc.
+   https://github.com/multiformats/go-multiaddr
+   Used for: Multiaddr parsing for P2P bootstrap node addressing.
+
+================================================================================
+INDIRECT RUNTIME DEPENDENCIES
+================================================================================
+
+5. tview (MIT License)
+   Copyright (c) 2018 Oliver Lippold (rivo)
    https://github.com/rivo/tview
+   Used for: Terminal UI framework (4-tab TUI panels).
 
-7. tcell (Apache License 2.0)
-   Copyright Garrett D'Amore
+6. tcell/v2 (Apache License 2.0)
+   Copyright (c) 2015 Garrett D'Amore
    https://github.com/gdamore/tcell
+   Used for: Low-level terminal event handling and color rendering.
 
-8. gopsutil (BSD-3-Clause License)
-   Copyright Shirou Takeda
+7. gopsutil/v3 (BSD 3-Clause License)
+   Copyright (c) 2014 Shirou Takeda
    https://github.com/shirou/gopsutil
+   Used for: Process CPU and memory usage monitoring.
+
+8. go-ds-badger / badger (Apache License 2.0)
+   Copyright (c) 2017 Dgraph Labs, Inc.
+   https://github.com/ipfs/go-ds-badger
+   https://github.com/dgraph-io/badger
+   Used for: Persistent BadgerDB peerstore for libp2p.
+
+9. go-nvml (Apache License 2.0)
+   Copyright (c) NVIDIA Corporation
+   https://github.com/NVIDIA/go-nvml
+   Used for: NVIDIA GPU telemetry via NVML bindings.
+
+10. godotenv (MIT License)
+    Copyright (c) 2013 John Barton
+    https://github.com/joho/godotenv
+    Used for: Loading .env environment variable files.
+
+11. gorilla/websocket (BSD 2-Clause License)
+    Copyright (c) 2013 The Gorilla WebSocket Authors
+    https://github.com/gorilla/websocket
+    Used for: WebSocket communication in web dashboard.
+
+12. prometheus/client_golang (Apache License 2.0)
+    Copyright (c) 2012-2015 The Prometheus Authors
+    https://github.com/prometheus/client_golang
+    Used for: Parsing vLLM Prometheus metrics endpoint.
+
+13. go-redis/v9 (BSD 2-Clause License)
+    Copyright (c) 2012 The go-redis Authors
+    https://github.com/redis/go-redis
+    Used for: Optional Redis integration for cluster state sharing.
+
+14. quic-go (MIT License)
+    Copyright (c) 2016 QUIC-Go Authors
+    https://github.com/quic-go/quic-go
+    Used for: QUIC transport layer for libp2p.
+
+15. pion/webrtc (MIT License)
+    Copyright (c) 2018 Pion Authors
+    https://github.com/pion/webrtc
+    Used for: WebRTC transport layer for libp2p.
+
+16. go-etcd/etcd client/v3 (Apache License 2.0)
+    Copyright (c) 2013 CoreOS, Inc.
+    https://github.com/etcd-io/etcd
+    Used for: Distributed key-value store integration (indirect via libp2p).
+
+17. go.uber.org/zap (MIT License)
+    Copyright (c) 2016 Uber Technologies, Inc.
+    https://github.com/uber-go/zap
+    Used for: Structured logging (indirect via libp2p).
+
+18. go.uber.org/fx (MIT License)
+    Copyright (c) 2016 Uber Technologies, Inc.
+    https://github.com/uber-go/fx
+    Used for: Dependency injection framework (indirect via libp2p).
+
+19. opentelemetry-go (Apache License 2.0)
+    Copyright (c) 2019 The OpenTelemetry Authors
+    https://github.com/open-telemetry/opentelemetry-go
+    Used for: Distributed tracing (indirect via libp2p).
+
+20. google.golang.org/grpc (Apache License 2.0)
+    Copyright (c) 2014 Google LLC
+    https://github.com/grpc/grpc-go
+    Used for: gRPC communication (indirect via libp2p/etcd).
+
+21. google.golang.org/protobuf (BSD 3-Clause License)
+    Copyright (c) 2018 The Go Authors
+    https://github.com/protocolbuffers/protobuf-go
+    Used for: Protocol Buffers serialization (indirect).
+
+22. golang.org/x/* (BSD 3-Clause License)
+    Copyright (c) 2009 The Go Authors
+    https://pkg.go.dev/golang.org/x
+    Packages: crypto, net, sys, text, sync, exp, tools, term, mod, time
+    Used for: Extended Go standard library utilities.
+
+23. gonum.org/v1/gonum (BSD 3-Clause License)
+    Copyright (c) 2013 The Gonum Authors
+    https://github.com/gonum/gonum
+    Used for: Numerical computing utilities (indirect via libp2p).
+
+================================================================================
+DOCKER BASE IMAGE ATTRIBUTION
+================================================================================
+
+24. NVIDIA AI Dynamo vLLM Runtime (NVIDIA Software License)
+    Copyright (c) NVIDIA Corporation. All Rights Reserved.
+    Image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.2.1-cuda13
+    https://catalog.ngc.nvidia.com/orgs/nvidia/teams/ai-dynamo/containers/vllm-runtime
+    License: Subject to NVIDIA Software License Agreement and/or
+             NVIDIA AI Product License Agreement.
+    Note: This project's Dockerfile extends this base image. Users must
+    accept NVIDIA's license terms when pulling and using this image.
+
+================================================================================
+BENCHMARK TOOLING
+================================================================================
+
+25. AIPerf (Apache License 2.0)
+    Copyright (c) NVIDIA Corporation
+    https://github.com/ai-dynamo/aiperf
+    Used for: LLM inference performance benchmarking (not embedded in binary).
+
+================================================================================
+RELATED UPSTREAM PROJECTS (not embedded, invoked at runtime)
+================================================================================
+
+26. vLLM (Apache License 2.0)
+    Copyright (c) 2023 vLLM Team & Contributors
+    https://github.com/vllm-project/vllm
+    Note: Invoked as a subprocess inside the Docker runtime container.
+    This project does not distribute, modify, or statically link vLLM code.
+
+27. Mooncake Transfer Engine (Apache License 2.0)
+    Copyright (c) KVCache.AI Team
+    https://github.com/kvcache-ai/Mooncake
+    Note: Installed as a Python package inside the Docker runtime container.
+    This project does not distribute, modify, or statically link Mooncake code.
+    Built-in version: mooncake-transfer-engine-cuda13==0.3.10.post2
+
+28. Ray (Apache License 2.0)
+    Copyright (c) 2017 Anyscale Inc. & Ray Authors
+    https://github.com/ray-project/ray
+    Note: Invoked as a subprocess inside the Docker runtime container.
+    This project does not distribute, modify, or statically link Ray code.

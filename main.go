@@ -1,3 +1,6 @@
+// Copyright 2026 LHU CSIE DCLAB (yuanyi) Authors.
+// SPDX-License-Identifier: Apache-2.0
+//
 // Package main is the entry point for the Mooncake 2.0 Client Agent.
 package main
 

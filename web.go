@@ -1,3 +1,6 @@
+// Copyright 2026 LHU CSIE DCLAB (yuanyi) Authors.
+// SPDX-License-Identifier: Apache-2.0
+//
 // Package main implements the Web Dashboard HTTP server and static asset embedding.
 package main
 

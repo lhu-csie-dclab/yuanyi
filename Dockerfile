@@ -1,4 +1,11 @@
+# Copyright 2026 LHU CSIE DCLAB (yuanyi) Authors.
+# SPDX-License-Identifier: Apache-2.0
+#
 # Multi-stage build for Mooncake Client Agent
+#
+# NOTE: The production runtime image is based on NVIDIA AI Dynamo vLLM Runtime
+# (nvcr.io/nvidia/ai-dynamo/vllm-runtime). Use of that base image is subject
+# to the NVIDIA Software License Agreement. See: https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/
 FROM golang:1.26-alpine AS builder
 
 
