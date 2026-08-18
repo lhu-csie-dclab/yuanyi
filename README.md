@@ -11,6 +11,15 @@ Mooncake 2.0 Client provides an OpenAI-compatible API Gateway (`/v1/chat/complet
 
 ---
 
+## 📚 Documentation & Architecture Index
+
+For deep-dive technical documentation, multi-layered architectural specifications, and module reference guides, see:
+
+- **[📖 Layered Architecture Specification (`docs/ARCHITECTURE.md`)](docs/ARCHITECTURE.md)**: Full 7-layer functional breakdown (Orchestrator, Gateway, P2P Swarm, Process Manager, Telemetry, UI) including original code design algorithms.
+- **[🗂 Module & Function Reference Guide (`docs/MODULES.md`)](docs/MODULES.md)**: File-by-file index of data structures, struct definitions, and cross-module call matrices.
+
+---
+
 ## 🏛 System Architecture
 
 ```mermaid
