@@ -1,0 +1,36 @@
+Mooncake 2.0 P2P LLM Client Agent
+Copyright 2026 LHU CSIE DCLAB (yuanyi) Authors.
+
+This product includes software developed by third parties under open source licenses:
+
+1. vLLM (Apache License 2.0)
+   Copyright vLLM Team & Authors
+   https://github.com/vllm-project/vllm
+
+2. Mooncake Transfer Engine (Apache License 2.0)
+   Copyright KVCache-AI Team
+   https://github.com/kvcache-ai/Mooncake
+
+3. go-libp2p (MIT / Apache License 2.0)
+   Copyright Protocol Labs & IPFS
+   https://github.com/libp2p/go-libp2p
+
+4. Ray (Apache License 2.0)
+   Copyright Anyscale & Ray Authors
+   https://github.com/ray-project/ray
+
+5. AIPerf (Apache License 2.0)
+   Copyright NVIDIA Corporation
+   https://github.com/ai-dynamo/aiperf
+
+6. tview (MIT License)
+   Copyright Rivo Tapufer
+   https://github.com/rivo/tview
+
+7. tcell (Apache License 2.0)
+   Copyright Garrett D'Amore
+   https://github.com/gdamore/tcell
+
+8. gopsutil (BSD-3-Clause License)
+   Copyright Shirou Takeda
+   https://github.com/shirou/gopsutil
