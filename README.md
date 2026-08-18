@@ -103,31 +103,19 @@ flowchart TB
 
 ---
 
-## 📁 Repository Structure
+### 📁 Directory & File Documentation Map
 
-```
-.
-├── Dockerfile              # Multi-stage CUDA 13 + vLLM + Go Agent Docker build
-├── docker-compose.yml      # Single service Compose configuration
-├── config.json             # Application runtime settings (VRAM, ports, paths)
-├── mooncake.json           # Mooncake KV cache transfer engine settings
-│
-├── main.go                 # Application entry point & OS signal listener
-├── app.go                  # Master application container & service lifecycle
-├── config.go               # Configuration parser & environment variable auto-detector
-├── proxy.go                # OpenAI API Gateway dispatcher & streaming proxy
-├── p2p.go                  # libp2p node, peer discovery & GossipSub network
-├── runner.go               # Process orchestrator (Ray + vLLM direct manager)
-├── sys.go                  # Hardware metrics & NVML GPU telemetry
-├── tui.go                  # Interactive TUI & headless fallback manager
-├── web.go                  # Web Dashboard server & static asset host
-│
-├── web/                    # Static Web Dashboard frontend assets
-├── .env.example            # Environment configuration template
-├── swarm.key.example       # Libp2p private network key template
-├── .gitignore              # Git tracking exclusion rules
-└── LICENSE                 # Apache 2.0 License
-```
+| Source File / Component | Primary Responsibility | Technical Manual Link |
+| :--- | :--- | :--- |
+| **[`main.go`](main.go)** | Application entry point & OS signal listener | [📖 Architecture Manual (`docs/ARCHITECTURE.md`)](docs/ARCHITECTURE.md#11-maingo---application-bootstrapper) |
+| **[`app.go`](app.go)** | Master application container & orchestrator | [📦 Master App Specification (`docs/APP_CONTAINER.md`)](docs/APP_CONTAINER.md) |
+| **[`config.go`](config.go)** / **[`config.json`](config.json)** | Config parser & active NIC auto-detector | [⚙️ Config Guide (`docs/CONFIG.md`)](docs/CONFIG.md) |
+| **[`proxy.go`](proxy.go)** | OpenAI API Gateway & Local-First proxy | [🔀 Gateway Proxy Guide (`docs/GATEWAY_PROXY.md`)](docs/GATEWAY_PROXY.md) |
+| **[`p2p.go`](p2p.go)** / **[`swarm.key.example`](swarm.key.example)** | libp2p network mesh & GossipSub swarm | [🌐 P2P Network & Key Guide (`docs/P2P_NETWORK.md`)](docs/P2P_NETWORK.md) |
+| **[`runner.go`](runner.go)** / **[`Dockerfile`](Dockerfile)** | Ray Head & vLLM process/container runner | [🏃 Process & Docker Guide (`docs/RUNNER_DOCKER.md`)](docs/RUNNER_DOCKER.md) |
+| **[`sys.go`](sys.go)** / **[`stats.json`](stats.json)** | Hardware metrics & vLLM Prometheus scraper | [📊 Telemetry & Metrics Guide (`docs/TELEMETRY_SYS.md`)](docs/TELEMETRY_SYS.md) |
+| **[`tui.go`](tui.go)** / **[`web.go`](web.go)** | Interactive TUI console & Web Dashboard | [🖥️ User Interfaces Guide (`docs/DASHBOARD_UI.md`)](docs/DASHBOARD_UI.md) |
+| **`docs/test/`** | AIPerf 10k requests 10 x RTX A2000 test data | [📈 AIPerf Benchmark Results (`docs/test/BENCHMARK_RESULTS.md`)](docs/test/BENCHMARK_RESULTS.md) |
 
 ---
 
