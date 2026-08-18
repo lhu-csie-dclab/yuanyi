@@ -1,0 +1,5 @@
+# Custom vLLM Runtime with Mooncake Transfer Engine (CUDA 13)
+FROM nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.2.1-cuda13
+
+# Install Ray with adag and Mooncake CUDA 13 transfer engine
+RUN pip install --no-cache-dir "ray[default,adag]" "mooncake-transfer-engine-cuda13==0.3.10.post2"

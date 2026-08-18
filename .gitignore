@@ -1,0 +1,23 @@
+# Build binaries
+*.exe
+*.exe.stackdump
+go-p2p
+client
+server
+
+# Keys and credentials (do not commit)
+identity.key
+swarm.key
+.env
+
+# Runtime databases, logs, and statistics
+stats.json
+*.log
+peers.db*
+my-peerstore/
+
+# IDE & OS files
+.DS_Store
+.idea/
+.vscode/
+*.swp

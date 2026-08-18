@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # =========================================================
+  # Mooncake Client All-in-One (Agent + OpenAI Gateway + Ray + vLLM)
+  # =========================================================
+  mooncake-client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mooncake_client_allinone
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+    network_mode: "host"
+    ipc: host
+    shm_size: '16g'
+    environment:
+      - ALL_IN_ONE=true
+      - TERM=xterm-256color
+      - SERVER_ADDRESS=${SERVER_ADDRESS:-/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh}
+      - CLIENT_WEB_PORT=50007
+      - OPENAI_GATEWAY_PORT=50006
+      - IFACE=${IFACE:-eth0}
+
+    volumes:
+      - ./config.json:/app/config.json
+      - ./identity.key:/app/identity.key
+      - ./swarm.key:/app/swarm.key
+      - ./stats.json:/app/stats.json
+      - ./peers.db:/app/peers.db
+      - ./mooncake.json:/data/mooncake.json
+      - ${ABS_MODEL_PATH:-./models}:/data/model:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+

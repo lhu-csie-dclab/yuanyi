@@ -1,0 +1,81 @@
+{
+  // ============================================================================
+  // 【所屬檔案】config.json
+  // 【模組名稱】Mooncake 2.0 Client 全域系統與容器啟動設定檔
+  // 
+  // 【系統與機制說明】
+  // 本設定檔為 Mooncake 2.0 Client 的核心配置文件。
+  // 程式在啟動時會由 config.go 的 LoadOrCreateConfig 副程式進行載入。
+  // 注意：標準 JSON (RFC 8259) 預設不支援 "//" 註解，但本系統在解析時會透過
+  // removeCommentLines() 自動將 "//" 開頭的單行註解剝離，因此您可安心在此檔編寫說明。
+  //
+  // 【組態設定區塊概覽】
+  //  1. version / web_port / proxy_port : 全域服務 Ports 設定
+  //  2. p2p    : libp2p P2P 網路 Tracker/Bootstrap 節點 Multiaddress
+  //  3. docker : Docker 容器名稱、鏡像、共享記憶體與通訊網卡設定
+  //  4. paths  : 本機與 Docker 容器間的檔案/目錄掛載路徑 (Volume Mounts)
+  //  5. vllm   : vLLM 推論引擎啟動參數 (模型名稱、上下文、GPU 顯存率、P/D 分離角色)
+  // ============================================================================
+
+  // 【設定檔版本號】用於未來相容性檢查 (目前版本：1.0)
+  "version": "1.0",
+
+  // 【本地 Web 監控儀表板 Port】提供本機瀏覽器觀看 P2P 節點與日誌的 HTTP Port (預設：50007)
+  "web_port": 50007,
+
+  // 【本地 OpenAI API 分發器 Port】接收使用者 OpenAI Chat Completions 請求的 Gateway Port (預設：50006)
+  "proxy_port": 50006,
+  
+  // 【P2P 網路連線設定】
+  "p2p": {
+    // 【Tracker/Bootstrap 伺服器位址】libp2p Multiaddress 格式，用於 NAT 穿透與 DHT 引導 (格式：/dns4/主機/tcp/Port/p2p/PeerID)
+    "server_address": "/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh"
+  },
+
+  // 【Docker 容器啟動參數】
+  "docker": {
+    // 【容器名稱】執行 vLLM/Ray 的 Docker 容器名稱，清理時會以此名稱進行 docker rm -f
+    "container_name": "vllm_node",
+    // 【Docker 映像檔】包含 vLLM 與 Mooncake 執行階段環境的 Image 名稱與標籤
+    "image": "vllm-runtime-mooncake:latest",
+    // 【容器網路模式】host 表示共享宿主機網路，避免 NAT 影響 GPU NCCL 高速傳輸與 P2P 通訊
+    "network": "host",
+    // 【共享記憶體大小】/dev/shm 容量，vLLM 多卡 NCCL 通訊需要較大空間 (如 16gb)
+    "shm_size": "16gb",
+    // 【NCCL/GLOO 網卡】指定 GPU 跨卡與跨節點通訊使用的網卡名稱 (若為空程式會自動偵測)
+    "iface": "eth0"
+  },
+  
+  // 【宿主機目錄與檔案掛載設定】(掛載至 Docker 容器內)
+  "paths": {
+    "config_path": "/app/config.json",
+    "model_path": "/data/model",
+    "mooncake_path": "/data/mooncake.json"
+  },
+  
+  // 【vLLM 推論引擎啟動參數】(最終傳遞給 vllm serve 指令)
+  "vllm": {
+    // 【對外模型名稱】使用者呼叫 OpenAI API 時傳入的 "model" 欄位名稱
+    "model_name": "Qwen3-4B-AWQ",
+    // 【最大序列長度】輸入 Prompt + 輸出 Token 的最大長度上限 (Tokens 數)
+    "max_model_len": 8192,
+    // 【GPU 記憶體使用率】分配給 vLLM 權重與 KV Cache 的 GPU VRAM 比例 (0.0~1.0，預設 0.75)
+    "gpu_memory_utilization": 0.75,
+    // 【vLLM 引擎 Port】本機 vLLM HTTP 服務監聽埠 (預設：8100，勿與 proxy_port 衝突)
+    "port": 8100,
+    // 【張量並行度 (TP)】使用 GPU 的張量並行卡數 (單卡設 1，多卡依實際卡數設定)
+    "tensor_parallel_size": 1,
+    // 【權重資料型態】推論計算精度 (可選："float16", "bfloat16", "auto")
+    "dtype": "float16",
+    // 【P/D 分離角色】可選："kv_both" (Prefill與Decode皆做), "kv_prefill" (只做Prefill), "kv_decode" (只做Decode)
+    "kv_role": "kv_both",
+    // 【Mooncake 控制埠】用於跨節點 KV Cache 協商傳輸的 Bootstrap Port (預設：8998)
+    "mooncake_bootstrap_port": 8998,
+    // 【Mooncake 超時秒數】等待 KV Cache 傳輸的超時中止上限 (秒)
+    "mooncake_abort_request_timeout": 15,
+    // 【Attention 後端】計算模組 (可選："FLASH_ATTN", "FLASHINFER", "XFORMERS")
+    "attention_backend": "FLASH_ATTN",
+    // 【Ray 資源分配策略】Ray 多卡佈局方式 (可選："SPREAD" 散佈於多卡, "PACK" 緊湊堆疊)
+    "placement_group_bundle_strategy": "SPREAD"
+  }
+}
