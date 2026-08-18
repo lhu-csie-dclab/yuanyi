@@ -12,6 +12,13 @@ Mooncake 2.0 Client provides an OpenAI-compatible API Gateway (`/v1/chat/complet
 
 ---
 
+> [!WARNING]
+> **Experimental Stage Disclaimer (實驗階段與正式環境部署警語)**
+> - **Experimental Research Software**: This project is currently in an **experimental research phase** and is **NOT RECOMMENDED for production (Production) environments**.
+> - **Untested Parameters Notice**: Only the explicitly documented baseline configuration (`Qwen3-4B-AWQ`, `protocol: "tcp"`, `concurrency: 100`) has been stress-tested. All other unverified parameters, alternative transport layers, or unlisted models remain **untested** and may produce unstable results.
+
+---
+
 ## 📚 Documentation & Architecture Index
 
 For deep-dive technical documentation, multi-layered architectural specifications, and module reference guides, see:

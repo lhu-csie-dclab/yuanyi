@@ -4,6 +4,12 @@ This document provides a detailed reference for configuration handling in Moonca
 
 ---
 
+> [!WARNING]
+> **Production Disclaimer & Untested Options Notice**:
+> This software is currently in an **experimental research phase** and is **NOT recommended for production environments**. Only baseline settings (`Qwen3-4B-AWQ`, `protocol: "tcp"`) have been benchmarked; all other unverified configuration parameters remain **untested**.
+
+---
+
 ## 📄 File Overview
 
 - **`config.go`**: Go configuration parser, single-line comment stripper, active NIC detector, and defensive port validator.
