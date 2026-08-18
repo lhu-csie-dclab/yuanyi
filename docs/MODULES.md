@@ -6,17 +6,17 @@ This document indexes all source code files in the **Mooncake 2.0 Client Agent**
 
 ## 🗂 File & Module Index
 
-| Source File | Module Role | Key Structs | Primary Functions |
+| Source File | Module Role | Key Structs | Documentation Manual |
 | :--- | :--- | :--- | :--- |
-| **[`main.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/main.go)** | Entry Point & Signal Listener | `main` | `main()` |
-| **[`app.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/app.go)** ([Manual](APP_CONTAINER.md)) | Master Application Container | `App` | `NewApp()`, `Start()`, `Stop()` |
-| **[`config.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/config.go)** | Config Parser & NIC Auto-Detector | `ClientConfig`, `VLLMConfig`, `DockerConfig`, `PathsConfig`, `P2PConfig` | `LoadOrCreateConfig()`, `detectActiveNetworkInterface()`, `removeCommentLines()` |
-| **[`proxy.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/proxy.go)** | API Gateway & Local-First Proxy | `LocalDispatcher`, `BackendInfo`, `ClusterTopologyResponse` | `StartLocalDispatcher()`, `proxyToLocalVLLMDirect()`, `handleProxyRequest()`, `handleKVTunnel()`, `startVLLMHealthChecker()` |
-| **[`p2p.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/p2p.go)** | libp2p Mesh & GossipSub Network | `NetworkNode`, `GPUInfo`, `discoveryNotifee` | `Start()`, `setupStreams()`, `bootstrapNode()`, `keepAlive()`, `generateVIP()`, `startLocalProxyForPeer()`, `gossipPublisher()`, `gossipSubscriber()` |
-| **[`runner.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/runner.go)** | Ray & vLLM Process Orchestrator | `Runner` | `Start()`, `startVLLMDirectly()`, `startVLLMContainer()`, `isDirectExecution()`, `Stop()` |
-| **[`sys.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/sys.go)** | Metrics Scraper & NVML Telemetry | `SysMonitor`, `VLLMMetrics`, `GPUTelemetry` | `Start()`, `GetMetrics()`, `GetGPUModelSummary()`, `GetGPUTelemetry()`, `metricScraper()` |
-| **[`tui.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/tui.go)** | Terminal UI & Stats Persistence | `TUI`, `Stats`, `PersistentStats`, `PeerRecord` | `NewTUI()`, `Run()`, `AddLog()`, `AddVLLMLog()`, `AddDockerLog()`, `RecordPeerInfo()`, `UpdateStats()`, `loadStatsDisk()`, `saveStatsDisk()` |
-| **[`web.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/web.go)** | Web Monitoring Dashboard | `embed.FS` | `StartClientWebDashboard()`, API Handlers (`/api/peers`, `/api/stats`, `/api/logs`, `/api/config`) |
+| **[`main.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/main.go)** | Entry Point & Signal Listener | `main` | [`docs/ARCHITECTURE.md`](ARCHITECTURE.md#11-maingo---application-bootstrapper) |
+| **[`app.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/app.go)** | Master Application Container | `App` | [`docs/APP_CONTAINER.md`](APP_CONTAINER.md) |
+| **[`config.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/config.go)** | Config Parser & NIC Auto-Detector | `ClientConfig`, `VLLMConfig` | [`docs/CONFIG.md`](CONFIG.md) |
+| **[`proxy.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/proxy.go)** | API Gateway & Local-First Proxy | `LocalDispatcher`, `BackendInfo` | [`docs/GATEWAY_PROXY.md`](GATEWAY_PROXY.md) |
+| **[`p2p.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/p2p.go)** | libp2p Mesh & GossipSub Network | `NetworkNode`, `GPUInfo` | [`docs/P2P_NETWORK.md`](P2P_NETWORK.md) |
+| **[`runner.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/runner.go)** | Ray & vLLM Process Orchestrator | `Runner` | [`docs/RUNNER_DOCKER.md`](RUNNER_DOCKER.md) |
+| **[`sys.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/sys.go)** | Metrics Scraper & NVML Telemetry | `SysMonitor`, `VLLMMetrics` | [`docs/TELEMETRY_SYS.md`](TELEMETRY_SYS.md) |
+| **[`tui.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/tui.go)** | Terminal UI & Stats Persistence | `TUI`, `Stats`, `PersistentStats` | [`docs/DASHBOARD_UI.md`](DASHBOARD_UI.md) |
+| **[`web.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/web.go)** | Web Monitoring Dashboard | `embed.FS` | [`docs/DASHBOARD_UI.md`](DASHBOARD_UI.md#web-monitoring-dashboard-webgo-usage-guide) |
 
 ---
 
