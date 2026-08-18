@@ -2,26 +2,26 @@
 package main
 
 import (
-	"fmt"            // 格式化字串與數字輸出
-	"io"             // 基礎流讀取 (io.ReadAll)
-	"net/http"       // HTTP Get 請求 (發送給 vLLM /metrics 端點)
-	"os"             // 作業系統程序 PID 查詢 (os.Getpid)
-	"os/exec"        // 執行 nvidia-smi 外部系統命令
-	"strconv"        // 字串轉浮點數與整數
-	"strings"        // 字串切割與前綴匹配
-	"sync"           // 互斥鎖 (sync.Mutex) 保護併發存取
-	"time"           // 時間計算與定時器 (Ticker)
+	"fmt"      // 格式化字串與數字輸出
+	"io"       // 基礎流讀取 (io.ReadAll)
+	"net/http" // HTTP Get 請求 (發送給 vLLM /metrics 端點)
+	"os"       // 作業系統程序 PID 查詢 (os.Getpid)
+	"os/exec"  // 執行 nvidia-smi 外部系統命令
+	"strconv"  // 字串轉浮點數與整數
+	"strings"  // 字串切割與前綴匹配
+	"sync"     // 互斥鎖 (sync.Mutex) 保護併發存取
+	"time"     // 時間計算與定時器 (Ticker)
 
 	"github.com/shirou/gopsutil/v3/process" // 系統程序資源監控庫 (查詢 CPU 與 RSS 記憶體)
 )
 
 // VLLMMetrics 儲存從 vLLM HTTP /metrics 端點解析與計算後的推論效能快照。
 type VLLMMetrics struct {
-	KVCacheUsage   float64 `json:"kv_cache_usage"`   // GPU 顯示記憶體 KV Cache 當前使用率百分比 (0~100%)
-	ActiveRequests int     `json:"active_requests"`  // 當前處理中與排隊中的請求數量
-	PrefillSpeed   float64 `json:"prefill_speed"`    // Prefill 階段即時吞吐速率 (tokens/sec)
-	GenSpeed       float64 `json:"gen_speed"`        // Generation 階段解碼即時生成速率 (tokens/sec)
-	AvgTTFT        float64 `json:"avg_ttft"`         // 平均首字產生延遲 Time-To-First-Token (秒)
+	KVCacheUsage   float64 `json:"kv_cache_usage"`  // GPU 顯示記憶體 KV Cache 當前使用率百分比 (0~100%)
+	ActiveRequests int     `json:"active_requests"` // 當前處理中與排隊中的請求數量
+	PrefillSpeed   float64 `json:"prefill_speed"`   // Prefill 階段即時吞吐速率 (tokens/sec)
+	GenSpeed       float64 `json:"gen_speed"`       // Generation 階段解碼即時生成速率 (tokens/sec)
+	AvgTTFT        float64 `json:"avg_ttft"`        // 平均首字產生延遲 Time-To-First-Token (秒)
 }
 
 // SysMonitor 系統資源 (CPU/記憶體) 與 GPU/vLLM 指標監控組件。
@@ -69,10 +69,11 @@ func (s *SysMonitor) GetMetrics() VLLMMetrics {
 // 【計算邏輯說明】
 // 1. 解析以 `#` 開頭以外的行，提取 vllm:gpu_cache_usage_perc, vllm:num_requests_running 等 key/value。
 // 2. 增量速率計算：
-//    - dt = 當前時間 - 上次時間 (秒)
-//    - PrefillSpeed = (當前 Prompt Tokens - 上次 Prompt Tokens) / dt
-//    - GenSpeed = (當前 Gen Tokens - 上次 Gen Tokens) / dt
-//    - AvgTTFT = (當前 TTFT Sum - 上次 TTFT Sum) / (當前 TTFT Count - 上次 TTFT Count)
+//   - dt = 當前時間 - 上次時間 (秒)
+//   - PrefillSpeed = (當前 Prompt Tokens - 上次 Prompt Tokens) / dt
+//   - GenSpeed = (當前 Gen Tokens - 上次 Gen Tokens) / dt
+//   - AvgTTFT = (當前 TTFT Sum - 上次 TTFT Sum) / (當前 TTFT Count - 上次 TTFT Count)
+//
 // 3. 將累計 Token 數同步給 tui.go 的 Stats 結構。
 func (s *SysMonitor) metricScraper() {
 	ticker := time.NewTicker(2 * time.Second)
@@ -218,15 +219,15 @@ func (s *SysMonitor) GetGPUModelSummary() []string {
 // GPUTelemetry 儲存透過 nvidia-smi 查詢到的顯卡硬體遙測資料。
 type GPUTelemetry struct {
 	Summary       string  `json:"summary"`        // GPU 型號與數量摘要 (例如 "NVIDIA RTX 4090 x1")
-	GPUTemp        int     `json:"gpu_temp"`       // 多張 GPU 中的最高核心溫度 (℃)
-	GPUUtil        int     `json:"gpu_util"`       // 多張 GPU 中的最高計算單元使用率 (%)
-	MemUtil        int     `json:"mem_util"`       // 多張 GPU 中的最高記憶體控制器使用率 (%)
-	VRAMUsed       int     `json:"vram_used"`      // 所有 GPU 已使用顯示記憶體總和 (MB)
-	VRAMTotal      int     `json:"vram_total"`     // 所有 GPU 總顯示記憶體容量 (MB)
-	PowerDraw      float64 `json:"power_draw"`     // 多張 GPU 中的最高即時功耗 (W)
-	PowerLimit     float64 `json:"power_limit"`    // GPU 功耗上限設定值 (W)
-	FanSpeed       int     `json:"fan_speed"`      // 多張 GPU 中的最高風扇轉速百分比 (%)
-	DriverVersion  string  `json:"driver_version"` // NVIDIA 顯示卡驅動程式版本號
+	GPUTemp       int     `json:"gpu_temp"`       // 多張 GPU 中的最高核心溫度 (℃)
+	GPUUtil       int     `json:"gpu_util"`       // 多張 GPU 中的最高計算單元使用率 (%)
+	MemUtil       int     `json:"mem_util"`       // 多張 GPU 中的最高記憶體控制器使用率 (%)
+	VRAMUsed      int     `json:"vram_used"`      // 所有 GPU 已使用顯示記憶體總和 (MB)
+	VRAMTotal     int     `json:"vram_total"`     // 所有 GPU 總顯示記憶體容量 (MB)
+	PowerDraw     float64 `json:"power_draw"`     // 多張 GPU 中的最高即時功耗 (W)
+	PowerLimit    float64 `json:"power_limit"`    // GPU 功耗上限設定值 (W)
+	FanSpeed      int     `json:"fan_speed"`      // 多張 GPU 中的最高風扇轉速百分比 (%)
+	DriverVersion string  `json:"driver_version"` // NVIDIA 顯示卡驅動程式版本號
 }
 
 // GetGPUTelemetry 呼叫外部命令 `nvidia-smi` 查詢本機 GPU 狀態並解析 CSV。
@@ -309,14 +310,14 @@ func (s *SysMonitor) GetGPUTelemetry() GPUTelemetry {
 
 	return GPUTelemetry{
 		Summary:       summaryStr,
-		GPUTemp:        maxTemp,
-		GPUUtil:        maxGPUUtil,
-		MemUtil:        maxMemUtil,
-		VRAMUsed:       usedVRAM,
-		VRAMTotal:      totalVRAM,
-		PowerDraw:      maxPower,
-		PowerLimit:     maxPowerLimit,
-		FanSpeed:       maxFan,
-		DriverVersion:  driverVer,
+		GPUTemp:       maxTemp,
+		GPUUtil:       maxGPUUtil,
+		MemUtil:       maxMemUtil,
+		VRAMUsed:      usedVRAM,
+		VRAMTotal:     totalVRAM,
+		PowerDraw:     maxPower,
+		PowerLimit:    maxPowerLimit,
+		FanSpeed:      maxFan,
+		DriverVersion: driverVer,
 	}
 }

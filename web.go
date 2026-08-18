@@ -16,9 +16,10 @@ import (
 	"time"          // 備份檔名時間戳記格式化 (Format)
 )
 
-//go:embed web/*
 // webFS 利用 Go 特殊編譯標籤將整個 web/ 目錄下的 HTML/CSS/JavaScript 靜態資源打入二進位執行檔中。
 // 部署時無需隨附外部網頁資料夾，達成單一可執行檔運行的目標。
+//
+//go:embed web/*
 var webFS embed.FS
 
 // StartClientWebDashboard 啟動提供給管理者檢視的 Web UI HTTP 監控服務。

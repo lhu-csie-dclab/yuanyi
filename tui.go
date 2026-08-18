@@ -89,8 +89,8 @@ type PeerRecord struct {
 
 // TUI 終端文字介面主控結構體。
 type TUI struct {
-	app   *App    // 指向根容器 App 的指標
-	stats *Stats  // 累計統計物件
+	app   *App   // 指向根容器 App 的指標
+	stats *Stats // 累計統計物件
 
 	logMu      sync.Mutex // 保護 logLines 的互斥鎖
 	logLines   []string   // 系統通用日誌切片
@@ -372,9 +372,10 @@ func (t *TUI) buildPeersText() string {
 // 3. 建立 4 個分頁：Dashboard (統計與鄰居), System Logs, vLLM Console, Docker Logs。
 // 4. 配置頂端 Tab Bar 頁籤狀態列。
 // 5. 綁定按鍵監聽 (SetInputCapture)：
-//    - Q/q: 保存統計並退出程式。
-//    - A/a: 切換日誌 AutoScroll 自動滾動狀態。
-//    - 1-4 / Tab / Shift+Tab: 切換檢視分頁。
+//   - Q/q: 保存統計並退出程式。
+//   - A/a: 切換日誌 AutoScroll 自動滾動狀態。
+//   - 1-4 / Tab / Shift+Tab: 切換檢視分頁。
+//
 // 6. 背景開啟 1 秒 Ticker 定期更新 Dashboard 統計與鄰居畫面。
 // 7. 呼叫 SetRoot 並 Run() 阻塞進入事件迴圈。
 func (t *TUI) Run() error {
@@ -494,4 +495,3 @@ func (t *TUI) Run() error {
 	}
 	return nil
 }
-

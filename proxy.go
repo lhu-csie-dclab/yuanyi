@@ -2,19 +2,19 @@
 package main
 
 import (
-	"bufio"          // 帶緩衝區的讀取器 (用於 HTTP 協定串流讀寫)
-	"bytes"          // 位元組緩衝區操作
-	"context"        // 上下文機制，用於超時與取消控制
-	"encoding/binary"// 大小端序位元組轉碼 (BigEndian uint16)
-	"encoding/json"  // JSON 序列化與反序列化
-	"fmt"            // 格式化字串與錯誤包裝
-	"io"             // 基礎 IO 流複製與讀取
-	"net/http"       // HTTP 協定客戶端與伺服器端實作
-	"strconv"        // 字串轉數字
-	"strings"        // 字串切割與搜尋
-	"sync"           // 讀寫鎖 (RWMutex)
-	"sync/atomic"    // 原子操作 (atomic.Bool)
-	"time"           // 時間與定時器 (Ticker)
+	"bufio"           // 帶緩衝區的讀取器 (用於 HTTP 協定串流讀寫)
+	"bytes"           // 位元組緩衝區操作
+	"context"         // 上下文機制，用於超時與取消控制
+	"encoding/binary" // 大小端序位元組轉碼 (BigEndian uint16)
+	"encoding/json"   // JSON 序列化與反序列化
+	"fmt"             // 格式化字串與錯誤包裝
+	"io"              // 基礎 IO 流複製與讀取
+	"net/http"        // HTTP 協定客戶端與伺服器端實作
+	"strconv"         // 字串轉數字
+	"strings"         // 字串切割與搜尋
+	"sync"            // 讀寫鎖 (RWMutex)
+	"sync/atomic"     // 原子操作 (atomic.Bool)
+	"time"            // 時間與定時器 (Ticker)
 
 	"github.com/libp2p/go-libp2p/core/host" // libp2p 通訊主機介面
 	"github.com/libp2p/go-libp2p/core/peer" // libp2p PeerID 與節點結構
@@ -390,8 +390,6 @@ func (d *LocalDispatcher) streamToLocalVLLM(ctx context.Context, path string, re
 	return io.ReadAll(resp.Body)
 }
 
-
-
 // recordMetrics 解析推論回應 JSON 並將 Token 使用量更新至 TUI 統計中。
 // 【邏輯說明】
 // 解析 vLLM 標準回應結構中的 `usage.prompt_tokens` 與 `usage.completion_tokens`，
@@ -432,14 +430,15 @@ func (d *LocalDispatcher) recordMetrics(respBytes []byte, err error, isPrefill b
 // 2. 讀取並反序列化 Request Body JSON，讀取 "model" 名稱。
 // 3. 讀取目前的拓樸狀態 d.topology。
 // 4. 【Mode 1: PD-Together 混和模式】(top.IsPDTogether == true 或無專用節點)
-//    - 取得線上所有的已知 PeerID 列表。
-//    - 進行 Round-Robin 輪詢選取 targetPeerID。
-//    - 若選中本機則呼叫 streamToLocalVLLM，選中遠端則呼叫 streamToPeer。
-//    - 若遠端連線失敗，自動降級發送給本機 (Local Fallback) 作為備援。
+//   - 取得線上所有的已知 PeerID 列表。
+//   - 進行 Round-Robin 輪詢選取 targetPeerID。
+//   - 若選中本機則呼叫 streamToLocalVLLM，選中遠端則呼叫 streamToPeer。
+//   - 若遠端連線失敗，自動降級發送給本機 (Local Fallback) 作為備援。
+//
 // 5. 【Mode 2: P/D 獨立分離模式】(top.IsPDTogether == false)
-//    - 輪詢選出專用 Prefill 節點 (prefillBackend) 與 Decode 節點 (decodeBackend)。
-//    - 階段 1 (Prefill)：構造帶有 `max_tokens: 1`, `mooncake_peer`, `mooncake_engine` 的請求發送至 Prefill 節點，完成 Prompt KV Cache 預計算與傳送。
-//    - 階段 2 (Decode)：發送帶有預計算 KV 參照的解碼請求給 Decode 節點，產出最終結果回應給客戶端。
+//   - 輪詢選出專用 Prefill 節點 (prefillBackend) 與 Decode 節點 (decodeBackend)。
+//   - 階段 1 (Prefill)：構造帶有 `max_tokens: 1`, `mooncake_peer`, `mooncake_engine` 的請求發送至 Prefill 節點，完成 Prompt KV Cache 預計算與傳送。
+//   - 階段 2 (Decode)：發送帶有預計算 KV 參照的解碼請求給 Decode 節點，產出最終結果回應給客戶端。
 func (d *LocalDispatcher) handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 	// 步驟 1: 設定跨域 CORS Header
 	w.Header().Set("Access-Control-Allow-Origin", "*")

@@ -2,14 +2,14 @@
 package main
 
 import (
-	"bufio"          // 帶緩衝區的掃描器 (bufio.Scanner 逐行讀取 Docker/vLLM 輸出)
-	"context"        // 上下文機制 (用於傳遞取消訊號與 Process 超時控制)
-	"fmt"            // 格式化字串與控制台訊息輸出
-	"os"             // 作業系統檔案狀態查詢 (os.Stat)
-	"os/exec"        // 外部子程序呼叫介面 (等同於 C 的 system/exec 或 Python 的 subprocess)
-	"path/filepath"  // 路徑轉換 (filepath.Abs 轉換為絕對路徑)
-	"strings"        // 字串去除空白與前綴處理
-	"time"           // 時間延遲 (time.Sleep / time.After)
+	"bufio"         // 帶緩衝區的掃描器 (bufio.Scanner 逐行讀取 Docker/vLLM 輸出)
+	"context"       // 上下文機制 (用於傳遞取消訊號與 Process 超時控制)
+	"fmt"           // 格式化字串與控制台訊息輸出
+	"os"            // 作業系統檔案狀態查詢 (os.Stat)
+	"os/exec"       // 外部子程序呼叫介面 (等同於 C 的 system/exec 或 Python 的 subprocess)
+	"path/filepath" // 路徑轉換 (filepath.Abs 轉換為絕對路徑)
+	"strings"       // 字串去除空白與前綴處理
+	"time"          // 時間延遲 (time.Sleep / time.After)
 )
 
 // Runner 負責管理 Ray 叢集與 vLLM 程序/容器的完整生命週期。
@@ -68,18 +68,20 @@ func (r *Runner) Stop() {
 // 2. 檔案存在性預檢：利用 os.Stat 檢查 3 個必要檔案/目錄是否存在，若缺件則輸出錯誤至 TUI 並直接 return。
 // 3. 清除舊容器：呼叫 `docker rm -f <containerName>` 確保無同名舊容器運行。
 // 4. 啟動 Ray 背景容器：
-//    - 使用 `docker run -d` 背景啟動包含 GPU/IPC/SHM 設定的 Ray Head 節點。
-//    - 掛載 config.json, 模型目錄, mooncake.json 至容器內。
-//    - 設定 NCCL_SOCKET_IFNAME 與 GLOO_SOCKET_IFNAME 網卡環境變數。
+//   - 使用 `docker run -d` 背景啟動包含 GPU/IPC/SHM 設定的 Ray Head 節點。
+//   - 掛載 config.json, 模型目錄, mooncake.json 至容器內。
+//   - 設定 NCCL_SOCKET_IFNAME 與 GLOO_SOCKET_IFNAME 網卡環境變數。
+//
 // 5. 監控 Docker 容器日誌：開啟 Goroutine 執行 `docker logs -f` 並將輸出即時傳給 TUI。
 // 6. 等待容器就緒：使用 select 阻塞 5 秒確保 Ray Head 節點初始化。
 // 7. 構造 vLLM 啟動 Shell 命令 (vllmCmdStr)：
-//    - 匯出 PLACEMENT_GROUP_BUNDLE_STRATEGY, VLLM_USE_V1, ATTENTION_BACKEND, MOONCAKE_CONFIG_PATH 等環境變數。
-//    - 構造 `/opt/dynamo/venv/bin/vllm serve` 命令列，帶入 GPU 記憶體使用率、TP 卡數、MooncakeConnector 角色等參數。
+//   - 匯出 PLACEMENT_GROUP_BUNDLE_STRATEGY, VLLM_USE_V1, ATTENTION_BACKEND, MOONCAKE_CONFIG_PATH 等環境變數。
+//   - 構造 `/opt/dynamo/venv/bin/vllm serve` 命令列，帶入 GPU 記憶體使用率、TP 卡數、MooncakeConnector 角色等參數。
+//
 // 8. 透過 `docker exec` 執行 vLLM 程序：
-//    - 綁定 StdoutPipe 與 StderrPipe。
-//    - 開啟兩個 Goroutines 分別即時掃描 標準輸出 (AddVLLMLog) 與 標準錯誤輸出 (紅字記錄)。
-//    - 呼叫 execCmd.Wait() 阻塞監控程序生命週期。
+//   - 綁定 StdoutPipe 與 StderrPipe。
+//   - 開啟兩個 Goroutines 分別即時掃描 標準輸出 (AddVLLMLog) 與 標準錯誤輸出 (紅字記錄)。
+//   - 呼叫 execCmd.Wait() 阻塞監控程序生命週期。
 func (r *Runner) startVLLMContainer(ctx context.Context) {
 	cfg := r.app.Config
 	containerName := cfg.Docker.ContainerName
@@ -344,4 +346,3 @@ func (r *Runner) startVLLMDirectly(ctx context.Context) {
 		}
 	}()
 }
-
