@@ -200,6 +200,18 @@ Main settings are configured in `config.json`:
 
 ---
 
+## 🙏 Acknowledgements & Credits
+
+Mooncake 2.0 Client Agent is built upon and integrates with the following outstanding open-source projects and platforms:
+
+- **[vLLM](https://github.com/vllm-project/vllm)** - A high-throughput and memory-efficient inference and serving engine for LLMs.
+- **[Mooncake](https://github.com/kvcache-ai/Mooncake)** - KVCache-centric Disaggregated Architecture for LLM Serving.
+- **[go-libp2p](https://github.com/libp2p/go-libp2p)** - Modular P2P networking library powering the decentralized mesh network.
+- **[Ray](https://github.com/ray-project/ray)** - Unified framework for scaling AI and Python applications.
+- **[aiperf](https://github.com/ai-dynamo/aiperf)** (`nvcr.io/nvidia/ai-dynamo/aiperf`) - Generative AI benchmark suite for load testing LLM inference services.
+
+---
+
 ## 📜 License
 
 Distributed under the **Apache License 2.0**. See [`LICENSE`](LICENSE) for more information.
