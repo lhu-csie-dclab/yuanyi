@@ -111,39 +111,106 @@ flowchart TB
 
 ---
 
-## 🔌 Network Ports
+## 🔌 Network Ports Allocation & Reference Matrix
 
-| Port | Protocol | Description |
-| :--- | :--- | :--- |
-| **`50006`** | HTTP | OpenAI-Compatible API Gateway (`/v1/chat/completions`, `/v1/models`) |
-| **`50007`** | HTTP | Web Monitoring Dashboard |
-| **`8100`** | HTTP | Local vLLM Inference Engine Endpoint |
-| **`8998`** | TCP/HTTP | Mooncake KV Cache Transfer Engine Bootstrap Port |
-| **`50004`** | TCP/libp2p | Central Server P2P Bootstrap & NAT Relay Port |
+Available port mapping referenced across the system (`config.json`, `.env`, Python Ray, and Docker container):
+
+| Port | Protocol | Layer / Service | Source / Reference | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| **`50006`** | HTTP | OpenAI API Gateway | `config.json` (`proxy_port`) | Client API entrypoint (`/v1/chat/completions`, `/v1/models`) |
+| **`50007`** | HTTP | Web UI Dashboard | `config.json` / `.env` (`CLIENT_WEB_PORT`) | Visual monitoring web console and stats API |
+| **`8100`** | HTTP | vLLM Engine | `config.json` (`vllm.port`) | Local GPU vLLM inference server endpoint |
+| **`8998`** | TCP/HTTP | Mooncake Engine | `config.json` (`mooncake_bootstrap_port`) | Mooncake KV Cache transfer control & negotiation port |
+| **`6389`** | TCP | Python Ray Cluster | Ray Head (`--port`) | Ray distributed execution head node port |
+| **`8275`** | HTTP | Python Ray Dashboard | Ray Head (`--dashboard-port`) | Ray cluster management dashboard |
+| **`50004`** | TCP/libp2p | Central Server | `config.json` (`p2p.server_address`) | Central bootstrap tracker & NAT relay multiaddress port |
 
 ---
 
-## 🚀 Quick Start
+## 🛠️ Prerequisites & Installation Guide
 
-### Prerequisites
-- [Docker](https://docs.docker.com/get-docker/) & [Docker Compose](https://docs.docker.com/compose/)
-- NVIDIA GPU with [Nvidia Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed
-- Local LLM Model directory (e.g. `Qwen3-4B-AWQ` or HuggingFace format)
-
-### 1. Environment Setup
-
-Clone the repository and copy the environment template:
+### 1. Git Installation & Repository Cloning
+Install `git` on your system and clone the repository:
 
 ```bash
-git clone https://github.com/your-org/mooncake2.0-client.git
-cd mooncake2.0-client
+# Ubuntu / Debian
+sudo apt-get update && sudo apt-get install -y git git-lfs
 
+# Clone repository
+git clone https://github.com/lhu-csie-dclab/yuanyi.git
+cd yuanyi
+```
+
+### 2. Go Environment & Local Compilation
+This project requires **Go version 1.26.0 or higher** for native compilation and agent development:
+
+```bash
+# Verify Go version (requires 1.26.0+)
+go version
+
+# Build local executable binary
+go build -v .
+```
+
+### 3. Docker Installation on Ubuntu
+Building the multi-stage container (`Dockerfile`) requires Docker Engine. Follow the official [Docker Engine Installation on Ubuntu](https://docs.docker.com/engine/install/ubuntu/) guide:
+
+```bash
+# Uninstall old versions
+sudo apt-get remove docker docker-engine docker.io containerd runc
+
+# Set up Docker repository
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+echo \
+  "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker Engine & Docker Compose
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Verify Docker installation
+docker --version
+```
+
+### 4. NVIDIA GPU Container Toolkit
+Ensure the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) is installed so Docker containers can access local GPU accelerators.
+
+### 5. Download Demonstration Model (`Qwen3-4B-AWQ`)
+The recommended demonstration model is **[Qwen/Qwen3-4B-AWQ](https://huggingface.co/Qwen/Qwen3-4B-AWQ)** from Hugging Face:
+
+```bash
+# Install Git LFS
+git lfs install
+
+# Download Qwen3-4B-AWQ model to local directory
+mkdir -p /home/user/models
+cd /home/user/models
+git clone https://huggingface.co/Qwen/Qwen3-4B-AWQ
+```
+
+---
+
+## 🚀 Quick Start & Deployment
+
+### 1. Environment Configuration
+
+Copy the environment template file:
+
+```bash
 cp .env.example .env
 ```
 
-Edit `.env` to set your local host model path:
+Configure `.env` to point `ABS_MODEL_PATH` to your local `Qwen3-4B-AWQ` model path:
 
 ```env
+# Absolute path to local HuggingFace / AWQ model weights
 ABS_MODEL_PATH=/home/user/models/Qwen3-4B-AWQ
 IFACE=eth0
 CLIENT_WEB_PORT=50007
@@ -151,7 +218,7 @@ CLIENT_WEB_PORT=50007
 
 ### 2. Build and Launch Container
 
-Start the All-in-One container via Docker Compose:
+Build the Dockerfile and start the All-in-One service via Docker Compose:
 
 ```bash
 docker compose up -d --build
@@ -159,22 +226,22 @@ docker compose up -d --build
 
 ### 3. Verify System Health
 
-Check the API Gateway health status:
+Check the API Gateway health status (`50006`):
 
 ```bash
 curl http://localhost:50006/health
 # Output: OK
 ```
 
-List available models:
+Query supported models:
 
 ```bash
 curl http://localhost:50006/v1/models
 ```
 
-### 4. Execute Inference
+### 4. Execute Chat Completion
 
-Send an OpenAI-compatible chat completion request:
+Send an OpenAI-compatible request using `Qwen3-4B-AWQ`:
 
 ```bash
 curl http://localhost:50006/v1/chat/completions \
@@ -190,12 +257,12 @@ curl http://localhost:50006/v1/chat/completions \
 
 ## ⚙️ Configuration Reference
 
-Main settings are configured in `config.json`:
+Default settings in `config.json`:
 
 ```json
 {
-  "proxy_port": 50006,
   "web_port": 50007,
+  "proxy_port": 50006,
   "vllm": {
     "port": 8100,
     "model_name": "Qwen3-4B-AWQ",
