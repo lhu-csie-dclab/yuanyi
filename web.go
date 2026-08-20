@@ -73,8 +73,9 @@ func StartClientWebDashboard(app *App) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"local_node_id": localID,
-			"server_host":   serverHost,
+			"local_node_id":    localID,
+			"server_host":      serverHost,
+			"hub_mode_enabled": app.Config.ServerMode.Enabled,
 		})
 	})
 
@@ -100,7 +101,7 @@ func StartClientWebDashboard(app *App) {
 		if localID != "" {
 			cctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 			defer cancel()
-			reqURL := fmt.Sprintf("http://%s:50005/api/leaderboard", serverHost)
+			reqURL := fmt.Sprintf("http://%s:50007/hub/api/leaderboard", serverHost) // assumes the bootstrap node runs the default web_port with hub mode enabled
 			req, err := http.NewRequestWithContext(cctx, "GET", reqURL, nil)
 			if err == nil {
 				resp, err := http.DefaultClient.Do(req)
@@ -295,7 +296,13 @@ func StartClientWebDashboard(app *App) {
 		w.Write([]byte(`{"status":"ok", "message": "Config restored successfully."}`))
 	})
 
-	// 步驟 10: 讀取監聽埠並啟動背景 HTTP 伺服器
+	// 步驟 10: 若本機開啟 server_mode，將 Hub 儀表板掛載於同一個 mux 的 /hub/ 路徑下，
+	// 不再另外監聽獨立埠號。
+	if app.Config.ServerMode.Enabled && app.DB != nil {
+		RegisterHubRoutes(mux, app) // 至 server_web.go 掛載 Hub 儀表板路由
+	}
+
+	// 步驟 11: 讀取監聽埠並啟動背景 HTTP 伺服器
 	port := app.Config.WebPort
 	if port <= 0 {
 		port = 50007 // 預設 50007 埠

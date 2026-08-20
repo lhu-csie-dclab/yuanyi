@@ -61,11 +61,12 @@ type ServerModeClusterConfig struct {
 // ServerModeConfig controls whether this client also acts as a hub node (the merged
 // equivalent of the standalone Central Server): maintaining the shared peers/leaderboard
 // database, relaying traffic, and serving cluster topology. Disabled by default, so a
-// plain client's behavior is unaffected.
+// plain client's behavior is unaffected. The hub dashboard itself has no port of its own --
+// it is mounted at /hub/ on the client's own web_port (see RegisterHubRoutes in
+// server_web.go).
 type ServerModeConfig struct {
 	Enabled          bool                    `json:"enabled"`
 	P2PPort          int                     `json:"p2p_port"`
-	WebPort          int                     `json:"web_port"`
 	ProxyPort        int                     `json:"proxy_port"`
 	DatabasePath     string                  `json:"database_path"`
 	MaxFailCount     int                     `json:"max_fail_count"`
@@ -121,7 +122,6 @@ const defaultClientConfigStr = `{
   "server_mode": {
     "enabled": false,
     "p2p_port": 50004,
-    "web_port": 50005,
     "proxy_port": 50008,
     "database_path": "./peers.db",
     "max_fail_count": 3,
@@ -235,11 +235,6 @@ func applyServerModeDefaults(cfg *ClientConfig) {
 	}
 
 	used := map[int]bool{cfg.WebPort: true, cfg.ProxyPort: true, cfg.VLLM.Port: true, cfg.VLLM.MooncakeBootstrapPort: true}
-	if cfg.ServerMode.WebPort <= 0 || used[cfg.ServerMode.WebPort] {
-		cfg.ServerMode.WebPort = 50005
-	}
-	used[cfg.ServerMode.WebPort] = true
-
 	if cfg.ServerMode.ProxyPort <= 0 || used[cfg.ServerMode.ProxyPort] {
 		cfg.ServerMode.ProxyPort = 50008
 	}

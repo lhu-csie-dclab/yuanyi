@@ -39,9 +39,9 @@ main.go
         │     └── StartLocalDispatcher() [proxy.go]
         ├── Runner.Start()               [runner.go]
         ├── StartClientWebDashboard()    [web.go]
+        │     └── (if server_mode.enabled) RegisterHubRoutes()  [server_web.go, mounted at /hub/]
         ├── (if server_mode.enabled)
         │     ├── RankManager.Start()          [server_rank.go]
-        │     ├── StartServerWebDashboard()    [server_web.go]
         │     └── StartServerDispatch()        [server_proxy.go]
         └── TUI.Run()                    [tui.go]
 ```

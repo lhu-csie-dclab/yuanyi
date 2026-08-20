@@ -74,7 +74,7 @@ flowchart TB
     end
     
     subgraph Swarm["Mooncake 2.0 P2P Swarm 叢集"]
-        HubNode["Hub 節點群 (50004/50005/50008)\n- 任何開啟 server_mode.enabled 的節點\n- 拓撲同步、NAT 中繼、排行榜"]
+        HubNode["Hub 節點群 (50004/50007/hub、50008)\n- 任何開啟 server_mode.enabled 的節點\n- 拓撲同步、NAT 中繼、排行榜"]
         RemotePeer["遠端 P2P Peer 節點"]
     end
     
@@ -134,14 +134,13 @@ flowchart TB
 | Port 埠號 | 協定 | 層級 / 服務 | 設定檔來源 | 說明 |
 | :--- | :--- | :--- | :--- | :--- |
 | **`50006`** | HTTP | OpenAI API Gateway | `config.json` (`proxy_port`) | Client API 進入點 (`/v1/chat/completions`, `/v1/models`) |
-| **`50007`** | HTTP | Web UI 儀表板 | `config.json` / `.env` (`CLIENT_WEB_PORT`) | 視覺化監控 Web 主控台與 Stats API |
+| **`50007`** | HTTP | Web UI 儀表板 | `config.json` / `.env` (`CLIENT_WEB_PORT`) | 視覺化監控 Web 主控台與 Stats API；開啟 `server_mode.enabled` 時也在 `/hub/` 提供 Hub 儀表板 |
 | **`8100`** | HTTP | vLLM Engine | `config.json` (`vllm.port`) | 本機 GPU vLLM 推論伺服器端點 |
 | **`8998`** | TCP/HTTP | Mooncake Engine | `config.json` (`mooncake_bootstrap_port`) | Mooncake KV Cache 傳輸控制與協商埠 |
 | **`6389`** | TCP | Python Ray Cluster | Ray Head (`--port`) | Ray 分散式執行 Head 節點埠 |
 | **`8275`** | HTTP | Python Ray Dashboard | Ray Head (`--dashboard-port`) | Ray 叢集 Web 管理儀表板 |
 | **`50004`** | TCP/libp2p | Bootstrap 種子節點 | `config.json` (`p2p.server_address(es)`) | Bootstrap Tracker 與 NAT 中繼 multiaddress 埠（本節點兼任 Hub 時同 `server_mode.p2p_port`） |
-| **`50005`** | HTTP | Hub 儀表板（選用） | `config.json` (`server_mode.web_port`) | Hub 專屬排行榜/事件/拓撲儀表板，僅 `server_mode.enabled` 時啟用 |
-| **`50008`** | HTTP | Hub 派發器（選用） | `config.json` (`server_mode.proxy_port`) | Hub 中央 P/D 派發與 `/api/cluster_topology`，僅 `server_mode.enabled` 時啟用 |
+| **`50008`** | HTTP | Hub 派發器（選用） | `config.json` (`server_mode.proxy_port`) | Hub 中央 P/D 派發，僅 `server_mode.enabled` 時啟用（拓樸/排行榜改在上面的 `50007/hub/`） |
 
 ---
 

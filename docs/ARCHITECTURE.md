@@ -206,8 +206,10 @@ This document provides an exhaustive, multi-layered architectural specification 
 ### 8.4 `server_web.go` - Hub Dashboard
 - **Module Name**: Hub Dashboard HTTP Server
 - **System Role**:
-  Serves a separate dashboard (leaderboard, peer list, audit events) on `server_mode.web_port`,
-  embedding `web/hub/` via `embed.FS`.
+  `RegisterHubRoutes` mounts the leaderboard/peer-list/audit-event dashboard at `/hub/` on the
+  client's own `web.go` HTTP server (`web_port`) rather than listening on a separate port,
+  embedding `web/hub/` via `embed.FS`. `web.go`'s `/api/node_info` reports
+  `hub_mode_enabled`, which the client dashboard uses to show a "Hub Dashboard" link.
 
 ### 8.5 Multi-Hub Consistency Model
 Unlike the standalone Central Server this replaces, hub mode has no single fixed instance: any

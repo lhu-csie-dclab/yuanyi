@@ -6,16 +6,11 @@ package main
 import (
 	"embed"
 	"encoding/json"
-	"fmt"
-	"io"
 	"io/fs"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // serverWebFS embeds the hub-only static dashboard assets.
@@ -23,19 +18,20 @@ import (
 //go:embed web/hub
 var serverWebFS embed.FS
 
-// StartServerWebDashboard starts the hub dashboard on server_mode.web_port (default 50005).
-// All data is served from this node's local, gossip-replicated peers.db, so any hub can
-// answer requests independently of the others.
-func StartServerWebDashboard(app *App) {
-	mux := http.NewServeMux()
-
+// RegisterHubRoutes mounts the hub dashboard (leaderboard, peer list, audit events, cluster
+// topology) onto the client's own web server, under the /hub/ prefix, instead of listening on
+// a separate port. Config editing is intentionally not duplicated here: the client dashboard's
+// existing /api/config* endpoints already read and write the same config.json file, so the hub
+// UI links out to those instead of re-implementing them. Called from StartClientWebDashboard
+// only when server_mode.enabled is true.
+func RegisterHubRoutes(mux *http.ServeMux, app *App) {
 	if subFS, err := fs.Sub(serverWebFS, "web/hub"); err == nil {
-		mux.Handle("/", http.FileServer(http.FS(subFS)))
+		mux.Handle("/hub/", http.StripPrefix("/hub", http.FileServer(http.FS(subFS))))
 	} else {
 		logInfo("[ServerWeb] Failed to mount embedded web folder: %v", err)
 	}
 
-	mux.HandleFunc("/api/peers", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/hub/api/peers", func(w http.ResponseWriter, r *http.Request) {
 		peers, err := app.DB.GetAllPeers()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -55,7 +51,7 @@ func StartServerWebDashboard(app *App) {
 		json.NewEncoder(w).Encode(peers)
 	})
 
-	mux.HandleFunc("/api/events", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/hub/api/events", func(w http.ResponseWriter, r *http.Request) {
 		events, err := app.DB.GetRecentEvents(100)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -65,12 +61,12 @@ func StartServerWebDashboard(app *App) {
 		json.NewEncoder(w).Encode(events)
 	})
 
-	mux.HandleFunc("/api/cluster_topology", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/hub/api/cluster_topology", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(app.ServerProxy.GetTopologyInfo())
 	})
 
-	mux.HandleFunc("/api/leaderboard", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/hub/api/leaderboard", func(w http.ResponseWriter, r *http.Request) {
 		board, err := app.DB.GetLeaderboard()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -80,13 +76,13 @@ func StartServerWebDashboard(app *App) {
 		json.NewEncoder(w).Encode(board)
 	})
 
-	mux.HandleFunc("/api/stats", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/hub/api/stats", func(w http.ResponseWriter, r *http.Request) {
 		peers, _ := app.DB.GetAllPeers()
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(computeClusterStats(peers))
 	})
 
-	mux.HandleFunc("/api/debug/force_rank", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/hub/api/debug/force_rank", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -98,7 +94,7 @@ func StartServerWebDashboard(app *App) {
 		w.Write([]byte(`{"status":"ok","message":"Forced rank update and proxy backend reload."}`))
 	})
 
-	mux.HandleFunc("/api/debug/clear_offline", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/hub/api/debug/clear_offline", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -107,18 +103,7 @@ func StartServerWebDashboard(app *App) {
 		w.Write([]byte(`{"status":"ok","message":"Offline peers cleared."}`))
 	})
 
-	mux.HandleFunc("/api/config", handleHubConfigGetSet)
-	mux.HandleFunc("/api/config/backups", handleHubConfigBackups)
-	mux.HandleFunc("/api/config/restore", handleHubConfigRestore)
-
-	port := app.Config.ServerMode.WebPort
-	if port <= 0 {
-		port = 50005
-	}
-	logInfo("[ServerWeb] Hub dashboard listening on :%d", port)
-	if err := http.ListenAndServe(fmt.Sprintf(":%d", port), mux); err != nil {
-		logError("[ServerWeb] Failed to start: %v", err)
-	}
+	logInfo("[ServerWeb] Hub dashboard mounted at /hub/ on the client web port")
 }
 
 // computeClusterStats aggregates per-peer GPUInfo snapshots into cluster-wide totals.
@@ -199,93 +184,4 @@ func countGPUsInSummary(summary string) int {
 		return 0
 	}
 	return num
-}
-
-// handleHubConfigGetSet serves and updates the shared config.json, timestamp-backing up
-// the previous version on every write. It shares the same file as the client dashboard.
-func handleHubConfigGetSet(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		data, err := os.ReadFile("config.json")
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
-		return
-	}
-
-	if r.Method == http.MethodPost {
-		os.MkdirAll("backups", 0755)
-		if currentData, err := os.ReadFile("config.json"); err == nil {
-			backupName := fmt.Sprintf("backups/config_%s.json", time.Now().Format("20060102_150405"))
-			os.WriteFile(backupName, currentData, 0644)
-		}
-
-		newData, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if err := os.WriteFile("config.json", newData, 0644); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok","message":"Config saved and backed up successfully."}`))
-		return
-	}
-
-	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-}
-
-// handleHubConfigBackups lists available config.json backups, newest first.
-func handleHubConfigBackups(w http.ResponseWriter, r *http.Request) {
-	files, err := os.ReadDir("backups")
-	var backups []string
-	if err == nil {
-		for _, f := range files {
-			if !f.IsDir() && strings.HasPrefix(f.Name(), "config_") && strings.HasSuffix(f.Name(), ".json") {
-				backups = append(backups, f.Name())
-			}
-		}
-	}
-	sort.Slice(backups, func(i, j int) bool { return backups[i] > backups[j] })
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(backups)
-}
-
-// handleHubConfigRestore restores a named config.json backup, safety-backing up the
-// current file first.
-func handleHubConfigRestore(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	var req struct {
-		Filename string `json:"filename"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	backupData, err := os.ReadFile(filepath.Join("backups", req.Filename))
-	if err != nil {
-		http.Error(w, "Backup not found", http.StatusNotFound)
-		return
-	}
-
-	if currentData, err := os.ReadFile("config.json"); err == nil {
-		os.MkdirAll("backups", 0755)
-		newBackup := fmt.Sprintf("backups/config_%s_before_restore.json", time.Now().Format("20060102_150405"))
-		os.WriteFile(newBackup, currentData, 0644)
-	}
-
-	if err := os.WriteFile("config.json", backupData, 0644); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"ok","message":"Config restored successfully."}`))
 }

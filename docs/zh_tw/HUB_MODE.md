@@ -28,8 +28,9 @@ Central Server 程序才能做的事：
 - 基於 GPU 硬體的貢獻度算分，以及每 10 秒刷新一次的 `top.json` 排行榜。
 - 一個中央 Prefill/Decode 派發器與 `/api/cluster_topology` 端點（只基於這個節點自己觀察到的
   Swarm 視圖），監聽在 `server_mode.proxy_port`。
-- 一個 Hub 專屬的 Web 儀表板（排行榜、Peer 清單、稽核事件、拓撲），監聽在 `server_mode.web_port`，
-  與既有的 client 儀表板（`web_port`）分開。
+- 一個 Hub 專屬的 Web 儀表板（排行榜、Peer 清單、稽核事件、拓撲），掛在 client 自己
+  `web_port` 底下的 `/hub/` 路徑，不再另外佔一個 port。client 儀表板偵測到 Hub 模式開啟後，
+  會自動顯示「Hub Dashboard」連結。
 - Circuit Relay v2 中繼服務，並固定監聽在 `server_mode.p2p_port`——如果這個節點本身公網可達，
   NAT 後方的 Peer 就能透過它連進 Swarm。
 
@@ -78,7 +79,6 @@ Hub 節點也可以設定成空種子清單，這種情況下它就是其他節�
   "server_mode": {
     "enabled": false,
     "p2p_port": 50004,
-    "web_port": 50005,
     "proxy_port": 50008,
     "database_path": "./peers.db",
     "max_fail_count": 3,
@@ -96,16 +96,16 @@ Hub 節點也可以設定成空種子清單，這種情況下它就是其他節�
 | `p2p.server_addresses` | `[]` | Bootstrap/Hub 種子節點清單（建議寫法）。 |
 | `server_mode.enabled` | `false` | 是否為這個節點開啟 Hub 模式。 |
 | `server_mode.p2p_port` | `50004` | 固定 libp2p 監聽埠，供其他節點撥入。 |
-| `server_mode.web_port` | `50005` | Hub 專屬儀表板 HTTP 埠。 |
 | `server_mode.proxy_port` | `50008` | 中央 Prefill/Decode 派發器 HTTP 埠。 |
 | `server_mode.database_path` | `./peers.db` | SQLite 資料庫檔案路徑。 |
 | `server_mode.max_fail_count` | `3` | 連續 Ping 失敗幾次後標記該 Peer 離線。 |
 | `server_mode.check_interval_sec` | `30` | 健康檢查 Ping 的輪詢間隔秒數。 |
 | `server_mode.cluster.prefill_nodes` / `decode_nodes` | `0` / `0` | 專用 P/D 節點數量上限；兩者皆 0 代表 PD-Together 模式。 |
 
-`LoadOrCreateConfig` 會防止 `server_mode.web_port`/`proxy_port`/`p2p_port` 跟這個節點自己的
-`web_port`、`proxy_port`、`vllm.port`、`vllm.mooncake_bootstrap_port` 撞埠，衝突時會重設為上面
-的預設值。
+Hub 儀表板本身沒有自己的 `server_mode.*` 埠——它掛在 client 既有的 `web_port`（預設 `50007`）
+底下的 `/hub/` 路徑。`LoadOrCreateConfig` 會防止 `server_mode.proxy_port`/`p2p_port` 跟這個節點
+自己的 `web_port`、`proxy_port`、`vllm.port`、`vllm.mooncake_bootstrap_port` 撞埠，衝突時會重設
+為上面的預設值。
 
 ## 🚀 開啟 Hub 模式
 

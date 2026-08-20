@@ -28,8 +28,9 @@ Central Server 进程才能做的事：
 - 基于 GPU 硬件的贡献度算分，以及每 10 秒刷新一次的 `top.json` 排行榜。
 - 一个中央 Prefill/Decode 派发器与 `/api/cluster_topology` 端点（仅基于这个节点自己观察到的
   Swarm 视图），监听在 `server_mode.proxy_port`。
-- 一个 Hub 专属的 Web 仪表板（排行榜、Peer 列表、审计事件、拓扑），监听在 `server_mode.web_port`，
-  与既有的 client 仪表板（`web_port`）分开。
+- 一个 Hub 专属的 Web 仪表板（排行榜、Peer 列表、审计事件、拓扑），挂在 client 自己
+  `web_port` 下的 `/hub/` 路径，不再另外占一个端口。client 仪表板检测到 Hub 模式开启后，
+  会自动显示"Hub Dashboard"链接。
 - Circuit Relay v2 中继服务，并固定监听在 `server_mode.p2p_port`——如果这个节点本身公网可达，
   NAT 后方的 Peer 就能通过它连进 Swarm。
 
@@ -78,7 +79,6 @@ Hub 节点也可以配置成空种子列表，这种情况下它就是其他节�
   "server_mode": {
     "enabled": false,
     "p2p_port": 50004,
-    "web_port": 50005,
     "proxy_port": 50008,
     "database_path": "./peers.db",
     "max_fail_count": 3,
@@ -96,16 +96,16 @@ Hub 节点也可以配置成空种子列表，这种情况下它就是其他节�
 | `p2p.server_addresses` | `[]` | Bootstrap/Hub 种子节点列表（推荐写法）。 |
 | `server_mode.enabled` | `false` | 是否为这个节点开启 Hub 模式。 |
 | `server_mode.p2p_port` | `50004` | 固定 libp2p 监听端口，供其他节点拨入。 |
-| `server_mode.web_port` | `50005` | Hub 专属仪表板 HTTP 端口。 |
 | `server_mode.proxy_port` | `50008` | 中央 Prefill/Decode 派发器 HTTP 端口。 |
 | `server_mode.database_path` | `./peers.db` | SQLite 数据库文件路径。 |
 | `server_mode.max_fail_count` | `3` | 连续 Ping 失败几次后标记该 Peer 离线。 |
 | `server_mode.check_interval_sec` | `30` | 健康检查 Ping 的轮询间隔秒数。 |
 | `server_mode.cluster.prefill_nodes` / `decode_nodes` | `0` / `0` | 专用 P/D 节点数量上限；两者皆 0 代表 PD-Together 模式。 |
 
-`LoadOrCreateConfig` 会防止 `server_mode.web_port`/`proxy_port`/`p2p_port` 跟这个节点自己的
-`web_port`、`proxy_port`、`vllm.port`、`vllm.mooncake_bootstrap_port` 冲突，冲突时会重置为上面
-的默认值。
+Hub 仪表板本身没有自己的 `server_mode.*` 端口——它挂在 client 既有的 `web_port`（默认 `50007`）
+下的 `/hub/` 路径。`LoadOrCreateConfig` 会防止 `server_mode.proxy_port`/`p2p_port` 跟这个节点
+自己的 `web_port`、`proxy_port`、`vllm.port`、`vllm.mooncake_bootstrap_port` 冲突，冲突时会重置
+为上面的默认值。
 
 ## 🚀 开启 Hub 模式
 
