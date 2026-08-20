@@ -44,18 +44,45 @@ type VLLMConfig struct {
 
 // P2PConfig holds configuration for libp2p bootstrap nodes.
 type P2PConfig struct {
+	// ServerAddress is a single bootstrap multiaddress, kept for backward compatibility.
 	ServerAddress string `json:"server_address"`
+	// ServerAddresses is the preferred list of bootstrap/hub seed multiaddresses. Any one
+	// reachable seed is enough to join the mesh and discover the rest via the DHT, so this
+	// list is an entry point rather than a runtime single point of failure.
+	ServerAddresses []string `json:"server_addresses,omitempty"`
+}
+
+// ServerModeClusterConfig configures the hub's prefill/decode node allocation.
+type ServerModeClusterConfig struct {
+	PrefillNodes int `json:"prefill_nodes"` // Dedicated prefill node cap; 0 means PD-Together mode.
+	DecodeNodes  int `json:"decode_nodes"`  // Dedicated decode node cap; 0 means PD-Together mode.
+}
+
+// ServerModeConfig controls whether this client also acts as a hub node (the merged
+// equivalent of the standalone Central Server): maintaining the shared peers/leaderboard
+// database, relaying traffic, and serving cluster topology. Disabled by default, so a
+// plain client's behavior is unaffected.
+type ServerModeConfig struct {
+	Enabled          bool                    `json:"enabled"`
+	P2PPort          int                     `json:"p2p_port"`
+	WebPort          int                     `json:"web_port"`
+	ProxyPort        int                     `json:"proxy_port"`
+	DatabasePath     string                  `json:"database_path"`
+	MaxFailCount     int                     `json:"max_fail_count"`
+	CheckIntervalSec int                     `json:"check_interval_sec"`
+	Cluster          ServerModeClusterConfig `json:"cluster"`
 }
 
 // ClientConfig is the top-level configuration structure.
 type ClientConfig struct {
-	Version   string       `json:"version"`
-	WebPort   int          `json:"web_port"`
-	ProxyPort int          `json:"proxy_port"`
-	P2P       P2PConfig    `json:"p2p"`
-	Docker    DockerConfig `json:"docker"`
-	Paths     PathsConfig  `json:"paths"`
-	VLLM      VLLMConfig   `json:"vllm"`
+	Version    string           `json:"version"`
+	WebPort    int              `json:"web_port"`
+	ProxyPort  int              `json:"proxy_port"`
+	P2P        P2PConfig        `json:"p2p"`
+	Docker     DockerConfig     `json:"docker"`
+	Paths      PathsConfig      `json:"paths"`
+	VLLM       VLLMConfig       `json:"vllm"`
+	ServerMode ServerModeConfig `json:"server_mode"`
 }
 
 const defaultClientConfigStr = `{
@@ -63,7 +90,8 @@ const defaultClientConfigStr = `{
   "web_port": 50007,
   "proxy_port": 50006,
   "p2p": {
-    "server_address": "/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh"
+    "server_address": "/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh",
+    "server_addresses": []
   },
   "docker": {
     "container_name": "vllm_node",
@@ -89,6 +117,19 @@ const defaultClientConfigStr = `{
     "mooncake_abort_request_timeout": 15,
     "attention_backend": "FLASH_ATTN",
     "placement_group_bundle_strategy": "SPREAD"
+  },
+  "server_mode": {
+    "enabled": false,
+    "p2p_port": 50004,
+    "web_port": 50005,
+    "proxy_port": 50008,
+    "database_path": "./peers.db",
+    "max_fail_count": 3,
+    "check_interval_sec": 30,
+    "cluster": {
+      "prefill_nodes": 0,
+      "decode_nodes": 0
+    }
   }
 }`
 
@@ -175,5 +216,36 @@ func LoadOrCreateConfig(filename string) (*ClientConfig, error) {
 		cfg.VLLM.MooncakeBootstrapPort = 8998
 	}
 
+	applyServerModeDefaults(&cfg)
+
 	return &cfg, nil
+}
+
+// applyServerModeDefaults fills in hub-mode port and timing defaults, steering clear of
+// ports already claimed by the client's own web/proxy/vLLM/Mooncake endpoints.
+func applyServerModeDefaults(cfg *ClientConfig) {
+	if cfg.ServerMode.MaxFailCount <= 0 {
+		cfg.ServerMode.MaxFailCount = 3
+	}
+	if cfg.ServerMode.CheckIntervalSec <= 0 {
+		cfg.ServerMode.CheckIntervalSec = 30
+	}
+	if cfg.ServerMode.DatabasePath == "" {
+		cfg.ServerMode.DatabasePath = "./peers.db"
+	}
+
+	used := map[int]bool{cfg.WebPort: true, cfg.ProxyPort: true, cfg.VLLM.Port: true, cfg.VLLM.MooncakeBootstrapPort: true}
+	if cfg.ServerMode.WebPort <= 0 || used[cfg.ServerMode.WebPort] {
+		cfg.ServerMode.WebPort = 50005
+	}
+	used[cfg.ServerMode.WebPort] = true
+
+	if cfg.ServerMode.ProxyPort <= 0 || used[cfg.ServerMode.ProxyPort] {
+		cfg.ServerMode.ProxyPort = 50008
+	}
+	used[cfg.ServerMode.ProxyPort] = true
+
+	if cfg.ServerMode.P2PPort <= 0 || used[cfg.ServerMode.P2PPort] {
+		cfg.ServerMode.P2PPort = 50004
+	}
 }

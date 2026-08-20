@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mooncake Server Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --sidebar-w: 260px;
+            --bg: #0b1120;
+            --sidebar-bg: #0f1629;
+            --card-bg: rgba(22, 33, 62, 0.8);
+            --border: rgba(255,255,255,0.07);
+            --text: #e2e8f0;
+            --text-muted: #64748b;
+            --accent: #6366f1;
+            --accent-light: #818cf8;
+            --cyan: #22d3ee;
+            --green: #10b981;
+            --amber: #f59e0b;
+            --rose: #f43f5e;
+            --pink: #ec4899;
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+
+        .sidebar {
+            position: fixed; left: 0; top: 0; bottom: 0; width: var(--sidebar-w);
+            background: var(--sidebar-bg); border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; z-index: 100; overflow-y: auto;
+        }
+        .sidebar-brand { padding: 1.5rem 1.25rem; display: flex; align-items: center; gap: 0.75rem; border-bottom: 1px solid var(--border); }
+        .sidebar-brand .logo { width: 36px; height: 36px; background: linear-gradient(135deg, var(--accent), var(--cyan)); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; font-weight: 700; color: white; }
+        .sidebar-brand span { font-size: 1.1rem; font-weight: 700; }
+        .sidebar-brand small { display: block; font-size: 0.7rem; color: var(--text-muted); font-weight: 400; }
+
+        .sidebar-nav { flex: 1; padding: 1rem 0.75rem; }
+        .nav-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); padding: 1rem 0.75rem 0.5rem; font-weight: 600; }
+        .nav-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.7rem 0.9rem; border-radius: 10px; cursor: pointer; color: var(--text-muted); transition: all 0.2s; margin-bottom: 2px; font-size: 0.88rem; font-weight: 500; }
+        .nav-item:hover { background: rgba(99,102,241,0.08); color: var(--text); }
+        .nav-item.active { background: rgba(99,102,241,0.15); color: var(--accent-light); }
+        .nav-item .icon { font-size: 1.1rem; width: 24px; text-align: center; }
+
+        .main { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; }
+        .topbar { padding: 1.25rem 2rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: rgba(15,22,41,0.9); backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 50; }
+        .topbar h1 { font-size: 1.35rem; font-weight: 700; }
+        .topbar-badge { background: rgba(99,102,241,0.15); color: var(--accent-light); padding: 0.35rem 0.85rem; border-radius: 20px; font-size: 0.78rem; font-weight: 600; }
+
+        .content { padding: 1.75rem 2rem; }
+
+        .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; padding: 1.5rem; margin-bottom: 1.25rem; }
+        .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; }
+
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
+        .stat-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; padding: 1.25rem 1.5rem; }
+        .stat-card .value { font-size: 2rem; font-weight: 700; line-height: 1.2; }
+        .stat-card .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-top: 0.5rem; font-weight: 500; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 0.75rem 1rem; color: var(--text-muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+        td { padding: 0.9rem 1rem; border-bottom: 1px solid var(--border); vertical-align: middle; font-size: 0.88rem; }
+        tr:hover td { background: rgba(255,255,255,0.02); }
+        .peer-id { font-family: monospace; color: var(--accent-light); font-size: 0.82rem; }
+        .badge { display: inline-block; padding: 0.2rem 0.55rem; border-radius: 6px; font-size: 0.72rem; font-weight: 600; background: rgba(255,255,255,0.05); margin: 1px; }
+        .status-ok { background: rgba(16,185,129,0.15); color: var(--green); }
+        .status-warn { background: rgba(245,158,11,0.15); color: var(--amber); }
+        .status-danger { background: rgba(244,63,94,0.15); color: var(--rose); }
+
+        .medal { display: inline-block; padding: 0.25rem 0.7rem; border-radius: 10px; font-weight: 700; font-size: 0.82rem; }
+        .gold { background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; box-shadow: 0 0 12px rgba(245,158,11,0.4); }
+        .silver { background: linear-gradient(135deg, #94a3b8, #64748b); color: #fff; }
+        .bronze { background: linear-gradient(135deg, #b45309, #78350f); color: #fff; }
+
+        .config-editor { width: 100%; height: 500px; background: #080d1a; color: #a3e635; font-family: monospace; font-size: 0.85rem; padding: 1rem; border: 1px solid var(--border); border-radius: 10px; resize: vertical; }
+        .backup-list { list-style: none; max-height: 400px; overflow-y: auto; }
+        .backup-item { display: flex; justify-content: space-between; align-items: center; padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--border); }
+        .backup-item:hover { background: rgba(255,255,255,0.03); }
+
+        .btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.6rem 1.2rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.85rem; }
+        .btn-accent { background: var(--accent); color: white; }
+        .btn-accent:hover { background: var(--accent-light); box-shadow: 0 4px 15px rgba(99,102,241,0.4); }
+        .btn-amber { background: var(--amber); color: #1e1b0e; }
+        .btn-rose { background: var(--rose); color: white; }
+        .btn-ghost { background: rgba(99,102,241,0.12); color: var(--accent-light); border: none; }
+        .btn-sm { padding: 0.35rem 0.7rem; font-size: 0.78rem; border-radius: 6px; }
+
+        .page { display: none; }
+        .page.active { display: block; }
+
+        #notification { position: fixed; bottom: 2rem; right: 2rem; background: var(--green); color: white; padding: 0.85rem 1.5rem; border-radius: 10px; transform: translateY(100px); opacity: 0; transition: all 0.3s; z-index: 1000; font-weight: 600; font-size: 0.85rem; }
+        #notification.show { transform: translateY(0); opacity: 1; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="sidebar-brand">
+        <div class="logo">🌙</div>
+        <div><span>Mooncake</span><small>Server Control Center</small></div>
+    </div>
+    <div class="sidebar-nav">
+        <div class="nav-label">Monitoring</div>
+        <div class="nav-item active" onclick="nav('dashboard',this)"><span class="icon">📊</span> Active Topology</div>
+        <div class="nav-item" onclick="nav('history',this);fetchEvents();"><span class="icon">📋</span> Global History</div>
+        <div class="nav-item" onclick="nav('leaderboard',this);fetchLeaderboard();"><span class="icon">🏆</span> Leaderboard</div>
+        <div class="nav-label">Management</div>
+        <div class="nav-item" onclick="nav('settings',this);loadConfig();loadBackups();"><span class="icon">⚙️</span> Config & Backups</div>
+    </div>
+</div>
+
+<div class="main">
+    <div class="topbar">
+        <h1 id="page-title">Active Topology</h1>
+        <div><span class="topbar-badge" id="topbar-info">0 Nodes</span></div>
+    </div>
+
+    <div class="content">
+        <!-- Dashboard -->
+        <div id="page-dashboard" class="page active">
+            <!-- 全網總貢獻統計卡片 -->
+            <div class="card" style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9)); border: 1px solid rgba(99, 102, 241, 0.3); margin-bottom: 1.25rem;">
+                <h2 style="color:var(--accent-light); display:flex; align-items:center; gap:0.5rem; margin-bottom: 1rem;">
+                    🌐 全網總貢獻權威統計 (Cluster Server Accounting)
+                </h2>
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1.25rem;">
+                    <div>
+                        <div style="font-size: 1.8rem; font-weight: 700; color: var(--cyan);" id="s-cluster-tokens">0</div>
+                        <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-top: 0.25rem;">TOTAL TOKENS 處理總數</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.8rem; font-weight: 700; color: var(--green);" id="s-cluster-in">0</div>
+                        <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-top: 0.25rem;">INPUT TOKENS (PROMPT)</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.8rem; font-weight: 700; color: var(--pink);" id="s-cluster-out">0</div>
+                        <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-top: 0.25rem;">OUTPUT TOKENS (GEN)</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.8rem; font-weight: 700; color: var(--amber);" id="s-cluster-reqs">0</div>
+                        <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-top: 0.25rem;">處理請求總數</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stat-grid">
+                <div class="stat-card"><div class="value" style="color:var(--cyan);" id="s-nodes">0</div><div class="label">Nodes Online</div></div>
+                <div class="stat-card"><div class="value" style="color:var(--accent-light);" id="s-reqs">0</div><div class="label">Active Requests</div></div>
+                <div class="stat-card"><div class="value" style="color:var(--pink);" id="s-gen">0.0</div><div class="label">Cluster Throughput (tok/s)</div></div>
+                <div class="stat-card"><div class="value" style="color:var(--green);" id="s-ttft">0.00</div><div class="label">Avg TTFT (sec)</div></div>
+            </div>
+            <div class="card">
+                <h2>Active Nodes</h2>
+                <table>
+                    <thead><tr><th>#</th><th>Peer ID</th><th>IP</th><th>GPU</th><th>Health</th><th>Telemetry</th><th>Engine</th></tr></thead>
+                    <tbody id="peers-table"><tr><td colspan="7" style="text-align:center;color:var(--text-muted);">Loading...</td></tr></tbody>
+                </table>
+            </div>
+            <div class="card">
+                <h2>Debug Operations</h2>
+                <div style="display:flex;gap:0.75rem;">
+                    <button class="btn btn-accent" onclick="debug('/api/debug/force_rank')">Force Rank Update</button>
+                    <button class="btn btn-rose" onclick="debug('/api/debug/clear_offline')">Clear Offline</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- History -->
+        <div id="page-history" class="page">
+            <div class="card">
+                <h2>Global Node History & Audit Logs</h2>
+                <table>
+                    <thead><tr><th>Timestamp</th><th>Event</th><th>Peer</th><th>IP</th><th>Retries</th><th>Penalties</th><th>Detail</th></tr></thead>
+                    <tbody id="events-table"><tr><td colspan="7" style="text-align:center;color:var(--text-muted);">Loading...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Leaderboard -->
+        <div id="page-leaderboard" class="page">
+            <div class="card">
+                <h2>Node Contribution Leaderboard 🏆</h2>
+                <table>
+                    <thead><tr><th>Rank</th><th>Peer</th><th>IP</th><th>GPU</th><th>Tasks</th><th>In Tokens</th><th>Out Tokens</th><th>Total Tokens</th><th>Score</th></tr></thead>
+                    <tbody id="lb-table"><tr><td colspan="9" style="text-align:center;color:var(--text-muted);">Loading...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Settings -->
+        <div id="page-settings" class="page">
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:1.25rem;">
+                <div class="card" style="margin-bottom:0;">
+                    <h2>Edit config.json</h2>
+                    <textarea id="config-editor" class="config-editor" spellcheck="false"></textarea>
+                    <div style="margin-top:1rem;"><button class="btn btn-amber" onclick="saveConfig()">💾 Save & Backup</button></div>
+                </div>
+                <div class="card" style="margin-bottom:0;">
+                    <h2>Restore Backups</h2>
+                    <ul id="backup-list" class="backup-list"><li style="color:var(--text-muted);padding:1rem;">Loading...</li></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="notification"></div>
+
+<script>
+    const pageTitles = { dashboard:'Active Topology', history:'Global History', leaderboard:'Leaderboard', settings:'Config & Backups' };
+    function nav(p, el) {
+        document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+        document.getElementById('page-'+p).classList.add('active');
+        el.classList.add('active');
+        document.getElementById('page-title').textContent = pageTitles[p]||'';
+    }
+
+    function fmtNum(n) { return (n||0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+    async function fetchMetrics() {
+        try {
+            const [rs, rp] = await Promise.all([fetch('/api/stats'), fetch('/api/peers')]);
+            const stats = await rs.json(), peers = await rp.json();
+            document.getElementById('s-nodes').textContent = stats.total_nodes||0;
+            document.getElementById('s-reqs').textContent = stats.total_active_requests||0;
+            document.getElementById('s-gen').textContent = (stats.total_gen_speed||0).toFixed(1);
+            document.getElementById('s-ttft').textContent = (stats.avg_ttft||0).toFixed(2);
+
+            document.getElementById('s-cluster-tokens').textContent = fmtNum(stats.total_cluster_tokens||0);
+            document.getElementById('s-cluster-in').textContent = fmtNum(stats.total_in_tokens||0);
+            document.getElementById('s-cluster-out').textContent = fmtNum(stats.total_out_tokens||0);
+            document.getElementById('s-cluster-reqs').textContent = fmtNum(stats.total_cluster_requests||0);
+
+            document.getElementById('topbar-info').textContent = `${stats.total_nodes||0} Nodes`;
+            const tb = document.getElementById('peers-table'); tb.innerHTML = '';
+            if(!peers?.length) { tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No nodes</td></tr>'; return; }
+            peers.forEach((p,i) => {
+                let info={}; try{info=JSON.parse(p.gpu_info);}catch(e){}
+                let gpu = info.summary||'<span style="color:var(--rose)">No GPU</span>';
+                let fc = p.fail_count||0, pp = p.penalty_points||0;
+                let hb = fc>0 ? `<span class="badge status-warn">RETRY ${fc}/3</span>` : `<span class="badge status-ok">HEALTHY</span>`;
+                let hw = `
+                    <span class="badge" style="color:var(--accent-light)">Req:${info.active_requests||0}</span>
+                    <span class="badge" style="color:var(--pink)">Gen:${(info.gen_speed||0).toFixed(1)}t/s</span>
+                    <span class="badge" style="color:var(--green)">TTFT:${(info.avg_ttft||0).toFixed(2)}s</span>
+                    ${info.gpu_temp?`<span class="badge" style="color:${info.gpu_temp>75?'var(--rose)':'var(--amber)'}">🌡${info.gpu_temp}°C</span>`:''}
+                    ${info.gpu_util!==undefined?`<span class="badge" style="color:var(--amber)">⚡${info.gpu_util}%</span>`:''}
+                    ${info.vram_used&&info.vram_total?`<span class="badge" style="color:var(--cyan)">💾${info.vram_used}/${info.vram_total}MB</span>`:''}
+                    ${info.power_draw?`<span class="badge" style="color:var(--rose)">🔌${info.power_draw.toFixed(0)}${info.power_limit?'/'+info.power_limit.toFixed(0):''}W</span>`:''}
+                    ${info.fan_speed?`<span class="badge" style="color:var(--cyan)">🌀${info.fan_speed}%</span>`:''}
+                    ${info.driver_version?`<span class="badge" style="color:var(--text-muted)">v${info.driver_version}</span>`:''}
+                `;
+                const tr=document.createElement('tr');
+                tr.innerHTML=`<td style="color:var(--text-muted);font-weight:600;">${i+1}</td><td><span class="peer-id">${p.peer_id.substring(0,12)}...</span></td><td>${p.ip_address||'-'}</td><td><strong>${gpu}</strong></td><td>${hb}<br><span style="font-size:0.72rem;color:var(--text-muted)">Penalties: ${pp}</span></td><td>${hw}</td><td style="font-size:0.78rem;color:var(--text-muted);">${p.engine_id||'-'}</td>`;
+                tb.appendChild(tr);
+            });
+        } catch(e){}
+    }
+
+    async function fetchEvents() {
+        try {
+            const r=await fetch('/api/events'); const events=await r.json();
+            const tb=document.getElementById('events-table'); tb.innerHTML='';
+            if(!events?.length){tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No events</td></tr>';return;}
+            events.forEach(e=>{
+                let bc='status-ok',tt=e.event_type;
+                if(e.event_type==='FAIL_INCREMENT'){bc='status-warn';tt='FAIL RETRY';}
+                else if(e.event_type==='RECOVERED_PENALTY'){bc='status-ok';tt='RECOVERED (+1)';}
+                else if(e.event_type==='REMOVED_OFFLINE'){bc='status-danger';tt='REMOVED';}
+                else if(e.event_type==='JOIN'){tt='JOINED';}
+                const tr=document.createElement('tr');
+                tr.innerHTML=`<td style="font-size:0.82rem;color:var(--text-muted);">${e.timestamp?.replace('T',' ').substring(0,19)||''}</td><td><span class="badge ${bc}">${tt}</span></td><td><span class="peer-id">${e.peer_id?e.peer_id.substring(0,12)+'...':'-'}</span></td><td>${e.ip_address||'-'}</td><td>${e.fail_count||0}</td><td>${e.penalty_points||0}</td><td style="font-size:0.82rem;">${e.detail||''}</td>`;
+                tb.appendChild(tr);
+            });
+        }catch(e){}
+    }
+
+    async function fetchLeaderboard() {
+        try {
+            const r=await fetch('/api/leaderboard'); const board=await r.json();
+            const tb=document.getElementById('lb-table'); tb.innerHTML='';
+            if(!board?.length){tb.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--text-muted);">No records</td></tr>';return;}
+            board.forEach((p,i)=>{
+                let info={}; try{info=JSON.parse(p.gpu_info);}catch(e){}
+                let gpu=info.summary||'Unknown';
+                let m=`<span style="color:var(--text-muted);font-weight:700;">#${i+1}</span>`;
+                if(i===0)m='<span class="medal gold">🏆 MVP</span>';
+                else if(i===1)m='<span class="medal silver">🥈 #2</span>';
+                else if(i===2)m='<span class="medal bronze">🥉 #3</span>';
+                const tr=document.createElement('tr');
+                tr.innerHTML=`<td>${m}</td><td><span class="peer-id">${p.peer_id.substring(0,12)}...</span></td><td>${p.ip_address||'-'}</td><td><strong>${gpu}</strong></td><td style="color:var(--amber);font-weight:700;">${fmtNum(p.total_requests||0)}</td><td style="color:var(--green);font-weight:700;">${fmtNum(p.in_tokens||0)}</td><td style="color:var(--pink);font-weight:700;">${fmtNum(p.out_tokens||0)}</td><td style="color:var(--cyan);font-weight:700;">${fmtNum(p.total_tokens||0)}</td><td style="color:var(--accent-light);font-weight:700;font-size:1.05rem;">${(p.contribution_score||0).toFixed(1)} pts</td>`;
+                tb.appendChild(tr);
+            });
+        }catch(e){}
+    }
+
+    async function debug(ep){try{const r=await fetch(ep,{method:'POST'});const d=await r.json();showNotification(d.message||'OK');fetchMetrics();}catch(e){showNotification('Failed',true);}}
+    function showNotification(msg,err=false){const n=document.getElementById('notification');n.innerText=msg;n.style.background=err?'var(--rose)':'var(--green)';n.classList.add('show');setTimeout(()=>n.classList.remove('show'),3000);}
+    async function loadConfig(){try{const r=await fetch('/api/config');document.getElementById('config-editor').value=await r.text();}catch(e){showNotification("Failed",true);}}
+    async function saveConfig(){try{const r=await fetch('/api/config',{method:'POST',body:document.getElementById('config-editor').value});const d=await r.json();if(r.ok){showNotification(d.message);loadBackups();}else showNotification("Failed",true);}catch(e){showNotification("Failed",true);}}
+    async function loadBackups(){try{const r=await fetch('/api/config/backups');const b=await r.json();const ul=document.getElementById('backup-list');ul.innerHTML='';if(!b?.length){ul.innerHTML='<li style="color:var(--text-muted);padding:1rem;">No backups</li>';return;}b.forEach(x=>{const li=document.createElement('li');li.className='backup-item';li.innerHTML=`<span style="font-size:0.82rem;">${x.replace('config_','').replace('.json','')}</span><button class="btn btn-ghost btn-sm" onclick="restoreConfig('${x}')">Restore</button>`;ul.appendChild(li);});}catch(e){}}
+    async function restoreConfig(fn){if(!confirm('Restore?'))return;try{const r=await fetch('/api/config/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:fn})});const d=await r.json();if(r.ok){showNotification(d.message);loadConfig();loadBackups();}else showNotification("Failed",true);}catch(e){showNotification("Failed",true);}}
+
+    fetchMetrics(); setInterval(fetchMetrics, 2000);
+</script>
+</body>
+</html>

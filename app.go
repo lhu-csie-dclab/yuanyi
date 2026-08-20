@@ -15,6 +15,14 @@ type App struct {
 	Sys    *SysMonitor
 	P2P    *NetworkNode
 	Runner *Runner
+
+	// Hub-mode subsystems, present only when config.json's server_mode.enabled is true.
+	// A node running in hub mode still performs its own inference like any other client;
+	// it additionally maintains the shared peers/leaderboard database, relays traffic for
+	// peers behind NAT, and serves the cluster topology other nodes poll.
+	DB          *DBManager
+	Rank        *RankManager
+	ServerProxy *ProxyServer
 }
 
 // NewApp instantiates the App container and initializes its core subsystems.
@@ -24,10 +32,23 @@ func NewApp(cfg *ClientConfig) *App {
 	app.Sys = NewSysMonitor(app)
 	app.P2P = NewNetworkNode(app)
 	app.Runner = NewRunner(app)
+
+	if cfg.ServerMode.Enabled {
+		db, err := NewDBManager(cfg.ServerMode.DatabasePath)
+		if err != nil {
+			app.TUI.AddLog("[ERROR]", fmt.Sprintf("Hub mode database init failed, hub features disabled: %v", err))
+		} else {
+			app.DB = db
+			app.Rank = NewRankManager(db)
+			app.ServerProxy = NewProxyServer(app)
+		}
+	}
+
 	return app
 }
 
-// Start launches hardware monitoring, P2P networking, vLLM runner, Web UI, and TUI in sequence.
+// Start launches hardware monitoring, P2P networking, vLLM runner, Web UI, hub services
+// (if enabled), and TUI in sequence.
 func (a *App) Start(ctx context.Context) error {
 	a.Sys.Start()
 
@@ -38,11 +59,24 @@ func (a *App) Start(ctx context.Context) error {
 	go a.Runner.Start(ctx)
 	go StartClientWebDashboard(a)
 
+	if a.Config.ServerMode.Enabled && a.DB != nil {
+		go a.Rank.Start()
+		go StartServerWebDashboard(a)
+		go StartServerDispatch(a, a.P2P.Host())
+	}
+
 	return a.TUI.Run()
 }
 
-// Stop handles graceful shutdown of the inference engine processes and P2P connections.
+// Stop handles graceful shutdown of the inference engine processes, P2P connections, and
+// hub services.
 func (a *App) Stop() {
 	a.Runner.Stop()
 	a.P2P.Stop()
+	if a.Rank != nil {
+		a.Rank.Stop()
+	}
+	if a.DB != nil {
+		a.DB.Close()
+	}
 }
