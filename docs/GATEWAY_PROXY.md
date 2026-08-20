@@ -38,13 +38,22 @@ LocalDispatcher (proxy.go :50006)
 - Streams response chunks dynamically using a 4096-byte rolling buffer and `flusher.Flush()`.
 - Supports `stream: true` (Server-Sent Events) and `stream: false` (JSON) with zero latency.
 
+### 3. Concurrency-Aware Local Slot (`localBusy`)
+- An `atomic.Bool` reserved via `CompareAndSwap` before a request is allowed to use the local
+  GPU, and released once that request finishes (success or failure).
+- A single request still takes the fast local path. A second request arriving while the first
+  is still in flight finds the slot already taken and is dispatched to a P2P peer instead of
+  queueing behind it — the decision is **local availability**, not just local health.
+
 ---
 
 ## ⚙️ Scheduling Modes
 
 ### Mode 1: Local-First & PD-Together Hybrid Mode (`IsPDTogether == true`)
-1. **Primary**: Routes to local GPU (`127.0.0.1:8100`).
-2. **Backup**: If local vLLM is unready or busy, selects remote P2P peers via Round-Robin (`streamToPeer`).
+1. **Primary**: Routes to local GPU (`127.0.0.1:8100`), but only if the local slot
+   (`localBusy`) is currently free.
+2. **Backup**: If local vLLM is unready, currently busy with another request, or fails,
+   selects remote P2P peers via Round-Robin (`streamToPeer`).
 
 ### Mode 2: Disaggregated Prefill/Decode Mode (`IsPDTogether == false`)
 1. **Stage 1 (Prefill)**: Constructs request with `max_tokens: 1`, sending to designated Prefill node for KV cache precomputation.
