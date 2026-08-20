@@ -38,6 +38,7 @@ Mooncake 2.0 Client 提供相容於 OpenAI 規範的 API 網關 Gateway (`/v1/ch
 - **[📊 系統遙測與指標手冊 (`docs/zh_tw/TELEMETRY_SYS.md`)](docs/zh_tw/TELEMETRY_SYS.md)**：`sys.go`、vLLM Prometheus 數據爬蟲、NVML 顯卡遙測與 `stats.json` 存檔。
 - **[🖥️ 終端 TUI 面板與 Web 儀表板手冊 (`docs/zh_tw/DASHBOARD_UI.md`)](docs/zh_tw/DASHBOARD_UI.md)**：`tui.go`（4 分頁終端面板、Headless 模式）與 `web.go`（`50007` 埠內嵌 Web Console）。
 - **[📈 NVIDIA AIPerf 壓測數據報告 (`docs/zh_tw/test/BENCHMARK_RESULTS.md`)](docs/zh_tw/test/BENCHMARK_RESULTS.md)**：在 10 張 RTX A2000 8GB 顯卡上進行 1 萬次請求壓測的官方數據。
+- **[🧬 多節點全新 Clone 與併發多卡測試 (`docs/zh_tw/test/MULTI_NODE_CLONE_TEST.md`)](docs/zh_tw/test/MULTI_NODE_CLONE_TEST.md)**：驗證從零 `git clone` 部署到 2 台主機共 10 個獨立節點後，10 張實體 GPU 各自真的在處理推論（單獨測試與 10 台併發測試皆驗證）。
 - **[🧪 實驗階段與未測試參數說明書 (`docs/zh_tw/EXPERIMENTAL.md`)](docs/zh_tw/EXPERIMENTAL.md)**：包含詳細的實驗研究範圍、經測試的基準設定、未測試參數風險與正式環境免責聲明。
 - **[🗂 模組與 Function 參考指南 (`docs/zh_tw/MODULES.md`)](docs/zh_tw/MODULES.md)**：檔案對照表、資料結構與跨模組呼叫矩陣。
 - **[🛰️ Hub 模式手冊 (`docs/zh_tw/HUB_MODE.md`)](docs/zh_tw/HUB_MODE.md)**：選用的中央伺服器合併能力——節點資料庫、GPU 算分、中央派發器、Hub 專屬儀表板，以及多 Hub 一致性設計。
@@ -124,6 +125,7 @@ flowchart TB
 | **[`tui.go`](tui.go)** / **[`web.go`](web.go)** | TUI 終端面板與 Web 儀表板 | [🖥️ User Interfaces Guide (`docs/zh_tw/DASHBOARD_UI.md`)](docs/zh_tw/DASHBOARD_UI.md) |
 | **`server_*.go`**（選用） | Hub 模式：節點資料庫、算分、派發器、儀表板 | [🛰️ Hub Mode Guide (`docs/zh_tw/HUB_MODE.md`)](docs/zh_tw/HUB_MODE.md) |
 | **`docs/test/`** | 10 x RTX A2000 壓測數據集 | [📈 AIPerf Benchmark Results (`docs/zh_tw/test/BENCHMARK_RESULTS.md`)](docs/zh_tw/test/BENCHMARK_RESULTS.md) |
+| **`docs/test/`** | 10 節點全新 Clone + 併發多卡驗證 | [🧬 Multi-Node Clone Test (`docs/zh_tw/test/MULTI_NODE_CLONE_TEST.md`)](docs/zh_tw/test/MULTI_NODE_CLONE_TEST.md) |
 
 ---
 
