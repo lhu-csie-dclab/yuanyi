@@ -29,7 +29,7 @@ Mooncake 2.0 Client 提供兼容于 OpenAI 规范的 API 网关 Gateway (`/v1/ch
 
 关于深入的技术文档、多层次架构规范与模块参考手册，请参阅：
 
-- **[📖 多层次系统架构规范 (`docs/zh_cn/ARCHITECTURE.md`)](docs/zh_cn/ARCHITECTURE.md)**：包含 7 大功能层级（编排器、网关、P2P Swarm、进程管理器、遥测、UI）与算法说明。
+- **[📖 多层次系统架构规范 (`docs/zh_cn/ARCHITECTURE.md`)](docs/zh_cn/ARCHITECTURE.md)**：包含 8 大功能层级（编排器、网关、P2P Swarm、进程管理器、遥测、UI、可选的 Hub 模式）与算法说明。
 - **[📦 Master App 容器规范 (`docs/zh_cn/APP_CONTAINER.md`)](docs/zh_cn/APP_CONTAINER.md)**：`app.go` 主容器结构体、依赖注入、启动与关机顺序。
 - **[⚙️ 配置管理与参数手册 (`docs/zh_cn/CONFIG.md`)](docs/zh_cn/CONFIG.md)**：`config.go`、`config.json`、`.env.example` 与 `mooncake.json` 的完整指南。
 - **[🌐 P2P 网络与 Swarm Key 手册 (`docs/zh_cn/P2P_NETWORK.md`)](docs/zh_cn/P2P_NETWORK.md)**：`p2p.go`、Badger DB Peerstore、GossipSub、VIP 代理与 `swarm.key` 密钥生成教程。
@@ -40,6 +40,7 @@ Mooncake 2.0 Client 提供兼容于 OpenAI 规范的 API 网关 Gateway (`/v1/ch
 - **[📈 NVIDIA AIPerf 压测数据报告 (`docs/zh_cn/test/BENCHMARK_RESULTS.md`)](docs/zh_cn/test/BENCHMARK_RESULTS.md)**：在 10 张 RTX A2000 8GB 显卡上进行 1 万次请求压测的官方数据。
 - **[🧪 实验阶段与未测试参数说明书 (`docs/zh_cn/EXPERIMENTAL.md`)](docs/zh_cn/EXPERIMENTAL.md)**：包含详细的实验研究范围、经测试的基准设置、未测试参数风险与生产环境免责声明。
 - **[🗂 模块与 Function 参考指南 (`docs/zh_cn/MODULES.md`)](docs/zh_cn/MODULES.md)**：文件对照表、数据结构与跨模块调用矩阵。
+- **[🛰️ Hub 模式手册 (`docs/zh_cn/HUB_MODE.md`)](docs/zh_cn/HUB_MODE.md)**：可选的中央服务器合并能力——节点数据库、GPU 算分、中央派发器、Hub 专属仪表板，以及多 Hub 一致性设计。
 
 ---
 
@@ -72,7 +73,7 @@ flowchart TB
     end
     
     subgraph Swarm["Mooncake 2.0 P2P Swarm 集群"]
-        CentralServer["中央服务器 (50004/50005/50006)\n- 拓扑同步 (Topology Sync)\n- NAT 中继 (NAT Relay)"]
+        HubNode["Hub 节点群 (50004/50005/50008)\n- 任何开启 server_mode.enabled 的节点\n- 拓扑同步、NAT 中继、排行榜"]
         RemotePeer["远程 P2P Peer 节点"]
     end
     
@@ -81,9 +82,14 @@ flowchart TB
     Dispatcher -.->|第二优先: P2P 备用分发| RemotePeer
     GoAgent -->|原生执行| RayHead
     RayHead -->|编排与管理| VLLM
-    GoAgent -->|同步拓扑数据| CentralServer
+    GoAgent -->|同步拓扑数据| HubNode
     VLLM <-->|Mooncake KV 传输 :8998| RemotePeer
 ```
+
+> 每个节点都运行同一份 client 可执行文件。一个节点只有在自己的 `config.json` 设置
+> `server_mode.enabled: true` 时，才会成为上图 `Swarm` 中的 **Hub**；可以同时有任意数量的节点这样做，
+> 并且任何节点无论是否兼任 Hub，都能作为 `ClientHost` 执行自己的推理。详见
+> [`docs/zh_cn/HUB_MODE.md`](docs/zh_cn/HUB_MODE.md)。
 
 ---
 
@@ -98,7 +104,9 @@ flowchart TB
 - **🖥️ 双监控界面支持 (交互式 TUI 与 Headless 后台模式)**：
   搭载基于 `tview` 的 4 分页终端面板。自动检测无 TTY 环境（如容器或后台服务），自动切换至 Headless 后台模式。
 - **🌐 P2P Swarm 与 Mooncake KV Cache 传输**：
-  通过 libp2p 连接 Mooncake 2.0 中央中继服务器，参与 Prefill/Decode (P/D) 分离推理拓扑，经由 `8998` 端口进行跨节点 KV Cache 传输。
+  通过 libp2p 连接 Mooncake 2.0 P2P Swarm，参与 Prefill/Decode (P/D) 分离推理拓扑，经由 `8998` 端口进行跨节点 KV Cache 传输。
+- **🛰️ 可选 Hub 模式（合并中央服务器能力）**：
+  任何节点都可以开启 `server_mode.enabled`，额外兼任原本独立中央服务器的角色：本机 SQLite 节点/排行榜数据库、GPU 算分、中央 P/D 派发器、Hub 专属仪表板。可以同时有多个 Hub 运行——每个 Hub 各自通过既有的 GossipSub 广播收敛出相同视图，没有单点故障。详见 [`docs/zh_cn/HUB_MODE.md`](docs/zh_cn/HUB_MODE.md)。
 
 ---
 
@@ -114,6 +122,7 @@ flowchart TB
 | **[`runner.go`](runner.go)** / **[`Dockerfile`](Dockerfile)** | Ray Head 与 vLLM 推理进程管理 | [🏃 Process & Docker Guide (`docs/zh_cn/RUNNER_DOCKER.md`)](docs/zh_cn/RUNNER_DOCKER.md) |
 | **[`sys.go`](sys.go)** / **[`stats.json`](stats.json)** | 显卡 NVML 遥测与 Prometheus 爬虫 | [📊 Telemetry & Metrics Guide (`docs/zh_cn/TELEMETRY_SYS.md`)](docs/zh_cn/TELEMETRY_SYS.md) |
 | **[`tui.go`](tui.go)** / **[`web.go`](web.go)** | TUI 终端面板与 Web 仪表板 | [🖥️ User Interfaces Guide (`docs/zh_cn/DASHBOARD_UI.md`)](docs/zh_cn/DASHBOARD_UI.md) |
+| **`server_*.go`**（可选） | Hub 模式：节点数据库、算分、派发器、仪表板 | [🛰️ Hub Mode Guide (`docs/zh_cn/HUB_MODE.md`)](docs/zh_cn/HUB_MODE.md) |
 | **`docs/test/`** | 10 x RTX A2000 压测数据集 | [📈 AIPerf Benchmark Results (`docs/zh_cn/test/BENCHMARK_RESULTS.md`)](docs/zh_cn/test/BENCHMARK_RESULTS.md) |
 
 ---
@@ -128,7 +137,9 @@ flowchart TB
 | **`8998`** | TCP/HTTP | Mooncake Engine | `config.json` (`mooncake_bootstrap_port`) | Mooncake KV Cache 传输控制与协商端口 |
 | **`6389`** | TCP | Python Ray Cluster | Ray Head (`--port`) | Ray 分布式执行 Head 节点端口 |
 | **`8275`** | HTTP | Python Ray Dashboard | Ray Head (`--dashboard-port`) | Ray 集群 Web 管理仪表板 |
-| **`50004`** | TCP/libp2p | Central Server | `config.json` (`p2p.server_address`) | 中央 Bootstrap Tracker 与 NAT 中继 multiaddress 端口 |
+| **`50004`** | TCP/libp2p | Bootstrap 种子节点 | `config.json` (`p2p.server_address(es)`) | Bootstrap Tracker 与 NAT 中继 multiaddress 端口（本节点兼任 Hub 时同 `server_mode.p2p_port`） |
+| **`50005`** | HTTP | Hub 仪表板（可选） | `config.json` (`server_mode.web_port`) | Hub 专属排行榜/事件/拓扑仪表板，仅 `server_mode.enabled` 时启用 |
+| **`50008`** | HTTP | Hub 派发器（可选） | `config.json` (`server_mode.proxy_port`) | Hub 中央 P/D 派发与 `/api/cluster_topology`，仅 `server_mode.enabled` 时启用 |
 
 ---
 
@@ -289,9 +300,15 @@ curl http://localhost:50006/v1/chat/completions \
     "max_model_len": 8192,
     "kv_role": "kv_both",
     "mooncake_bootstrap_port": 8998
+  },
+  "server_mode": {
+    "enabled": false
   }
 }
 ```
+
+设置 `server_mode.enabled: true` 即可让这个节点兼任 Hub（合并中央服务器能力）——完整字段说明见
+[`docs/zh_cn/HUB_MODE.md`](docs/zh_cn/HUB_MODE.md)。
 
 `mooncake.json` 传输协议设置 (`"protocol": "tcp"`)：
 

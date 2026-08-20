@@ -17,3 +17,4 @@
 | **[`sys.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/sys.go)** | 遙測爬蟲與 NVML 監控 | `SysMonitor`, `VLLMMetrics` | [`docs/zh_tw/TELEMETRY_SYS.md`](TELEMETRY_SYS.md) |
 | **[`tui.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/tui.go)** | 終端 TUI 面板 | `TUI`, `Stats` | [`docs/zh_tw/DASHBOARD_UI.md`](DASHBOARD_UI.md) |
 | **[`web.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/web.go)** | Web 監控儀表板 | `embed.FS` | [`docs/zh_tw/DASHBOARD_UI.md`](DASHBOARD_UI.md) |
+| **`server_*.go`**（選用） | Hub 模式：節點資料庫、算分、派發器、儀表板 | `DBManager`, `RankManager`, `ProxyServer` | [`docs/zh_tw/HUB_MODE.md`](HUB_MODE.md) |

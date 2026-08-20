@@ -23,9 +23,16 @@
     "max_model_len": 8192,
     "kv_role": "kv_both",
     "mooncake_bootstrap_port": 8998
+  },
+  "server_mode": {
+    "enabled": false
   }
 }
 ```
+
+`server_mode.enabled` 預設為 `false`，開啟後這個節點會兼任 Hub（合併原本獨立中央伺服器的能力：
+節點/排行榜資料庫、GPU 算分、中央派發器、Hub 專屬儀表板）。完整欄位說明見
+[`HUB_MODE.md`](HUB_MODE.md)。
 
 ---
 

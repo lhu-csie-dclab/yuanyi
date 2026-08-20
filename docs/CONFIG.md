@@ -16,6 +16,7 @@ This document provides a detailed reference for configuration handling in Moonca
 - **`config.json`**: Primary JSON configuration file defining ports, P2P trackers, Docker arguments, and vLLM hyperparameters.
 - **`.env.example`**: Environment template for host model paths and docker container environment bindings.
 - **`mooncake.json`**: Low-level protocol and buffer configuration for the Mooncake KV Cache Transfer Engine.
+- **`server_mode` block**: Optional hub mode settings; see [`HUB_MODE.md`](HUB_MODE.md) for the full reference.
 
 ---
 
@@ -27,7 +28,8 @@ This document provides a detailed reference for configuration handling in Moonca
   "web_port": 50007,
   "proxy_port": 50006,
   "p2p": {
-    "server_address": "/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh"
+    "server_address": "/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh",
+    "server_addresses": []
   },
   "docker": {
     "container_name": "vllm_node",
@@ -53,6 +55,9 @@ This document provides a detailed reference for configuration handling in Moonca
     "mooncake_abort_request_timeout": 15,
     "attention_backend": "FLASH_ATTN",
     "placement_group_bundle_strategy": "SPREAD"
+  },
+  "server_mode": {
+    "enabled": false
   }
 }
 ```
@@ -63,11 +68,13 @@ This document provides a detailed reference for configuration handling in Moonca
 | :--- | :--- | :--- | :--- |
 | `web_port` | `50007` | Integer | HTTP port for Web Monitoring Dashboard console & APIs. |
 | `proxy_port` | `50006` | Integer | HTTP port for OpenAI-compatible API Gateway. |
-| `p2p.server_address` | Multiaddr | String | Bootstrap Tracker Multiaddress for DHT discovery & NAT relay. |
+| `p2p.server_address` | Multiaddr | String | Single bootstrap seed multiaddress (legacy field, still read as a fallback). |
+| `p2p.server_addresses` | `[]` | String[] | Preferred list of bootstrap/hub seed multiaddresses; any one reachable entry is enough to join the mesh. |
 | `vllm.port` | `8100` | Integer | Local vLLM engine HTTP endpoint. |
 | `vllm.gpu_memory_utilization` | `0.75` | Float | Maximum VRAM memory allocation ratio reserved for vLLM & KV cache. |
 | `vllm.kv_role` | `"kv_both"` | String | P/D disaggregation role: `"kv_prefill"`, `"kv_decode"`, or `"kv_both"`. |
 | `vllm.mooncake_bootstrap_port` | `8998` | Integer | Mooncake KV Cache transfer control port. |
+| `server_mode.enabled` | `false` | Boolean | Opts this node into hub mode (merged Central Server responsibilities). See [`HUB_MODE.md`](HUB_MODE.md) for the full `server_mode.*` reference. |
 
 ---
 
