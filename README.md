@@ -74,7 +74,7 @@ flowchart TB
     end
     
     subgraph Swarm["Mooncake 2.0 P2P Swarm"]
-        HubNode["Hub Node(s) (50004/50005/50008)\n- Any peer with server_mode.enabled\n- Topology Sync, NAT Relay, Leaderboard"]
+        HubNode["Hub Node(s) (50004/50007/hub, 50008)\n- Any peer with server_mode.enabled\n- Topology Sync, NAT Relay, Leaderboard"]
         RemotePeer["Remote P2P Peer Nodes"]
     end
     
@@ -141,14 +141,13 @@ Available port mapping referenced across the system (`config.json`, `.env`, Pyth
 | Port | Protocol | Layer / Service | Source / Reference | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | **`50006`** | HTTP | OpenAI API Gateway | `config.json` (`proxy_port`) | Client API entrypoint (`/v1/chat/completions`, `/v1/models`) |
-| **`50007`** | HTTP | Web UI Dashboard | `config.json` / `.env` (`CLIENT_WEB_PORT`) | Visual monitoring web console and stats API |
+| **`50007`** | HTTP | Web UI Dashboard | `config.json` / `.env` (`CLIENT_WEB_PORT`) | Visual monitoring web console and stats API; also serves the Hub dashboard at `/hub/` when `server_mode.enabled` |
 | **`8100`** | HTTP | vLLM Engine | `config.json` (`vllm.port`) | Local GPU vLLM inference server endpoint |
 | **`8998`** | TCP/HTTP | Mooncake Engine | `config.json` (`mooncake_bootstrap_port`) | Mooncake KV Cache transfer control & negotiation port |
 | **`6389`** | TCP | Python Ray Cluster | Ray Head (`--port`) | Ray distributed execution head node port |
 | **`8275`** | HTTP | Python Ray Dashboard | Ray Head (`--dashboard-port`) | Ray cluster management dashboard |
 | **`50004`** | TCP/libp2p | Bootstrap Seed | `config.json` (`p2p.server_address(es)`) | Bootstrap tracker & NAT relay multiaddress port (also `server_mode.p2p_port` when this node is a hub) |
-| **`50005`** | HTTP | Hub Dashboard (optional) | `config.json` (`server_mode.web_port`) | Hub-only leaderboard/events/topology dashboard, only when `server_mode.enabled` |
-| **`50008`** | HTTP | Hub Dispatcher (optional) | `config.json` (`server_mode.proxy_port`) | Hub central prefill/decode dispatch & `/api/cluster_topology`, only when `server_mode.enabled` |
+| **`50008`** | HTTP | Hub Dispatcher (optional) | `config.json` (`server_mode.proxy_port`) | Hub central prefill/decode dispatch, only when `server_mode.enabled` (topology/leaderboard live on `50007/hub/` instead, see above) |
 
 ---
 

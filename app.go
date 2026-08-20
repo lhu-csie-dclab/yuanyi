@@ -61,7 +61,6 @@ func (a *App) Start(ctx context.Context) error {
 
 	if a.Config.ServerMode.Enabled && a.DB != nil {
 		go a.Rank.Start()
-		go StartServerWebDashboard(a)
 		go StartServerDispatch(a, a.P2P.Host())
 	}
 

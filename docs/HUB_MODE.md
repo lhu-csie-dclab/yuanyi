@@ -27,8 +27,9 @@ process:
 - GPU-based contribution scoring and a `top.json` leaderboard, refreshed every 10 seconds.
 - A central prefill/decode dispatcher and `/api/cluster_topology` endpoint, scoped to this
   node's own view of the mesh, on `server_mode.proxy_port`.
-- A hub-only web dashboard (leaderboard, peer list, audit events, cluster topology) on
-  `server_mode.web_port`, separate from the existing client dashboard on `web_port`.
+- A hub-only web dashboard (leaderboard, peer list, audit events, cluster topology) mounted at
+  `/hub/` on the client's own `web_port` — no separate port. The client dashboard shows a "Hub
+  Dashboard" link once it detects hub mode is enabled.
 - Circuit Relay v2 service and a fixed listen port on `server_mode.p2p_port`, so peers behind
   NAT can reach the swarm through this node if it is itself publicly reachable.
 
@@ -84,7 +85,6 @@ PeerID across restarts. This matters most for hub nodes, since other nodes may c
   "server_mode": {
     "enabled": false,
     "p2p_port": 50004,
-    "web_port": 50005,
     "proxy_port": 50008,
     "database_path": "./peers.db",
     "max_fail_count": 3,
@@ -102,16 +102,17 @@ PeerID across restarts. This matters most for hub nodes, since other nodes may c
 | `p2p.server_addresses` | `[]` | Preferred list of bootstrap/hub seed multiaddresses. |
 | `server_mode.enabled` | `false` | Turns hub mode on for this node. |
 | `server_mode.p2p_port` | `50004` | Fixed libp2p listen port so other nodes can dial in. |
-| `server_mode.web_port` | `50005` | Hub-only dashboard HTTP port. |
 | `server_mode.proxy_port` | `50008` | Central prefill/decode dispatcher HTTP port. |
 | `server_mode.database_path` | `./peers.db` | SQLite database file path. |
 | `server_mode.max_fail_count` | `3` | Consecutive ping failures before a peer is flagged offline. |
 | `server_mode.check_interval_sec` | `30` | Health-check ping interval, in seconds. |
 | `server_mode.cluster.prefill_nodes` / `decode_nodes` | `0` / `0` | Dedicated P/D node caps; both `0` means PD-Together mode. |
 
-`LoadOrCreateConfig` defends `server_mode.web_port`/`proxy_port`/`p2p_port` against colliding
-with the client's own `web_port`, `proxy_port`, `vllm.port`, or `vllm.mooncake_bootstrap_port`,
-resetting to the defaults above on conflict.
+The hub dashboard itself has no `server_mode.*` port of its own — it is mounted at `/hub/` on
+the client's existing `web_port` (default `50007`). `LoadOrCreateConfig` defends
+`server_mode.proxy_port`/`p2p_port` against colliding with the client's own `web_port`,
+`proxy_port`, `vllm.port`, or `vllm.mooncake_bootstrap_port`, resetting to the defaults above
+on conflict.
 
 ## 🚀 Enabling Hub Mode
 

@@ -88,10 +88,11 @@ func (d *LocalDispatcher) startVLLMHealthChecker() {
 }
 
 // syncTopologyLoop 背景 Goroutine (每 10 秒執行一次)：
-// 向 Central Server 發起 HTTP GET 請求，同步最新的 P/D 叢集拓樸視圖。
+// 向 Bootstrap/Hub 節點發起 HTTP GET 請求，同步最新的 P/D 叢集拓樸視圖。
 // 【邏輯說明】
-// 1. 從 config.json 的 ServerAddress (Multiaddress) 中拆解出中央伺服器的 Host 位址。
-// 2. 構造 http://<serverHost>:50005/api/cluster_topology URL。
+// 1. 從 config.json 的 ServerAddress (Multiaddress) 中拆解出 Bootstrap 節點的 Host 位址。
+// 2. 構造 http://<serverHost>:50007/hub/api/cluster_topology URL
+//    （Hub 儀表板現在掛在 client 自己的 web_port 底下的 /hub/ 路徑，不再有獨立埠號）。
 // 3. 發起 5 秒超時的 HTTP 請求，反序列化 response JSON 並更新至 d.topology。
 func (d *LocalDispatcher) syncTopologyLoop() {
 	ticker := time.NewTicker(10 * time.Second)
@@ -108,8 +109,8 @@ func (d *LocalDispatcher) syncTopologyLoop() {
 		}
 	}
 
-	webPort := 50005
-	serverURL := fmt.Sprintf("http://%s:%d/api/cluster_topology", serverHost, webPort)
+	webPort := 50007 // assumes the bootstrap/hub node runs the default web_port with hub mode enabled
+	serverURL := fmt.Sprintf("http://%s:%d/hub/api/cluster_topology", serverHost, webPort)
 
 	// 步驟 2: 發起一次同步的封裝函式
 	syncOnce := func() {

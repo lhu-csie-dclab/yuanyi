@@ -177,6 +177,8 @@
         <div class="nav-item" onclick="navigate('settings', this); loadConfig(); loadBackups();"><span class="icon">⚙️</span> Config & Backups</div>
         <div class="nav-label">Developer</div>
         <div class="nav-item" onclick="navigate('api', this)"><span class="icon">🔗</span> OpenAI /v1 API</div>
+        <div class="nav-label" id="nav-hub-label" style="display:none">Cluster</div>
+        <a class="nav-item" id="nav-hub" href="/hub/" target="_blank" style="display:none"><span class="icon">🛰️</span> Hub Dashboard</a>
     </div>
     <div class="sidebar-footer">
         <div class="avatar" id="avatar-text">N</div>
@@ -317,6 +319,10 @@
                 document.getElementById('avatar-text').textContent = localNodeID.substring(0,2).toUpperCase();
             }
             document.getElementById('footer-status').textContent = 'Online';
+            if(data.hub_mode_enabled) {
+                document.getElementById('nav-hub-label').style.display = '';
+                document.getElementById('nav-hub').style.display = '';
+            }
         } catch(e) {}
     }
 
