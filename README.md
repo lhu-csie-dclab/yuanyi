@@ -29,7 +29,7 @@ Mooncake 2.0 Client provides an OpenAI-compatible API Gateway (`/v1/chat/complet
 
 For deep-dive technical documentation, multi-layered architectural specifications, and module reference guides, see:
 
-- **[📖 Layered Architecture Specification (`docs/ARCHITECTURE.md`)](docs/ARCHITECTURE.md)**: Full 7-layer functional breakdown (Orchestrator, Gateway, P2P Swarm, Process Manager, Telemetry, UI) including original code design algorithms.
+- **[📖 Layered Architecture Specification (`docs/ARCHITECTURE.md`)](docs/ARCHITECTURE.md)**: Full 8-layer functional breakdown (Orchestrator, Gateway, P2P Swarm, Process Manager, Telemetry, UI, optional Hub Mode) including original code design algorithms.
 - **[📦 Master App Container Specification (`docs/APP_CONTAINER.md`)](docs/APP_CONTAINER.md)**: Detailed specification of `app.go`, covering struct handles, instantiation, execution flow, and teardown sequence.
 - **[⚙️ Configuration Management Guide (`docs/CONFIG.md`)](docs/CONFIG.md)**: Comprehensive guide for `config.go`, `config.json`, `.env.example`, and `mooncake.json`.
 - **[🌐 P2P Mesh Network & Swarm Key Guide (`docs/P2P_NETWORK.md`)](docs/P2P_NETWORK.md)**: Detailed guide for `p2p.go`, Badger DB peerstore, GossipSub, TCP VIP proxies, and `swarm.key` generation.
@@ -40,6 +40,7 @@ For deep-dive technical documentation, multi-layered architectural specification
 - **[📈 NVIDIA AIPerf Benchmark & Stress Test Results (`docs/test/BENCHMARK_RESULTS.md`)](docs/test/BENCHMARK_RESULTS.md)**: Official 10,000 requests stress test results evaluated on 10 x RTX A2000 8GB GPUs using NVIDIA AIPerf.
 - **[🧪 Experimental Stage & Untested Parameters Manual (`docs/EXPERIMENTAL.md`)](docs/EXPERIMENTAL.md)**: Detailed experimental research scope, baseline parameters, untested options, and production disclaimers.
 - **[🗂 Module & Function Reference Guide (`docs/MODULES.md`)](docs/MODULES.md)**: File-by-file index of data structures, struct definitions, and cross-module call matrices.
+- **[🛰️ Hub Mode Guide (`docs/HUB_MODE.md`)](docs/HUB_MODE.md)**: Optional merged Central Server capability — peer database, GPU scoring, central dispatcher, hub dashboard, and the multi-hub consistency model.
 
 ---
 
@@ -72,7 +73,7 @@ flowchart TB
     end
     
     subgraph Swarm["Mooncake 2.0 P2P Swarm"]
-        CentralServer["Central Server (50004/50005/50006)\n- Topology Sync\n- NAT Relay"]
+        HubNode["Hub Node(s) (50004/50005/50008)\n- Any peer with server_mode.enabled\n- Topology Sync, NAT Relay, Leaderboard"]
         RemotePeer["Remote P2P Peer Nodes"]
     end
     
@@ -81,9 +82,14 @@ flowchart TB
     Dispatcher -.->|2nd Priority: Fallback| RemotePeer
     GoAgent -->|Direct Exec| RayHead
     RayHead -->|Orchestrates| VLLM
-    GoAgent -->|Sync Topology| CentralServer
+    GoAgent -->|Sync Topology| HubNode
     VLLM <-->|Mooncake KV Transfer :8998| RemotePeer
 ```
+
+> Every node runs the same client binary. A node becomes part of `Swarm` above as a **hub**
+> only if its own `config.json` sets `server_mode.enabled: true`; any number of nodes may do
+> so at once, and any node can be `ClientHost` for its own inference regardless of whether it
+> is also a hub. See [`docs/HUB_MODE.md`](docs/HUB_MODE.md).
 
 ---
 
@@ -102,7 +108,10 @@ flowchart TB
   Features an interactive terminal UI powered by `tview` and `tcell`. Automatically detects non-TTY environments (such as headless Docker containers) and seamlessly falls back to background headless mode while keeping API endpoints operational.
 
 - **🌐 P2P Swarm & Mooncake KV Cache Transfer**:
-  Connects to the Mooncake 2.0 central relay over libp2p. Participates in disaggregated Prefill/Decode (P/D) inference topologies, exchanging KV Caches across GPU nodes via `MooncakeConnector` on port `8998`.
+  Connects to the Mooncake 2.0 swarm over libp2p. Participates in disaggregated Prefill/Decode (P/D) inference topologies, exchanging KV Caches across GPU nodes via `MooncakeConnector` on port `8998`.
+
+- **🛰️ Optional Hub Mode (Merged Central Server)**:
+  Any node can opt into `server_mode.enabled` to additionally take on the standalone Central Server's role: a local SQLite peers/leaderboard database, GPU-based scoring, a central P/D dispatcher, and a hub-only dashboard. Multiple hubs can run at once — each independently converges to the same view over the existing GossipSub topic, so there is no single point of failure. See [`docs/HUB_MODE.md`](docs/HUB_MODE.md).
 
 ---
 
@@ -118,6 +127,7 @@ flowchart TB
 | **[`runner.go`](runner.go)** / **[`Dockerfile`](Dockerfile)** | Ray Head & vLLM process/container runner | [🏃 Process & Docker Guide (`docs/RUNNER_DOCKER.md`)](docs/RUNNER_DOCKER.md) |
 | **[`sys.go`](sys.go)** / **[`stats.json`](stats.json)** | Hardware metrics & vLLM Prometheus scraper | [📊 Telemetry & Metrics Guide (`docs/TELEMETRY_SYS.md`)](docs/TELEMETRY_SYS.md) |
 | **[`tui.go`](tui.go)** / **[`web.go`](web.go)** | Interactive TUI console & Web Dashboard | [🖥️ User Interfaces Guide (`docs/DASHBOARD_UI.md`)](docs/DASHBOARD_UI.md) |
+| **`server_*.go`** (optional) | Hub mode: peer database, scoring, dispatcher, dashboard | [🛰️ Hub Mode Guide (`docs/HUB_MODE.md`)](docs/HUB_MODE.md) |
 | **`docs/test/`** | AIPerf 10k requests 10 x RTX A2000 test data | [📈 AIPerf Benchmark Results (`docs/test/BENCHMARK_RESULTS.md`)](docs/test/BENCHMARK_RESULTS.md) |
 
 ---
@@ -134,7 +144,9 @@ Available port mapping referenced across the system (`config.json`, `.env`, Pyth
 | **`8998`** | TCP/HTTP | Mooncake Engine | `config.json` (`mooncake_bootstrap_port`) | Mooncake KV Cache transfer control & negotiation port |
 | **`6389`** | TCP | Python Ray Cluster | Ray Head (`--port`) | Ray distributed execution head node port |
 | **`8275`** | HTTP | Python Ray Dashboard | Ray Head (`--dashboard-port`) | Ray cluster management dashboard |
-| **`50004`** | TCP/libp2p | Central Server | `config.json` (`p2p.server_address`) | Central bootstrap tracker & NAT relay multiaddress port |
+| **`50004`** | TCP/libp2p | Bootstrap Seed | `config.json` (`p2p.server_address(es)`) | Bootstrap tracker & NAT relay multiaddress port (also `server_mode.p2p_port` when this node is a hub) |
+| **`50005`** | HTTP | Hub Dashboard (optional) | `config.json` (`server_mode.web_port`) | Hub-only leaderboard/events/topology dashboard, only when `server_mode.enabled` |
+| **`50008`** | HTTP | Hub Dispatcher (optional) | `config.json` (`server_mode.proxy_port`) | Hub central prefill/decode dispatch & `/api/cluster_topology`, only when `server_mode.enabled` |
 
 ---
 
@@ -295,9 +307,14 @@ Default settings in `config.json`:
     "max_model_len": 8192,
     "kv_role": "kv_both",
     "mooncake_bootstrap_port": 8998
+  },
+  "server_mode": {
+    "enabled": false
   }
 }
 ```
+
+Set `server_mode.enabled: true` to opt this node into hub mode (merged Central Server responsibilities) — see [`docs/HUB_MODE.md`](docs/HUB_MODE.md) for the full field reference.
 
 Mooncake transport settings in `mooncake.json` (`"protocol": "tcp"`):
 

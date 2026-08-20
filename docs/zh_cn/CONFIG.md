@@ -10,6 +10,22 @@
 
 ---
 
+## 🛰️ `server_mode`（可选 Hub 模式）
+
+```json
+{
+  "server_mode": {
+    "enabled": false
+  }
+}
+```
+
+`server_mode.enabled` 默认为 `false`，开启后这个节点会兼任 Hub（合并原本独立中央服务器的能力：
+节点/排行榜数据库、GPU 算分、中央派发器、Hub 专属仪表板）。完整字段说明见
+[`HUB_MODE.md`](HUB_MODE.md)。
+
+---
+
 ## 🍰 `mooncake.json` 传输协议设置 (`protocol: "tcp"`)
 
 ```json

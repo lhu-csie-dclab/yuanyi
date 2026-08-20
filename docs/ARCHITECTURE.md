@@ -25,6 +25,14 @@ This document provides an exhaustive, multi-layered architectural specification 
 │ Layer 5: Process Mgt  │ │ Layer 6: Telemetry    │ │ Layer 7: UI & Web     │
 │ (runner.go)           │ │ (sys.go)              │ │ (tui.go, web.go)      │
 └───────────────────────┘ └───────────────────────┘ └───────────────────────┘
+                                     │
+                                     ▼ (only when server_mode.enabled)
+                    ┌────────────────────────────────────┐
+                    │ Layer 8: Hub Mode                   │
+                    │ (server_db.go, server_rank.go,      │
+                    │  server_p2p.go, server_proxy.go,    │
+                    │  server_web.go)                     │
+                    └────────────────────────────────────┘
 ```
 
 ---
@@ -170,3 +178,41 @@ This document provides an exhaustive, multi-layered architectural specification 
   - `GET /api/stats`: Cluster-wide throughput, TTFT, & KV cache metrics.
   - `GET /api/logs`: Aggregated system, vLLM, and Docker logs.
   - `GET /POST /api/config`: Reads, updates, and backups `config.json`.
+
+---
+
+## 🛰 Layer 8: Hub Mode (Optional Central Server Merge)
+
+### 8.1 `server_db.go` / `server_rank.go` - Peer Database & Contribution Scoring
+- **Module Name**: Hub Peer Database & GPU Scoring Engine
+- **System Role**:
+  Owns a local SQLite database (`peers.db`) tracking every peer this node has observed, plus a
+  fuzzy GPU-model-to-VRAM matcher used to score contribution and publish `top.json` every 10s.
+
+### 8.2 `server_p2p.go` - Connection Tracking & Health Checks
+- **Module Name**: Hub Connectivity Agent
+- **System Role**:
+  Registers a `libp2p.Notifee` (`ConnNotifee`) that mirrors connect/disconnect events into
+  `peers.db`, and runs `startServerPingLoop` to periodically ping every known peer and update
+  its failure count / penalty points.
+
+### 8.3 `server_proxy.go` - Central Prefill/Decode Dispatcher
+- **Module Name**: Hub Dispatch Service
+- **System Role**:
+  Mirrors `proxy.go`'s dispatcher, but scoped to this hub's own view of the mesh (built from
+  its local `peers.db`) rather than the local vLLM instance. Serves `/api/cluster_topology` and
+  the same OpenAI-compatible endpoints on `server_mode.proxy_port`.
+
+### 8.4 `server_web.go` - Hub Dashboard
+- **Module Name**: Hub Dashboard HTTP Server
+- **System Role**:
+  Serves a separate dashboard (leaderboard, peer list, audit events) on `server_mode.web_port`,
+  embedding `web/hub/` via `embed.FS`.
+
+### 8.5 Multi-Hub Consistency Model
+Unlike the standalone Central Server this replaces, hub mode has no single fixed instance: any
+number of nodes can enable `server_mode.enabled` simultaneously. Each independently persists
+what it observes on the existing network-wide GossipSub topic into its own `peers.db`, so
+multiple hubs converge to the same eventually-consistent view without any hub-to-hub
+replication protocol and without a single point of failure. See
+[`HUB_MODE.md`](HUB_MODE.md) for the full design rationale and trade-offs.

@@ -2,6 +2,10 @@
 
 本文件為 Mooncake 2.0 Client Agent 提供完整的 7 大層級架構說明，保留原本散落於原始碼頭部的所有設計細節與演算法說明。
 
+> [!NOTE]
+> 選用的第 8 層「Hub 模式」（合併原本獨立中央伺服器的能力）請參閱
+> [`HUB_MODE.md`](HUB_MODE.md)，或英文完整版 [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md#-layer-8-hub-mode-optional-central-server-merge)。
+
 ---
 
 ## 📐 系統分層架構概覽 (System Layer Overview)

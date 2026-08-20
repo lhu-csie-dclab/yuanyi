@@ -17,6 +17,13 @@ This document indexes all source code files in the **Mooncake 2.0 Client Agent**
 | **[`sys.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/sys.go)** | Metrics Scraper & NVML Telemetry | `SysMonitor`, `VLLMMetrics` | [`docs/TELEMETRY_SYS.md`](TELEMETRY_SYS.md) |
 | **[`tui.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/tui.go)** | Terminal UI & Stats Persistence | `TUI`, `Stats`, `PersistentStats` | [`docs/DASHBOARD_UI.md`](DASHBOARD_UI.md) |
 | **[`web.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/web.go)** | Web Monitoring Dashboard | `embed.FS` | [`docs/DASHBOARD_UI.md`](DASHBOARD_UI.md#web-monitoring-dashboard-webgo-usage-guide) |
+| **[`server_db.go`](../server_db.go)** | Hub Peer Database (optional) | `DBManager`, `PeerData`, `PeerEvent` | [`docs/HUB_MODE.md`](HUB_MODE.md) |
+| **[`server_rank.go`](../server_rank.go)** | Hub GPU Contribution Scoring (optional) | `RankManager`, `GPUSpec` | [`docs/HUB_MODE.md`](HUB_MODE.md) |
+| **[`server_p2p.go`](../server_p2p.go)** | Hub Connection Tracking & Health Checks (optional) | `ConnNotifee` | [`docs/HUB_MODE.md`](HUB_MODE.md) |
+| **[`server_proxy.go`](../server_proxy.go)** | Hub Prefill/Decode Dispatcher (optional) | `ProxyServer`, `Backend` | [`docs/HUB_MODE.md`](HUB_MODE.md) |
+| **[`server_web.go`](../server_web.go)** | Hub Dashboard (optional) | `embed.FS` | [`docs/HUB_MODE.md`](HUB_MODE.md) |
+| **[`logger.go`](../logger.go)** | Structured Logging Helpers | — | [`docs/HUB_MODE.md`](HUB_MODE.md) |
+| **[`scanGPUlevel.go`](../scanGPUlevel.go)** | GPU Spec Database Downloader (optional) | — | [`docs/HUB_MODE.md`](HUB_MODE.md) |
 
 ---
 
@@ -32,5 +39,9 @@ main.go
         │     └── StartLocalDispatcher() [proxy.go]
         ├── Runner.Start()               [runner.go]
         ├── StartClientWebDashboard()    [web.go]
+        ├── (if server_mode.enabled)
+        │     ├── RankManager.Start()          [server_rank.go]
+        │     ├── StartServerWebDashboard()    [server_web.go]
+        │     └── StartServerDispatch()        [server_proxy.go]
         └── TUI.Run()                    [tui.go]
 ```
