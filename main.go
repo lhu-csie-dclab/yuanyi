@@ -20,6 +20,12 @@ func main() {
 		return
 	}
 
+	// Only hub-mode nodes need the GPU specification database used for peer scoring; skip
+	// the download for plain clients to avoid an unnecessary startup network request.
+	if cfg.ServerMode.Enabled {
+		scanGPUlevel()
+	}
+
 	app := NewApp(cfg)
 
 	ctx, cancel := context.WithCancel(context.Background())

@@ -29,6 +29,7 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoreds"
+	"github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 	"github.com/multiformats/go-multiaddr"
 )
 
@@ -39,6 +40,13 @@ const (
 	NamespaceDHT    = "/my-gpu-network/v1/gpu-info/"
 	TopicGPUUpdates = "/my-gpu-network/v1/updates"
 )
+
+// GPUEntry describes a single GPU model and its count, used by hub-mode scoring
+// (RankManager.CalculateScore) when GPUInfo.GPUs is populated or derived from Summary.
+type GPUEntry struct {
+	ID  string `json:"id"`
+	Num int    `json:"num"`
+}
 
 // GPUInfo describes the telemetry and capacity payload broadcast across the P2P mesh.
 type GPUInfo struct {
@@ -70,6 +78,11 @@ type GPUInfo struct {
 	PowerLimit    float64 `json:"power_limit"`
 	FanSpeed      int     `json:"fan_speed"`
 	DriverVersion string  `json:"driver_version"`
+
+	// GPUs and Performance are hub-only fields, populated server-side (from Summary via
+	// parseSummaryGPUs) when scoring peers; a plain client leaves them at zero value.
+	GPUs        []GPUEntry `json:"gpus,omitempty"`
+	Performance int        `json:"Performance,omitempty"`
 }
 
 type discoveryNotifee struct {
@@ -94,6 +107,44 @@ func NewNetworkNode(app *App) *NetworkNode {
 	return &NetworkNode{app: app}
 }
 
+// Host returns the underlying libp2p host, used by app.go to start hub-mode services
+// that need to share this node's connection.
+func (n *NetworkNode) Host() host.Host {
+	return n.host
+}
+
+// resolveSeedAddrs parses P2P.ServerAddresses (preferred, may list several hub seeds) and
+// P2P.ServerAddress (single legacy field, kept for backward compatibility) into AddrInfo
+// values, de-duplicating by raw string. The result is only an entry point: once a node
+// reaches any one seed, DHT discovery finds the rest of the mesh, so no single seed is a
+// runtime dependency.
+func (n *NetworkNode) resolveSeedAddrs() ([]peer.AddrInfo, error) {
+	var raw []string
+	raw = append(raw, n.app.Config.P2P.ServerAddresses...)
+	if n.app.Config.P2P.ServerAddress != "" {
+		raw = append(raw, n.app.Config.P2P.ServerAddress)
+	}
+
+	var infos []peer.AddrInfo
+	seen := make(map[string]bool)
+	for _, s := range raw {
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		maddr, err := multiaddr.NewMultiaddr(s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid server address %q: %v", s, err)
+		}
+		info, err := peer.AddrInfoFromP2pAddr(maddr)
+		if err != nil {
+			return nil, err
+		}
+		infos = append(infos, *info)
+	}
+	return infos, nil
+}
+
 func (n *NetworkNode) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	n.cancel = cancel
@@ -102,19 +153,14 @@ func (n *NetworkNode) Start(ctx context.Context) error {
 		os.Remove("./my-peerstore/LOCK")
 	}
 
-	serverMultiAddr := n.app.Config.P2P.ServerAddress
-	if serverMultiAddr == "" {
-		return fmt.Errorf("server_address is empty in config.json")
-	}
-
-	maddr, err := multiaddr.NewMultiaddr(serverMultiAddr)
-	if err != nil {
-		return fmt.Errorf("invalid server_address format: %v", err)
-	}
-
-	serverAddrInfo, err := peer.AddrInfoFromP2pAddr(maddr)
+	seedAddrs, err := n.resolveSeedAddrs()
 	if err != nil {
 		return err
+	}
+	if len(seedAddrs) == 0 && !n.app.Config.ServerMode.Enabled {
+		// A plain client always needs at least one bootstrap seed to join the mesh.
+		// A hub-mode node may start with none: it simply becomes a root seed for others.
+		return fmt.Errorf("p2p.server_address(es) is empty in config.json")
 	}
 
 	keyFile, err := os.Open("swarm.key")
@@ -138,25 +184,62 @@ func (n *NetworkNode) Start(ctx context.Context) error {
 		return err
 	}
 
-	h, err := libp2p.New(
+	// Use a persisted Ed25519 identity so the PeerID stays stable across restarts. This
+	// matters most for hub-mode nodes, which other clients may configure as a long-lived
+	// bootstrap seed, but a stable identity is harmless (and generally useful) for plain
+	// clients too.
+	identity := loadOrGenerateIdentity("identity.key")
+
+	opts := []libp2p.Option{
 		libp2p.Peerstore(pstore),
 		libp2p.PrivateNetwork(psk),
-		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"),
+		libp2p.Identity(identity),
 		libp2p.EnableRelay(),
-		libp2p.EnableAutoRelay(
-			autorelay.WithStaticRelays([]peer.AddrInfo{*serverAddrInfo}),
-		),
 		libp2p.EnableHolePunching(),
 		libp2p.NATPortMap(),
 		libp2p.ResourceManager(&network.NullResourceManager{}),
-	)
+	}
+	if len(seedAddrs) > 0 {
+		opts = append(opts, libp2p.EnableAutoRelay(autorelay.WithStaticRelays(seedAddrs)))
+	}
+
+	if n.app.Config.ServerMode.Enabled {
+		// Hub mode: listen on a fixed port so other nodes can dial in, and offer Circuit
+		// Relay v2 service. Whether this node is actually reachable as a relay depends on
+		// its real network position (a NAT'd hub simply won't be dialable, which is a safe
+		// no-op); this is a static, Tailscale-like approximation rather than a dynamic
+		// AutoNAT-driven election.
+		listenPort := n.app.Config.ServerMode.P2PPort
+		if listenPort <= 0 {
+			listenPort = 50004
+		}
+		res := relay.DefaultResources()
+		res.MaxReservations = 1024
+		res.MaxCircuits = 1024
+		res.BufferSize = 1073741824
+		res.Limit = nil
+
+		opts = append(opts,
+			libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", listenPort)),
+			libp2p.EnableRelayService(relay.WithResources(res)),
+			libp2p.ForceReachabilityPublic(),
+		)
+	} else {
+		opts = append(opts, libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+	}
+
+	h, err := libp2p.New(opts...)
 	if err != nil {
 		return err
 	}
 	n.host = h
 
+	if n.app.Config.ServerMode.Enabled && n.app.ServerProxy != nil {
+		n.app.ServerProxy.host = h
+	}
+
 	n.setupStreams()
-	go n.keepAlive(*serverAddrInfo)
+	go n.keepAlive(seedAddrs)
 
 	mdnsService := mdns.NewMdnsService(h, "my-gpu-discovery-service", &discoveryNotifee{n: n})
 	if err := mdnsService.Start(); err != nil {
@@ -169,7 +252,7 @@ func (n *NetworkNode) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	n.bootstrapNode(ctx, kademlia, n.app.Config.P2P.ServerAddress)
+	n.bootstrapNode(ctx, kademlia, seedAddrs)
 
 	ps, err := pubsub.NewGossipSub(ctx, h)
 	if err != nil {
@@ -188,6 +271,13 @@ func (n *NetworkNode) Start(ctx context.Context) error {
 	go n.gossipSubscriber(ctx, sub)
 
 	StartLocalDispatcher(n.app, h)
+
+	// Hub-mode extras: track connect/disconnect events into the local peers.db and run
+	// the periodic health-check ping loop.
+	if n.app.Config.ServerMode.Enabled && n.app.DB != nil {
+		h.Network().Notify(&ConnNotifee{app: n.app})
+		go startServerPingLoop(ctx, n.app, h)
+	}
 
 	return nil
 }
@@ -243,40 +333,40 @@ func (n *NetworkNode) setupStreams() {
 	})
 }
 
-func (n *NetworkNode) bootstrapNode(ctx context.Context, kademlia *dht.IpfsDHT, serverMultiAddr string) {
+// bootstrapNode joins the Kademlia DHT and connects to every configured seed address.
+func (n *NetworkNode) bootstrapNode(ctx context.Context, kademlia *dht.IpfsDHT, seedAddrs []peer.AddrInfo) {
 	if err := kademlia.Bootstrap(ctx); err != nil {
 		n.app.TUI.AddLog("[ERROR]", fmt.Sprintf("DHT Bootstrap failed: %v", err))
 	}
 
-	maddr, err := multiaddr.NewMultiaddr(serverMultiAddr)
-	if err != nil {
-		return
-	}
-	serverAddrInfo, err := peer.AddrInfoFromP2pAddr(maddr)
-	if err != nil {
-		return
-	}
-
-	if err := n.host.Connect(ctx, *serverAddrInfo); err != nil {
-		n.app.TUI.AddLog("[WARN]", fmt.Sprintf("Failed to connect to Bootstrap node: %v", err))
-	} else {
-		n.app.TUI.AddLog("[INFO]", "Connected to Bootstrap node and joined DHT")
+	for _, addrInfo := range seedAddrs {
+		if err := n.host.Connect(ctx, addrInfo); err != nil {
+			n.app.TUI.AddLog("[WARN]", fmt.Sprintf("Failed to connect to Bootstrap node %s: %v", addrInfo.ID, err))
+		} else {
+			n.app.TUI.AddLog("[INFO]", fmt.Sprintf("Connected to Bootstrap node %s and joined DHT", addrInfo.ID))
+		}
 	}
 }
 
-func (n *NetworkNode) keepAlive(serverAddrInfo peer.AddrInfo) {
+// keepAlive periodically re-dials any configured seed that is not currently connected.
+func (n *NetworkNode) keepAlive(seedAddrs []peer.AddrInfo) {
+	if len(seedAddrs) == 0 {
+		return
+	}
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		if n.host.Network().Connectedness(serverAddrInfo.ID) != network.Connected {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			if err := n.host.Connect(ctx, serverAddrInfo); err != nil {
-				n.app.TUI.AddLog("[WARN]", fmt.Sprintf("Reconnecting to Bootstrap node failed: %v", err))
-			} else {
-				n.app.TUI.AddLog("[INFO]", "Reconnected to Bootstrap node")
+		for _, addrInfo := range seedAddrs {
+			if n.host.Network().Connectedness(addrInfo.ID) != network.Connected {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				if err := n.host.Connect(ctx, addrInfo); err != nil {
+					n.app.TUI.AddLog("[WARN]", fmt.Sprintf("Reconnecting to Bootstrap node %s failed: %v", addrInfo.ID, err))
+				} else {
+					n.app.TUI.AddLog("[INFO]", fmt.Sprintf("Reconnected to Bootstrap node %s", addrInfo.ID))
+				}
+				cancel()
 			}
-			cancel()
 		}
 	}
 }
@@ -437,6 +527,13 @@ func (n *NetworkNode) gossipSubscriber(ctx context.Context, sub *pubsub.Subscrip
 
 		n.app.TUI.RecordPeerInfo(info)
 		n.startLocalProxyForPeer(info.NodeID)
+
+		// Hub mode: also persist the broadcast into the local peers.db. Because every
+		// hub subscribes to this same network-wide topic, each one converges to the same
+		// view independently -- no hub-to-hub replication is needed.
+		if n.app.Config.ServerMode.Enabled && n.app.DB != nil {
+			serverProcessGossipMessage(info, n.app)
+		}
 
 		n.app.TUI.AddLog("[GOSSIP]", fmt.Sprintf("Received broadcast from %s - GPU: %s", info.NodeID[:8], info.Summary))
 	}
