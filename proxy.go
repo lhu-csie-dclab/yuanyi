@@ -48,6 +48,7 @@ type LocalDispatcher struct {
 	topology    ClusterTopologyResponse // 最新同步的叢集拓樸結構快照
 	mu          sync.RWMutex            // 保護 topology 快照與 decodeIndex 的讀寫鎖
 	vllmReady   atomic.Bool             // 本機 vLLM 是否已就緒 (通過 /health 確認)
+	localBusy   atomic.Bool             // 本機是否正在處理另一筆請求；用來讓併發請求分流至 P2P 而非全部排本機隊
 }
 
 // NewLocalDispatcher 建構函式：建立 LocalDispatcher 實例。
@@ -492,17 +493,20 @@ func (d *LocalDispatcher) handleProxyRequest(w http.ResponseWriter, r *http.Requ
 	if top.IsPDTogether || (len(top.PrefillBackends) == 0 && len(top.DecodeBackends) == 0) {
 		reqBytes, _ := json.Marshal(reqData)
 
-		// 步驟 1: 優先嘗試由本機 vLLM 執行 (直接透明串流 Passthrough，支援 SSE/stream 模式)
-		if d.vllmReady.Load() {
+		// 步驟 1: 只有在本機 vLLM 就緒「且目前沒有其他請求正在使用本機」時才走本機直通。
+		// 用 CompareAndSwap 搶佔 localBusy 這個名額：搶到才執行本機，執行完（不論成敗）立刻釋放。
+		// 這讓單一請求仍走最快的本機路徑，但多筆併發請求會自動分流到 P2P 遠端節點，
+		// 而不是全部排在同一張本機 GPU 的隊列裡（不再只看「本機是否健康」，而是看「本機是否有空」）。
+		if d.vllmReady.Load() && d.localBusy.CompareAndSwap(false, true) {
 			d.app.TUI.AddLog("[PROXY]", fmt.Sprintf("本地 vLLM 處理 (模型: %s)", modelName))
-		}
-		if d.proxyToLocalVLLMDirect(w, r, reqBytes) {
-			return // 成功：已直接 pipe 回應給客戶端
-		}
-
-		// 步驟 2: 若本機 vLLM 失敗或忙碌，自動切換至 P2P 網路進行遠端節點備援
-		if d.vllmReady.Load() {
-			d.app.TUI.AddLog("[WARN]", fmt.Sprintf("本地 vLLM 未回應 (%v)，自動切換至 P2P 遠端節點備援...", err))
+			ok := d.proxyToLocalVLLMDirect(w, r, reqBytes)
+			d.localBusy.Store(false)
+			if ok {
+				return // 成功：已直接 pipe 回應給客戶端
+			}
+			d.app.TUI.AddLog("[WARN]", "本地 vLLM 未回應，自動切換至 P2P 遠端節點備援...")
+		} else if d.vllmReady.Load() {
+			d.app.TUI.AddLog("[PROXY]", fmt.Sprintf("本地 vLLM 忙碌中 (模型: %s)，分派至 P2P 遠端節點...", modelName))
 		}
 		knownPeers := d.app.TUI.GetPeers()
 		var peerIDs []string
