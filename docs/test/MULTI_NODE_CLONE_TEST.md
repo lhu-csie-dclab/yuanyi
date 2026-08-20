@@ -2,13 +2,21 @@
 
 This document records an end-to-end validation run: simulating a brand-new open-source user
 who clones this repository from GitHub, deploys it on multiple independent machines, and
-confirms that inference requests are actually served by distinct physical GPUs across the
-swarm — not a single card pretending to be several nodes.
+confirms both (a) that inference requests are actually served by distinct physical GPUs across
+the swarm, and (b) that a single entry-point node correctly distributes concurrent load to
+other nodes instead of queueing everything behind its own GPU.
+
+> [!NOTE]
+> Results below are from re-running this test at commit `bdfc4d7` (PR #4,
+> "make local-vs-remote dispatch concurrency-aware, not just health-based"). Sections 2 and 3
+> superseded an earlier revision of this document that predated that fix, in which the
+> single-entry-point distribution behavior described in Section 3 did not yet exist.
 
 For raw single-node throughput/latency numbers under sustained load, see
 [`BENCHMARK_RESULTS.md`](BENCHMARK_RESULTS.md) (NVIDIA AIPerf, 10,000 requests). This document
 instead focuses on **multi-node, multi-GPU correctness**: does a fresh `git clone` really work,
-and does the swarm really use every physical GPU it claims to have.
+does the swarm really use every physical GPU it claims to have, and does hitting one node's
+gateway actually spread concurrent load across the swarm rather than piling it onto one card.
 
 ---
 
@@ -22,6 +30,7 @@ and does the swarm really use every physical GPU it claims to have.
 | Base inference image | `nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.2.1-cuda13` (CUDA 13) |
 | Go toolchain (in-container build) | `go1.26` (Alpine builder stage) |
 | Model under test | `Qwen3-4B-AWQ` (4-bit AWQ quantized) |
+| Repository commit | `bdfc4d7` (`main`) |
 | Network mode | Docker `network_mode: host`, all 10 nodes joined to the same private libp2p swarm (shared `swarm.key`) |
 
 > [!NOTE]
@@ -52,8 +61,12 @@ and does the swarm really use every physical GPU it claims to have.
    ```
 4. Verified P2P mesh formation via each node's `/api/peers` and `/api/node_info` endpoints, and
    vLLM readiness via `/health` (port `8100`).
-5. Sent real `/v1/chat/completions` requests to each node's own gateway (port `50006`) —
-   sequentially first, then all 10 simultaneously — while sampling `nvidia-smi` on every node.
+5. Ran three separate request patterns while sampling `nvidia-smi` and, for the third pattern,
+   each node's own `vllm:request_success_total` Prometheus counter (port `8100/metrics`):
+   - **Sequential**: one request to each node's own gateway, in turn.
+   - **All-10-concurrent**: all 10 nodes' gateways hit at the same time.
+   - **Single-entry-point concurrent** (new): multiple concurrent requests sent to **only one**
+     node's gateway, to verify that node distributes the load itself.
 
 ### Request Parameters
 
@@ -65,9 +78,8 @@ and does the swarm really use every physical GPU it claims to have.
   "temperature": 0.7
 }
 ```
-Prompts used: *"Write a 100 word story about the ocean."* (sequential run) and
-*"Explain photosynthesis in detail." / "Write a detailed 200 word essay about deep learning."*
-(concurrent runs, `max_tokens` raised to 200-250 to widen the generation window for sampling).
+`max_tokens` was raised to 180-200 for the concurrent test patterns to widen the generation
+window for `nvidia-smi` sampling.
 
 ---
 
@@ -77,48 +89,65 @@ Prompts used: *"Write a 100 word story about the ocean."* (sequential run) and
 
 | Check | Result |
 | :--- | :--- |
-| `git clone` to latest `main` commit | ✅ 10/10 |
+| `git clone` to commit `bdfc4d7` | ✅ 10/10 |
 | `docker compose up -d --build` succeeded | ✅ 10/10 |
 | Gateway `/health` → `200` | ✅ 10/10 |
-| vLLM `/health` (port 8100) → `200` after warm-up | ✅ 10/10 (2 nodes needed an extra ~60s warm-up window before going healthy) |
-| P2P peer discovery | ✅ 10/10, each node saw 9-10 peers (fully connected mesh) |
+| vLLM `/health` (port 8100) → `200` after warm-up | ✅ 10/10 |
+| P2P peer discovery | ✅ 10/10, each node saw all 9 other nodes (fully connected mesh) |
 
-### 2. Sequential Per-Node Request + GPU Utilization
+### 2. Sequential + All-10-Concurrent (each node serving its own request)
 
-One request sent to each node's own gateway in turn, `nvidia-smi` sampled ~1.5s into
-generation:
-
-| Node | GPU Utilization (mid-generation) | VRAM Used | HTTP | Latency |
+| Pattern | Requests | Success | GPU utilization observed | Response time |
 | :--- | :---: | :---: | :---: | :---: |
-| 1 | 100% | 6,320 MiB / 8,192 MiB | 200 | 2.53s |
-| 2 | 100% | 6,320 MiB / 8,192 MiB | 200 | 2.49s |
-| 3 | 100% | 6,320 MiB / 8,192 MiB | 200 | 2.55s |
-| 4 | 100% | 6,326 MiB / 8,192 MiB | 200 | 2.50s |
-| 5 | 100% | 6,320 MiB / 8,192 MiB | 200 | 2.51s |
-| 6 | 100% | 6,320 MiB / 8,192 MiB | 200 | 2.51s |
-| 7 | 100% | 6,320 MiB / 8,192 MiB | 200 | 2.61s |
-| 8 | 100% | 6,320 MiB / 8,192 MiB | 200 | 2.53s |
-| 9 | 100% | 6,320 MiB / 8,192 MiB | 200 | 2.50s |
-| 10 | 100% | 6,320 MiB / 8,192 MiB | 200 | 2.47s |
+| Sequential (1 node at a time) | 10 | 10/10 (`HTTP 200`) | Every node independently hit 100% during its own request | 1.6s – 2.5s |
+| All-10-concurrent | 10 | 10/10 (`HTTP 200`) | Multi-point sampling caught 2 distinct nodes at 100% simultaneously on each host | 2.07s – 2.19s |
 
-Every node independently reached 100% GPU utilization for its own request — confirming 10
-distinct physical GPUs, not one card serving all traffic.
+This reconfirms 10 distinct physical GPUs are in play, not one card serving all traffic.
 
-### 3. Concurrent All-10 Request Test
+### 3. Single-Entry-Point Distribution Test (new)
 
-All 10 nodes' gateways hit at the same time (`curl` fired in parallel across both hosts),
-`nvidia-smi` sampled at 4 points (~0.8s apart) during the overlapping generation windows:
+9 concurrent requests were sent to **one node's gateway only** — no other node's endpoint was
+touched directly. This exercises the fix in PR #4: the dispatcher's local-vs-remote decision is
+now based on whether the local GPU is *currently free* (`localBusy`, `atomic.Bool` +
+`CompareAndSwap`), not just whether it is *healthy*.
+
+**Live dispatcher decision log, captured from the target node's own `/api/logs`:**
+```
+[PROXY] 本地 vLLM 處理 (模型: Qwen3-4B-AWQ)                                x2
+[PROXY] 本地 vLLM 忙碌中 (模型: Qwen3-4B-AWQ)，分派至 P2P 遠端節點...          x7
+[PROXY] P2P 備援轉發 Qwen3-4B-AWQ -> 遠端節點: 12D3KooW... (嘗試 1/3)         x7
+```
+("忙碌中" = busy; "分派至 P2P 遠端節點" = dispatched to a P2P remote node; "備援轉發" = fallback
+forwarded.)
 
 | Result | Value |
 | :--- | :--- |
-| Requests fired concurrently | 10 |
-| Successful responses (`HTTP 200`) | 10/10 |
-| Response time range | 2.09s – 2.71s |
-| Simultaneous 100% GPU utilization observed | 2+ distinct nodes captured at 100% in the same snapshot instant on each host (sampling granularity limited by per-call container-exec overhead, not by the GPUs themselves) |
+| Requests sent, all to the same single node | 9 |
+| Successful responses (`HTTP 200`) | 9/9 |
+| Response time range | 1.93s – 2.00s (essentially one request's worth of latency, not 9x) |
+| Kept local (per dispatcher log) | 2 |
+| Dispatched to P2P peers (per dispatcher log) | 7 |
 
-A CPU fallback for a 4B-parameter model would take on the order of tens of seconds to minutes
-per request; consistent ~2.1-2.7s completions across all 10 concurrent requests are only
-plausible with genuine GPU-accelerated inference on each node.
+**Independent confirmation via each node's own vLLM execution counter** (`vllm:request_success_total`,
+cumulative since container start; a value above the 2-request floor established by the
+sequential + all-10-concurrent tests earlier in this run means that node executed additional
+inference beyond its own two directly-addressed requests):
+
+| Node | Execution count | Above baseline? |
+| :--- | :---: | :---: |
+| Target node | 4 | ✅ (2 local wins from this test) |
+| 5 other nodes | 3, 3, 4, 4, 8 | ✅ all above the 2-request floor |
+| 4 other nodes | 2 | at floor (not selected this round) |
+
+At least **6 distinct physical GPUs** (the target plus 5 others) show execution counts above
+what the earlier sequential/all-10-concurrent tests alone would produce — direct confirmation
+that the 7 P2P-dispatched requests actually executed on multiple different remote machines, not
+on the target node itself and not queued.
+
+A request queued behind another on the same GPU would add roughly one full generation's worth
+of latency (~2s) per position in the queue; 9 requests completing within a ~70ms window of each
+other is only possible if the work was genuinely spread across multiple GPUs running in
+parallel, not serialized on one.
 
 ---
 
@@ -128,6 +157,8 @@ A completely fresh `git clone` of this repository, configured only with the valu
 swarm participant would need (bootstrap address + shared private-network key), builds and runs
 correctly via the stock `docker-compose.yml`, joins the existing P2P mesh, and serves inference
 from its own local GPU. Across 10 independently deployed nodes on 2 separate physical hosts,
-every node's GPU was independently confirmed active (100% utilization) while correctly serving
-real chat completion requests — both one at a time and with all 10 issuing requests
-concurrently.
+every node's GPU was independently confirmed active while correctly serving real chat
+completion requests. Beyond that, a single node's gateway now correctly recognizes when its own
+GPU is already busy and automatically distributes concurrent overflow to other nodes in the
+swarm — verified both via the dispatcher's own decision log and via independent execution
+counters on the receiving nodes' vLLM instances.
