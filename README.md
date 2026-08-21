@@ -27,7 +27,8 @@ Mooncake 2.0 Client provides an OpenAI-compatible API Gateway (`/v1/chat/complet
 > **Privacy: prompts sent to remote nodes are readable by those nodes' operators**
 > - When your local GPU is busy, requests are dispatched to **other machines in the swarm**, which must decrypt them to run inference. There is no application-layer encryption, and none is technically possible for LLM inference today.
 > - `swarm.key` controls **who may join**, not what members may do with traffic they receive. Every node operator in your swarm is implicitly trusted with your users' prompts.
-> - **Do not route sensitive data through nodes you do not control.** See **[🔐 Security & Trust Model (`docs/SECURITY.md`)](docs/SECURITY.md)**.
+> - Your node also **broadcasts your IP address, GPU model and usage patterns to every peer every 3 seconds**, and receives theirs. Other people's prompts will run on **your** GPU.
+> - **📋 Before joining any swarm, read the [User Notice (`docs/USER_NOTICE.md`)](docs/USER_NOTICE.md)** — what you expose, what you take on, and the risks of sharing `swarm.key`. Full trust model: **[`docs/SECURITY.md`](docs/SECURITY.md)**.
 
 ---
 
@@ -45,6 +46,7 @@ For deep-dive technical documentation, multi-layered architectural specification
 - **[🖥️ User Interfaces & Web Dashboard Guide (`docs/DASHBOARD_UI.md`)](docs/DASHBOARD_UI.md)**: Detailed guide for `tui.go` (4-tab terminal console, headless mode) and the Vue 3 + Vite + Tailwind CSS web dashboard (`web-ui/`, embedded via `web.go` on port `50007`).
 - **[📈 NVIDIA AIPerf Benchmark & Stress Test Results (`docs/test/BENCHMARK_RESULTS.md`)](docs/test/BENCHMARK_RESULTS.md)**: Official 10,000 requests stress test results evaluated on 10 x RTX A2000 8GB GPUs using NVIDIA AIPerf.
 - **[🧬 Multi-Node Fresh-Clone & Concurrent Multi-GPU Test (`docs/test/MULTI_NODE_CLONE_TEST.md`)](docs/test/MULTI_NODE_CLONE_TEST.md)**: Validates a from-scratch `git clone` deployed across 10 independent nodes on 2 hosts, confirming 10 distinct physical GPUs each serve real inference, sequentially and concurrently.
+- **[📋 User Notice — read before joining a swarm (`docs/USER_NOTICE.md`)](docs/USER_NOTICE.md)**: What your node broadcasts about you (IP, GPU, usage patterns), what runs on your GPU, the risks of sharing `swarm.key`, and what not to type into a shared swarm.
 - **[🔐 Security & Trust Model (`docs/SECURITY.md`)](docs/SECURITY.md)**: What the system does and does not protect — why remote nodes can read dispatched prompts, what `swarm.key` actually guarantees, and the known unauthenticated surfaces.
 - **[🖥️ Proxmox VE + LXC GPU Passthrough Guide (`docs/install/proxmox/README.md`)](docs/install/proxmox/README.md)**: Host driver, LXC creation, GPU device passthrough, nested Docker, and the `no-cgroups` fix — how the 10-node reference cluster is built.
 - **[🐧 Ubuntu Installation Guide (`docs/install/ubuntu/README.md`)](docs/install/ubuntu/README.md)**: The primary, production-tested platform — Docker Engine, NVIDIA Container Toolkit, `swarm.key`, and both the Docker and native build paths.
