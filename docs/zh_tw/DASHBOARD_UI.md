@@ -14,5 +14,6 @@
 
 ## 🌐 Web 儀表板 (`50007` 埠)
 
-- **Go `embed.FS`**：前端靜態資源直接編譯進二進位檔。
-- **API 端點**：`/api/peers`, `/api/stats`, `/api/logs`, `/api/config`。
+- **技術棧**：Vue 3 + Vite + Tailwind CSS，原始碼在 [`web-ui/`](../../web-ui)，用 hash 路由（`/#/...`）切 SPA 頁面，不需要伺服器端的 SPA fallback。
+- **Go `embed.FS`**：`web.go` 用 `//go:embed web-ui/dist` 把 `npm run build` 的產出直接編譯進二進位檔；非 Docker 建置前必須先在 `web-ui/` 跑過一次 `npm ci && npm run build`。
+- **API 端點**：`/api/peers`, `/api/stats`, `/api/logs`, `/api/config`；Hub 模式開啟時另外掛載 `/hub/api/*`。

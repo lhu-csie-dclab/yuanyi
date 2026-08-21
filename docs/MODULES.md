@@ -16,12 +16,13 @@ This document indexes all source code files in the **Mooncake 2.0 Client Agent**
 | **[`runner.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/runner.go)** | Ray & vLLM Process Orchestrator | `Runner` | [`docs/RUNNER_DOCKER.md`](RUNNER_DOCKER.md) |
 | **[`sys.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/sys.go)** | Metrics Scraper & NVML Telemetry | `SysMonitor`, `VLLMMetrics` | [`docs/TELEMETRY_SYS.md`](TELEMETRY_SYS.md) |
 | **[`tui.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/tui.go)** | Terminal UI & Stats Persistence | `TUI`, `Stats`, `PersistentStats` | [`docs/DASHBOARD_UI.md`](DASHBOARD_UI.md) |
-| **[`web.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/web.go)** | Web Monitoring Dashboard | `embed.FS` | [`docs/DASHBOARD_UI.md`](DASHBOARD_UI.md#web-monitoring-dashboard-webgo-usage-guide) |
+| **[`web.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/web.go)** | Web Dashboard HTTP server & `embed.FS` of `web-ui/dist/` | `embed.FS` | [`docs/DASHBOARD_UI.md`](DASHBOARD_UI.md) |
+| **[`web-ui/`](../web-ui)** | Dashboard frontend (Vue 3 + Vite + Tailwind CSS, hash-routed SPA) | Vue SFCs | [`docs/DASHBOARD_UI.md`](DASHBOARD_UI.md) |
 | **[`server_db.go`](../server_db.go)** | Hub Peer Database (optional) | `DBManager`, `PeerData`, `PeerEvent` | [`docs/HUB_MODE.md`](HUB_MODE.md) |
 | **[`server_rank.go`](../server_rank.go)** | Hub GPU Contribution Scoring (optional) | `RankManager`, `GPUSpec` | [`docs/HUB_MODE.md`](HUB_MODE.md) |
 | **[`server_p2p.go`](../server_p2p.go)** | Hub Connection Tracking & Health Checks (optional) | `ConnNotifee` | [`docs/HUB_MODE.md`](HUB_MODE.md) |
 | **[`server_proxy.go`](../server_proxy.go)** | Hub Prefill/Decode Dispatcher (optional) | `ProxyServer`, `Backend` | [`docs/HUB_MODE.md`](HUB_MODE.md) |
-| **[`server_web.go`](../server_web.go)** | Hub Dashboard (optional) | `embed.FS` | [`docs/HUB_MODE.md`](HUB_MODE.md) |
+| **[`server_web.go`](../server_web.go)** | Hub Dashboard JSON API `/hub/api/*` (optional) | — | [`docs/HUB_MODE.md`](HUB_MODE.md) |
 | **[`logger.go`](../logger.go)** | Structured Logging Helpers | — | [`docs/HUB_MODE.md`](HUB_MODE.md) |
 | **[`scanGPUlevel.go`](../scanGPUlevel.go)** | GPU Spec Database Downloader (optional) | — | [`docs/HUB_MODE.md`](HUB_MODE.md) |
 
@@ -39,7 +40,7 @@ main.go
         │     └── StartLocalDispatcher() [proxy.go]
         ├── Runner.Start()               [runner.go]
         ├── StartClientWebDashboard()    [web.go]
-        │     └── (if server_mode.enabled) RegisterHubRoutes()  [server_web.go, mounted at /hub/]
+        │     └── (if server_mode.enabled) RegisterHubRoutes()  [server_web.go, /hub/api/*]
         ├── (if server_mode.enabled)
         │     ├── RankManager.Start()          [server_rank.go]
         │     └── StartServerDispatch()        [server_proxy.go]

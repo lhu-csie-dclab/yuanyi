@@ -36,7 +36,7 @@ For deep-dive technical documentation, multi-layered architectural specification
 - **[🔀 OpenAI API Gateway & Proxy Guide (`docs/GATEWAY_PROXY.md`)](docs/GATEWAY_PROXY.md)**: Detailed guide for `proxy.go`, Local-First transparent SSE streaming, vLLM health check, and P/D scheduler.
 - **[🏃 Process Management & Docker Stack Guide (`docs/RUNNER_DOCKER.md`)](docs/RUNNER_DOCKER.md)**: Detailed guide for `runner.go`, `Dockerfile`, `docker-compose.yml`, and Ray/vLLM orchestration.
 - **[📊 System Telemetry & Metrics Guide (`docs/TELEMETRY_SYS.md`)](docs/TELEMETRY_SYS.md)**: Detailed guide for `sys.go`, vLLM Prometheus metrics scraping, NVML GPU stats, and `stats.json`.
-- **[🖥️ User Interfaces & Web Dashboard Guide (`docs/DASHBOARD_UI.md`)](docs/DASHBOARD_UI.md)**: Detailed guide for `tui.go` (4-tab terminal console, headless mode) and `web.go` (embedded Web UI on port `50007`).
+- **[🖥️ User Interfaces & Web Dashboard Guide (`docs/DASHBOARD_UI.md`)](docs/DASHBOARD_UI.md)**: Detailed guide for `tui.go` (4-tab terminal console, headless mode) and the Vue 3 + Vite + Tailwind CSS web dashboard (`web-ui/`, embedded via `web.go` on port `50007`).
 - **[📈 NVIDIA AIPerf Benchmark & Stress Test Results (`docs/test/BENCHMARK_RESULTS.md`)](docs/test/BENCHMARK_RESULTS.md)**: Official 10,000 requests stress test results evaluated on 10 x RTX A2000 8GB GPUs using NVIDIA AIPerf.
 - **[🧬 Multi-Node Fresh-Clone & Concurrent Multi-GPU Test (`docs/test/MULTI_NODE_CLONE_TEST.md`)](docs/test/MULTI_NODE_CLONE_TEST.md)**: Validates a from-scratch `git clone` deployed across 10 independent nodes on 2 hosts, confirming 10 distinct physical GPUs each serve real inference, sequentially and concurrently.
 - **[🧪 Experimental Stage & Untested Parameters Manual (`docs/EXPERIMENTAL.md`)](docs/EXPERIMENTAL.md)**: Detailed experimental research scope, baseline parameters, untested options, and production disclaimers.
@@ -108,6 +108,9 @@ flowchart TB
 - **🖥️ Dual Interface Support (Interactive TUI & Headless Mode)**:
   Features an interactive terminal UI powered by `tview` and `tcell`. Automatically detects non-TTY environments (such as headless Docker containers) and seamlessly falls back to background headless mode while keeping API endpoints operational.
 
+- **🎨 Vue 3 + Vite + Tailwind Web Dashboard**:
+  The web console (`web-ui/`) is a hash-routed single-page app built with Vue 3, Vite, and Tailwind CSS v4, compiled to static assets and embedded straight into the Go binary via `embed.FS` — the running server still needs no external frontend files. The Dockerfile builds it in its own Node stage before the Go build.
+
 - **🌐 P2P Swarm & Mooncake KV Cache Transfer**:
   Connects to the Mooncake 2.0 swarm over libp2p. Participates in disaggregated Prefill/Decode (P/D) inference topologies, exchanging KV Caches across GPU nodes via `MooncakeConnector` on port `8998`.
 
@@ -127,7 +130,7 @@ flowchart TB
 | **[`p2p.go`](p2p.go)** / **[`swarm.key.example`](swarm.key.example)** | libp2p network mesh & GossipSub swarm | [🌐 P2P Network & Key Guide (`docs/P2P_NETWORK.md`)](docs/P2P_NETWORK.md) |
 | **[`runner.go`](runner.go)** / **[`Dockerfile`](Dockerfile)** | Ray Head & vLLM process/container runner | [🏃 Process & Docker Guide (`docs/RUNNER_DOCKER.md`)](docs/RUNNER_DOCKER.md) |
 | **[`sys.go`](sys.go)** / **[`stats.json`](stats.json)** | Hardware metrics & vLLM Prometheus scraper | [📊 Telemetry & Metrics Guide (`docs/TELEMETRY_SYS.md`)](docs/TELEMETRY_SYS.md) |
-| **[`tui.go`](tui.go)** / **[`web.go`](web.go)** | Interactive TUI console & Web Dashboard | [🖥️ User Interfaces Guide (`docs/DASHBOARD_UI.md`)](docs/DASHBOARD_UI.md) |
+| **[`tui.go`](tui.go)** / **[`web.go`](web.go)** / **[`web-ui/`](web-ui)** | Interactive TUI console & Web Dashboard (Vue 3 + Vite + Tailwind) | [🖥️ User Interfaces Guide (`docs/DASHBOARD_UI.md`)](docs/DASHBOARD_UI.md) |
 | **`server_*.go`** (optional) | Hub mode: peer database, scoring, dispatcher, dashboard | [🛰️ Hub Mode Guide (`docs/HUB_MODE.md`)](docs/HUB_MODE.md) |
 | **`docs/test/`** | AIPerf 10k requests 10 x RTX A2000 test data | [📈 AIPerf Benchmark Results (`docs/test/BENCHMARK_RESULTS.md`)](docs/test/BENCHMARK_RESULTS.md) |
 | **`docs/test/`** | 10-node fresh-clone & concurrent multi-GPU validation | [🧬 Multi-Node Clone Test (`docs/test/MULTI_NODE_CLONE_TEST.md`)](docs/test/MULTI_NODE_CLONE_TEST.md) |
@@ -141,13 +144,13 @@ Available port mapping referenced across the system (`config.json`, `.env`, Pyth
 | Port | Protocol | Layer / Service | Source / Reference | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | **`50006`** | HTTP | OpenAI API Gateway | `config.json` (`proxy_port`) | Client API entrypoint (`/v1/chat/completions`, `/v1/models`) |
-| **`50007`** | HTTP | Web UI Dashboard | `config.json` / `.env` (`CLIENT_WEB_PORT`) | Visual monitoring web console and stats API; also serves the Hub dashboard at `/hub/` when `server_mode.enabled` |
+| **`50007`** | HTTP | Web UI Dashboard | `config.json` / `.env` (`CLIENT_WEB_PORT`) | Vue SPA + stats API; reveals a Cluster/Hub section (hash routes `/#/hub/*`) when `server_mode.enabled` |
 | **`8100`** | HTTP | vLLM Engine | `config.json` (`vllm.port`) | Local GPU vLLM inference server endpoint |
 | **`8998`** | TCP/HTTP | Mooncake Engine | `config.json` (`mooncake_bootstrap_port`) | Mooncake KV Cache transfer control & negotiation port |
 | **`6389`** | TCP | Python Ray Cluster | Ray Head (`--port`) | Ray distributed execution head node port |
 | **`8275`** | HTTP | Python Ray Dashboard | Ray Head (`--dashboard-port`) | Ray cluster management dashboard |
 | **`50004`** | TCP/libp2p | Bootstrap Seed | `config.json` (`p2p.server_address(es)`) | Bootstrap tracker & NAT relay multiaddress port (also `server_mode.p2p_port` when this node is a hub) |
-| **`50008`** | HTTP | Hub Dispatcher (optional) | `config.json` (`server_mode.proxy_port`) | Hub central prefill/decode dispatch, only when `server_mode.enabled` (topology/leaderboard live on `50007/hub/` instead, see above) |
+| **`50008`** | HTTP | Hub Dispatcher (optional) | `config.json` (`server_mode.proxy_port`) | Hub central prefill/decode dispatch, only when `server_mode.enabled` (the dashboard's topology/leaderboard views live on `50007` instead, see above) |
 
 ---
 
@@ -166,11 +169,17 @@ cd yuanyi
 ```
 
 ### 2. Go Environment & Local Compilation
-This project requires **Go version 1.26.0 or higher** for native compilation and agent development:
+This project requires **Go version 1.26.0 or higher** for native compilation and agent development.
+The web dashboard (`web-ui/`) is embedded into the binary at compile time via `//go:embed`, so its
+built assets (`web-ui/dist/`) must exist *before* `go build` runs. The Docker build handles this
+automatically (see below); building natively requires **Node.js 22+** to build the dashboard once first:
 
 ```bash
 # Verify Go version (requires 1.26.0+)
 go version
+
+# Build the web dashboard once (only needed outside Docker; web-ui/dist/ is gitignored)
+cd web-ui && npm ci && npm run build && cd ..
 
 # Build local executable binary
 go build -v .

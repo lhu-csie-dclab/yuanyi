@@ -21,15 +21,27 @@ This document details process and container orchestration implemented in [`runne
 
 ## 🛠️ Docker Container Build (`Dockerfile`)
 
-The project uses a multi-stage Docker build:
+The project uses a 3-stage Docker build. `web.go` embeds the dashboard's compiled
+assets via `//go:embed web-ui/dist`, so the Vue frontend must be built into
+`web-ui/dist` *before* the Go build runs — hence the dedicated `web-builder` stage:
 
 ```dockerfile
+# Stage 0: build the Vue + Vite + Tailwind dashboard
+FROM node:22-alpine AS web-builder
+WORKDIR /web
+COPY web-ui/package.json web-ui/package-lock.jso[n] ./
+RUN npm ci
+COPY web-ui/ .
+RUN npm run build
+
 # Stage 1: Build static Go agent binary
 FROM golang:1.26-alpine AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
+# //go:embed web-ui/dist requires the directory to exist at build time
+COPY --from=web-builder /web/dist ./web-ui/dist
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o client .
 
 # Stage 2: Combined Runtime (CUDA 13 + vLLM + Ray + Go Client)

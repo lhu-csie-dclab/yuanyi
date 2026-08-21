@@ -1,0 +1,9 @@
+.git
+web-ui/node_modules
+web-ui/dist
+*.exe
+identity.key
+swarm.key
+.env
+peers.db*
+my-peerstore/

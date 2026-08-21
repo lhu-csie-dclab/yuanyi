@@ -19,10 +19,11 @@ import (
 	"time"          // 備份檔名時間戳記格式化 (Format)
 )
 
-// webFS 利用 Go 特殊編譯標籤將整個 web/ 目錄下的 HTML/CSS/JavaScript 靜態資源打入二進位執行檔中。
+// webFS 利用 Go 特殊編譯標籤將 Vue + Vite 建置產出的 web-ui/dist/ 靜態資源打入二進位執行檔中。
+// dist/ 由 Dockerfile 的 Node 建置階段（或本機 `npm run build`）產生，不進版控；
 // 部署時無需隨附外部網頁資料夾，達成單一可執行檔運行的目標。
 //
-//go:embed web/*
+//go:embed web-ui/dist
 var webFS embed.FS
 
 // StartClientWebDashboard 啟動提供給管理者檢視的 Web UI HTTP 監控服務。
@@ -41,8 +42,8 @@ var webFS embed.FS
 func StartClientWebDashboard(app *App) {
 	mux := http.NewServeMux()
 
-	// 步驟 1: 掛載內嵌靜態網頁資源至 "/" 根路徑
-	subFS, err := fs.Sub(webFS, "web")
+	// 步驟 1: 掛載內嵌的 Vue SPA 建置產出至 "/" 根路徑 (hash-based routing，Go 端不需要 SPA fallback)
+	subFS, err := fs.Sub(webFS, "web-ui/dist")
 	if err == nil {
 		mux.Handle("/", http.FileServer(http.FS(subFS)))
 	} else {

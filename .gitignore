@@ -1,9 +1,9 @@
 # Build binaries
 *.exe
 *.exe.stackdump
-go-p2p
-client
-server
+/go-p2p
+/client
+/server
 
 # Keys and credentials (do not commit)
 identity.key
@@ -21,3 +21,10 @@ my-peerstore/
 .idea/
 .vscode/
 *.swp
+
+# web-ui (Vue + Vite + Tailwind dashboard) build artifacts -- built fresh by
+# the Dockerfile's Node stage / CI, never committed. go:embed requires
+# web-ui/dist to exist locally before `go build`; run `npm run build` inside
+# web-ui/ first when building outside Docker.
+web-ui/node_modules/
+web-ui/dist/

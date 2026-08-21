@@ -4,8 +4,10 @@
 这个 client 可执行文件本身。实现分散在
 [`server_db.go`](../../server_db.go)、[`server_rank.go`](../../server_rank.go)、
 [`server_p2p.go`](../../server_p2p.go)、[`server_proxy.go`](../../server_proxy.go)、
-[`server_web.go`](../../server_web.go) + `web/hub/`、[`logger.go`](../../logger.go) 与
-[`scanGPUlevel.go`](../../scanGPUlevel.go)。
+[`server_web.go`](../../server_web.go)、[`logger.go`](../../logger.go) 与
+[`scanGPUlevel.go`](../../scanGPUlevel.go)。Hub 仪表板的 UI 跟 client 仪表板共用同一个 Vue
+应用，放在 [`web-ui/`](../../web-ui)（见 [`DASHBOARD_UI.md`](DASHBOARD_UI.md)）；
+`server_web.go` 只提供 `/hub/api/*` 这组 JSON 端点。
 
 （完整英文版：[`docs/HUB_MODE.md`](../HUB_MODE.md)）
 
@@ -28,9 +30,10 @@ Central Server 进程才能做的事：
 - 基于 GPU 硬件的贡献度算分，以及每 10 秒刷新一次的 `top.json` 排行榜。
 - 一个中央 Prefill/Decode 派发器与 `/api/cluster_topology` 端点（仅基于这个节点自己观察到的
   Swarm 视图），监听在 `server_mode.proxy_port`。
-- 一个 Hub 专属的 Web 仪表板（排行榜、Peer 列表、审计事件、拓扑），挂在 client 自己
-  `web_port` 下的 `/hub/` 路径，不再另外占一个端口。client 仪表板检测到 Hub 模式开启后，
-  会自动显示"Hub Dashboard"链接。
+- Hub 专属的仪表板页面（排行榜、Peer 列表、审计事件、拓扑），就是 client 仪表板同一个 Vue
+  SPA 的一部分，跑在同一个 `web_port`——不占额外端口，也不是真的另一个网址，而是前端用
+  hash 路由（`/#/hub`、`/#/hub/history`、`/#/hub/leaderboard`）切换页面。侧边栏检测到 Hub
+  模式开启后，会自动显示"Cluster (Hub Mode)"分区。
 - Circuit Relay v2 中继服务，并固定监听在 `server_mode.p2p_port`——如果这个节点本身公网可达，
   NAT 后方的 Peer 就能通过它连进 Swarm。
 
@@ -102,8 +105,10 @@ Hub 节点也可以配置成空种子列表，这种情况下它就是其他节�
 | `server_mode.check_interval_sec` | `30` | 健康检查 Ping 的轮询间隔秒数。 |
 | `server_mode.cluster.prefill_nodes` / `decode_nodes` | `0` / `0` | 专用 P/D 节点数量上限；两者皆 0 代表 PD-Together 模式。 |
 
-Hub 仪表板本身没有自己的 `server_mode.*` 端口——它挂在 client 既有的 `web_port`（默认 `50007`）
-下的 `/hub/` 路径。`LoadOrCreateConfig` 会防止 `server_mode.proxy_port`/`p2p_port` 跟这个节点
+Hub 仪表板本身没有自己的 `server_mode.*` 端口——它的页面是同一个 Vue SPA 的一部分，跑在
+client 既有的 `web_port`（默认 `50007`）上，用 hash 路由切换而不是真的另一个服务器路径
+（只有 `/hub/api/*` 这组 JSON 端点才是真实路径）。`LoadOrCreateConfig` 会防止
+`server_mode.proxy_port`/`p2p_port` 跟这个节点
 自己的 `web_port`、`proxy_port`、`vllm.port`、`vllm.mooncake_bootstrap_port` 冲突，冲突时会重置
 为上面的默认值。
 

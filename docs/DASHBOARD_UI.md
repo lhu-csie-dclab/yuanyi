@@ -53,18 +53,56 @@ The application continues running in the background without UI errors, maintaini
 
 ---
 
-## 🌐 Web Monitoring Dashboard (`web.go`) Usage Guide
+## 🌐 Web Monitoring Dashboard (`web.go` + `web-ui/`) Usage Guide
 
-`web.go` hosts a Web Monitoring Dashboard on port `50007` (`web_port`).
+`web.go` hosts a Web Monitoring Dashboard on port `50007` (`web_port`). The frontend itself is
+a **Vue 3 + Vite + Tailwind CSS single-page application** living in [`web-ui/`](../web-ui),
+separate from the Go source tree.
+
+### Frontend Stack & Build
+
+| Piece | Choice |
+| :--- | :--- |
+| Framework | Vue 3 (`<script setup>` SFCs) |
+| Build tool | Vite |
+| Styling | Tailwind CSS v4 (CSS-first `@theme` tokens, no `tailwind.config.js`) |
+| Routing | `vue-router`, **hash mode** (`/#/...`) |
+
+Hash-based routing is a deliberate choice: every route lives entirely in the URL fragment,
+which the browser never sends to the server, so the Go side needs **no SPA-fallback routing
+logic** — it just serves one static bundle at `/` exactly like any other embedded asset, and
+`/api/*` / `/hub/api/*` stay ordinary JSON endpoints untouched by client-side routing.
+
+```
+web-ui/
+├── src/
+│   ├── App.vue              # sidebar shell + <router-view>
+│   ├── router.js             # hash-mode routes (client pages + /hub/* pages)
+│   ├── api.js                 # fetch wrappers, one per REST endpoint below
+│   ├── composables/           # useNodeInfo (hub-mode flag), usePolling, useToast
+│   ├── components/            # StatCard, StatusPill, TelemetryBadges, PageHeader, Toast
+│   └── views/
+│       ├── client/            # Topology, Logs, Settings, API info
+│       └── hub/                # Active Topology, History, Leaderboard (hub mode only)
+└── dist/                       # npm run build output -- embedded by web.go, not committed
+```
 
 ### Single-Binary Static Embedding (`embed.FS`)
 
-The frontend HTML/CSS/JS assets inside `web/index.html` are compiled directly into the Go binary using Go 1.16+ `embed.FS`, eliminating external static file dependencies.
+`npm run build` compiles `web-ui/` into `web-ui/dist/`, which Go embeds directly into the
+binary with `embed.FS` — the running server still needs no external static file directory.
+`web-ui/dist/` is gitignored and rebuilt fresh by the Dockerfile's Node build stage (or by CI,
+or manually via `npm run build` before a non-Docker `go build`); it is never committed.
 
 ```go
-//go:embed web/*
+//go:embed web-ui/dist
 var webFS embed.FS
 ```
+
+> [!NOTE]
+> Building **outside Docker** (`go build .` directly) requires `web-ui/dist/` to already exist,
+> since the `//go:embed` directive is resolved at compile time. Run `npm ci && npm run build`
+> inside `web-ui/` once before `go build` if you're not using the Dockerfile.
 
 ### Accessing the Web Console
 
@@ -72,14 +110,19 @@ Open your web browser and navigate to:
 ```text
 http://localhost:50007/
 ```
+The "Cluster (Hub Mode)" navigation section (Active Topology / History / Leaderboard) appears
+automatically once `/api/node_info` reports `hub_mode_enabled: true` -- see
+[`HUB_MODE.md`](HUB_MODE.md).
 
 ### RESTful API Reference
 
+Client-side endpoints (`web.go`, always available):
+
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
-| **`GET /`** | `GET` | Serves the embedded Web Dashboard console HTML interface. |
+| **`GET /`** | `GET` | Serves the embedded Vue SPA (`index.html` + hashed JS/CSS bundles). |
 | **`GET /api/peers`** | `GET` | Returns JSON list of all active P2P swarm peers and their GPU telemetry. |
-| **`GET /api/node_info`** | `GET` | Returns local PeerID and central server multiaddress. |
+| **`GET /api/node_info`** | `GET` | Returns local PeerID, bootstrap host, and `hub_mode_enabled`. |
 | **`GET /api/local_stats`** | `GET` | Returns local processed request count, token statistics, and leaderboard rank. |
 | **`GET /api/stats`** | `GET` | Calculates cluster-wide aggregate throughput, average TTFT, and average KV cache usage. |
 | **`GET /api/logs`** | `GET` | Returns recent system, vLLM, and Docker log lines. |
@@ -87,3 +130,6 @@ http://localhost:50007/
 | **`POST /api/config`** | `POST` | Updates `config.json` dynamically and creates timestamped backups in `backups/`. |
 | **`GET /api/config/backups`** | `GET` | Lists all configuration backups stored in `backups/`. |
 | **`POST /api/config/restore`** | `POST` | Restores a selected configuration backup file. |
+
+Hub endpoints (`server_web.go`'s `RegisterHubRoutes`, only registered when
+`server_mode.enabled`) — see [`HUB_MODE.md`](HUB_MODE.md) for the full reference.
