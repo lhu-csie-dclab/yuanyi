@@ -418,8 +418,16 @@ func (r *Runner) startVLLMWindows(ctx context.Context) {
 
 	// 步驟 3: 決定模型名稱或路徑
 	modelName := cfg.VLLM.ModelName
+	modelSubstituted := false
 	if modelName == "" || modelName == "Qwen3-4B-AWQ" || modelName == "mooncake-default" {
+		// These are the Linux/Docker-mode defaults; there's no Windows-native build of the
+		// Mooncake-bundled Qwen3-4B-AWQ checkpoint path for this native path, so fall back
+		// to a Windows-verified Hugging Face model instead of failing to start. Track that
+		// this happened so --served-model-name below reflects what's actually loaded,
+		// rather than silently claiming to serve the original configured model.
 		modelName = "Qwen/Qwen2.5-3B-Instruct-AWQ"
+		modelSubstituted = true
+		r.app.TUI.AddVLLMLog(fmt.Sprintf("[Warning] 設定檔指定的模型 \"%s\" 在 Windows 原生模式下不可用，已改用 %s 代替", cfg.VLLM.ModelName, modelName))
 	}
 	// 若本機指定了有效的 model_path 則使用該目錄，否則直接使用 Hugging Face 模型名稱
 	if _, err := os.Stat(cfg.Paths.ModelPath); err == nil && cfg.Paths.ModelPath != "/data/model" {
@@ -461,8 +469,11 @@ func (r *Runner) startVLLMWindows(ctx context.Context) {
 	}
 
 	var cmd *exec.Cmd
+	// Report the model actually being loaded when the config's requested model wasn't
+	// available and had to be substituted (see 步驟 3 above) -- otherwise API callers
+	// would see --served-model-name claim the original model while a different one answers.
 	servedModelName := cfg.VLLM.ModelName
-	if servedModelName == "" {
+	if servedModelName == "" || modelSubstituted {
 		servedModelName = modelName
 	}
 

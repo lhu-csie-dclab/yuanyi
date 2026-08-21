@@ -24,8 +24,8 @@
 開啟 PowerShell 並進入工作目錄，執行 Clone：
 
 ```powershell
-# 進入專案工作區
-cd "c:\Users\chich\Documents\vllm\gemini test 20260821"
+# 進入專案工作區（換成你自己 clone 這個 repo 的路徑）
+cd "C:\path\to\your\yuanyi-checkout"
 
 # Clone 專用倉庫
 git clone https://github.com/SystemPanic/vllm-windows
@@ -84,7 +84,7 @@ uv pip install "transformers>=4.48.0,<4.50.0"
 
 ## 第五步：撰寫推論啟動腳本 (`run_vllm_windows.py`)
 
-在專案目錄下建立 [`run_vllm_windows.py`](file:///c:/Users/chich/Documents/vllm/gemini%20test%2020260821/run_vllm_windows.py)，內容如下：
+在專案目錄下建立 `run_vllm_windows.py`，內容如下：
 
 ```python
 import os
@@ -187,7 +187,7 @@ if __name__ == "__main__":
 
 ## 第七步：架設 OpenAI 相容 API 伺服器
 
-已為您建立整合好的 API 入口腳本 [`serve_api.py`](file:///c:/Users/chich/Documents/vllm/gemini%20test%2020260821/serve_api.py)。
+已為您建立整合好的 API 入口腳本 [`serve_api.py`](./serve_api.py)（位於 repo 根目錄）。
 
 ---
 
@@ -232,9 +232,9 @@ if __name__ == "__main__":
 
 若希望電腦開機登入後自動常駐啟動 vLLM：
 1. 按下鍵盤 `Win + R`，輸入 `shell:startup` 按 Enter（開啟 Windows 啟動資料夾）。
-2. 在該資料夾內新增一個捷徑，目標設定為：
+2. 在該資料夾內新增一個捷徑，目標設定為（把路徑換成你自己 clone 這個 repo 的位置）：
    ```cmd
-   powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "c:\Users\chich\Documents\vllm\gemini test 20260821\start_vllm.ps1"
+   powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\path\to\your\yuanyi-checkout\start_vllm.ps1"
    ```
 即可實現每次登入 Windows 時全自動在背景常駐就緒！
 
