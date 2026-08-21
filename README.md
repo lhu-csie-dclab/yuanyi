@@ -39,6 +39,8 @@ For deep-dive technical documentation, multi-layered architectural specification
 - **[🖥️ User Interfaces & Web Dashboard Guide (`docs/DASHBOARD_UI.md`)](docs/DASHBOARD_UI.md)**: Detailed guide for `tui.go` (4-tab terminal console, headless mode) and the Vue 3 + Vite + Tailwind CSS web dashboard (`web-ui/`, embedded via `web.go` on port `50007`).
 - **[📈 NVIDIA AIPerf Benchmark & Stress Test Results (`docs/test/BENCHMARK_RESULTS.md`)](docs/test/BENCHMARK_RESULTS.md)**: Official 10,000 requests stress test results evaluated on 10 x RTX A2000 8GB GPUs using NVIDIA AIPerf.
 - **[🧬 Multi-Node Fresh-Clone & Concurrent Multi-GPU Test (`docs/test/MULTI_NODE_CLONE_TEST.md`)](docs/test/MULTI_NODE_CLONE_TEST.md)**: Validates a from-scratch `git clone` deployed across 10 independent nodes on 2 hosts, confirming 10 distinct physical GPUs each serve real inference, sequentially and concurrently.
+- **[🪟 Windows Native Deployment Guide (`docs/install/windows/README.md`)](docs/install/windows/README.md)**: Step-by-step guide for native Windows deployment with `uv`, `.venv`, and `SystemPanic/vllm-windows`.
+- **[🪟 Windows Native Deployment Test (`docs/test/WINDOWS_NATIVE_TEST.md`)](docs/test/WINDOWS_NATIVE_TEST.md)**: Verified end-to-end run of the native Windows path on an RTX 3080 Laptop — build, startup, single/sequential/concurrent/streaming inference, and the two bugs the run surfaced and fixed.
 - **[🧪 Experimental Stage & Untested Parameters Manual (`docs/EXPERIMENTAL.md`)](docs/EXPERIMENTAL.md)**: Detailed experimental research scope, baseline parameters, untested options, and production disclaimers.
 - **[🗂 Module & Function Reference Guide (`docs/MODULES.md`)](docs/MODULES.md)**: File-by-file index of data structures, struct definitions, and cross-module call matrices.
 - **[🛰️ Hub Mode Guide (`docs/HUB_MODE.md`)](docs/HUB_MODE.md)**: Optional merged Central Server capability — peer database, GPU scoring, central dispatcher, hub dashboard, and the multi-hub consistency model.
@@ -300,6 +302,31 @@ curl http://localhost:50006/v1/chat/completions \
   }'
 ```
 
+### 5. 🪟 Windows Native Quick Start
+
+This project natively supports Windows 10/11 without requiring Docker:
+
+#### Step 1: Create Virtual Environment with `uv` & Install Dependencies (One-time Setup)
+```powershell
+# 1. Create Python 3.12 virtual environment
+uv venv .venv --python 3.12
+
+# 2. Install PyTorch (CUDA 12.4 build)
+uv pip install torch==2.6.0+cu124 torchvision==0.21.0+cu124 torchaudio==2.6.0+cu124 --extra-index-url https://download.pytorch.org/whl/cu124
+
+# 3. Install precompiled Windows vLLM wheel and compatible Transformers
+uv pip install vllm-0.9.2+cu124-cp312-cp312-win_amd64.whl
+uv pip install "transformers>=4.48.0,<4.50.0"
+```
+
+#### Step 2: Launch Client Agent
+```powershell
+# Run the compiled binary (or build via `go build .`)
+.\go-p2p.exe
+```
+* The application will **automatically detect Windows**, invoke `nvidia-smi` for hardware telemetry, mount the local `.venv`, and start vLLM + P2P networking seamlessly!
+* For complete configuration and background daemon setup, see **[🪟 Windows Deployment Guide (`docs/install/windows/README.md`)](docs/install/windows/README.md)**.
+
 ---
 
 ## ⚙️ Configuration Reference
@@ -345,6 +372,7 @@ Mooncake transport settings in `mooncake.json` (`"protocol": "tcp"`):
 Mooncake 2.0 Client Agent is built upon and integrates with the following outstanding open-source projects and platforms:
 
 - **[vLLM](https://github.com/vllm-project/vllm)** - A high-throughput and memory-efficient inference and serving engine for LLMs.
+- **[vllm-windows](https://github.com/SystemPanic/vllm-windows)** (SystemPanic/vllm-windows) - High-performance precompiled vLLM Windows runtime builds and environment compatibility support.
 - **[Mooncake](https://github.com/kvcache-ai/Mooncake)** - KVCache-centric Disaggregated Architecture for LLM Serving.
 - **[go-libp2p](https://github.com/libp2p/go-libp2p)** - Modular P2P networking library powering the decentralized mesh network.
 - **[Ray](https://github.com/ray-project/ray)** - Unified framework for scaling AI and Python applications.

@@ -494,6 +494,16 @@ func (d *LocalDispatcher) handleProxyRequest(w http.ResponseWriter, r *http.Requ
 	if top.IsPDTogether || (len(top.PrefillBackends) == 0 && len(top.DecodeBackends) == 0) {
 		reqBytes, _ := json.Marshal(reqData)
 
+		// 先算出目前可用的 P2P 遠端節點清單：下面「本機忙碌時該不該分流出去」需要先知道
+		// 到底有沒有地方可以分流。
+		knownPeers := d.app.TUI.GetPeers()
+		var peerIDs []string
+		for _, p := range knownPeers {
+			if p.NodeID != "" && p.NodeID != d.host.ID().String() {
+				peerIDs = append(peerIDs, p.NodeID)
+			}
+		}
+
 		// 步驟 1: 只有在本機 vLLM 就緒「且目前沒有其他請求正在使用本機」時才走本機直通。
 		// 用 CompareAndSwap 搶佔 localBusy 這個名額：搶到才執行本機，執行完（不論成敗）立刻釋放。
 		// 這讓單一請求仍走最快的本機路徑，但多筆併發請求會自動分流到 P2P 遠端節點，
@@ -507,13 +517,17 @@ func (d *LocalDispatcher) handleProxyRequest(w http.ResponseWriter, r *http.Requ
 			}
 			d.app.TUI.AddLog("[WARN]", "本地 vLLM 未回應，自動切換至 P2P 遠端節點備援...")
 		} else if d.vllmReady.Load() {
-			d.app.TUI.AddLog("[PROXY]", fmt.Sprintf("本地 vLLM 忙碌中 (模型: %s)，分派至 P2P 遠端節點...", modelName))
-		}
-		knownPeers := d.app.TUI.GetPeers()
-		var peerIDs []string
-		for _, p := range knownPeers {
-			if p.NodeID != "" && p.NodeID != d.host.ID().String() {
-				peerIDs = append(peerIDs, p.NodeID)
+			if len(peerIDs) == 0 {
+				// 單機模式（Swarm 裡目前沒有其他節點，例如 Windows 本機單獨執行）：
+				// 本機忙碌但沒有任何遠端節點可以分流。此時在本機排隊處理，遠比直接回
+				// 502 好——vLLM 自己就會把併發請求做 continuous batching，排隊是有效的。
+				d.app.TUI.AddLog("[PROXY]", fmt.Sprintf("本地 vLLM 忙碌中 (模型: %s)，但目前無可用 P2P 遠端節點，改為本機排隊處理...", modelName))
+				if d.proxyToLocalVLLMDirect(w, r, reqBytes) {
+					return // 成功：本機排隊處理完成
+				}
+				d.app.TUI.AddLog("[WARN]", "本機排隊處理失敗，將嘗試 P2P 備援...")
+			} else {
+				d.app.TUI.AddLog("[PROXY]", fmt.Sprintf("本地 vLLM 忙碌中 (模型: %s)，分派至 P2P 遠端節點...", modelName))
 			}
 		}
 

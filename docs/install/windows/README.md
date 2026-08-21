@@ -1,0 +1,196 @@
+# 🪟 Windows Native Installation Guide
+
+Run the Mooncake 2.0 Client Agent **natively on Windows 10/11 — no Docker, no WSL**. The Go
+agent detects Windows at startup (`runtime.GOOS == "windows"`), reads your GPU via
+`nvidia-smi`, locates a local Python virtual environment, and launches vLLM as a native
+subprocess.
+
+> [!NOTE]
+> Every step below was executed end-to-end on real hardware before this guide was written.
+> See [`docs/test/WINDOWS_NATIVE_TEST.md`](../../test/WINDOWS_NATIVE_TEST.md) for the verified
+> results (build times, inference latency, concurrency behaviour, and the two bugs this test
+> surfaced and fixed).
+
+---
+
+## 1. Prerequisites
+
+| Requirement | Minimum | Verified on |
+| :--- | :--- | :--- |
+| OS | Windows 10 / 11 (x64) | Windows 11 Home |
+| GPU | NVIDIA, **≥ 8 GB VRAM** recommended | GeForce RTX 3080 Laptop (8 GB) |
+| NVIDIA driver | ≥ 550.xx (CUDA 12.x capable) | 555.97 |
+| [Go](https://go.dev/dl/) | 1.26+ | go1.26.4 windows/amd64 |
+| [Node.js](https://nodejs.org/) | 22+ | Node 22 (needed to build the dashboard) |
+| [uv](https://docs.astral.sh/uv/) | any recent | uv 0.11.32 |
+| [Git for Windows](https://git-scm.com/) | any recent | — |
+| Free disk | ~15 GB (PyTorch CUDA + model weights) | — |
+
+Install `uv` if you don't have it:
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Confirm your GPU and driver are visible:
+```powershell
+nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
+```
+
+---
+
+## 2. Clone the repository
+
+```powershell
+git clone https://github.com/lhu-csie-dclab/yuanyi.git
+cd yuanyi
+```
+
+---
+
+## 3. Create the Python environment and install vLLM for Windows
+
+Official vLLM wheels are Linux-only, so Windows uses the community-built
+[`SystemPanic/vllm-windows`](https://github.com/SystemPanic/vllm-windows) wheels (Apache-2.0,
+see [`NOTICE`](../../../NOTICE)).
+
+> [!IMPORTANT]
+> The agent auto-discovers the virtual environment at one of these paths, relative to the
+> directory you run the binary from. Create it at one of them, or the agent falls back to a
+> bare `python` on `PATH`:
+> - `.\.venv\Scripts\python.exe`
+> - `.\vllm-windows\.venv\Scripts\python.exe`
+> - `..\vllm-windows\.venv\Scripts\python.exe`
+> - `..\.venv\Scripts\python.exe`
+
+```powershell
+# Clone the Windows vLLM build repo inside your checkout (gives you .\vllm-windows\.venv)
+git clone https://github.com/SystemPanic/vllm-windows
+cd vllm-windows
+
+# Python 3.12 virtual environment
+uv venv .venv --python 3.12
+.\.venv\Scripts\activate
+
+# PyTorch with CUDA 12.4
+uv pip install torch==2.6.0+cu124 torchvision==0.21.0+cu124 torchaudio==2.6.0+cu124 `
+  --extra-index-url https://download.pytorch.org/whl/cu124
+
+# Download and install the Windows vLLM wheel (v0.9.2 / cu124 / cp312)
+gh release download v0.9.2 -R SystemPanic/vllm-windows -D wheels_v092
+uv pip install wheels_v092\vllm-0.9.2+cu124-cp312-cp312-win_amd64.whl
+
+# Pin a compatible Transformers to avoid config-registration conflicts
+uv pip install "transformers>=4.48.0,<4.50.0"
+
+cd ..
+```
+
+No GitHub CLI? Download the `.whl` manually from the
+[v0.9.2 release page](https://github.com/SystemPanic/vllm-windows/releases/tag/v0.9.2).
+
+Verify the stack:
+```powershell
+.\vllm-windows\.venv\Scripts\python.exe -c "import torch, vllm; print(torch.__version__, torch.cuda.is_available(), vllm.__version__)"
+# expected: 2.6.0+cu124 True 0.9.2
+```
+
+---
+
+## 4. Build the agent
+
+The dashboard is compiled into the binary via `//go:embed web-ui/dist`, so the frontend must be
+built **before** `go build`:
+
+```powershell
+cd web-ui
+npm ci
+npm run build
+cd ..
+
+go build -o client.exe .
+```
+
+---
+
+## 5. Configure
+
+```powershell
+Copy-Item swarm.key.example swarm.key   # replace with your swarm's real key to join an existing mesh
+```
+
+`config.json` is created automatically on first run. Two Windows-specific notes:
+
+- **Model** — `paths.model_path` defaults to the Linux container path `/data/model`, which
+  doesn't exist on Windows. When `vllm.model_name` is also left at its default
+  (`Qwen3-4B-AWQ`), the agent logs a warning and falls back to
+  `Qwen/Qwen2.5-3B-Instruct-AWQ`, downloading it from Hugging Face on first start. It
+  registers **both** names as aliases, so requests using either name resolve. To use your own
+  local weights, point `paths.model_path` at a real Windows directory.
+- **VRAM** — `vllm.gpu_memory_utilization` is a fraction of **total** VRAM, not free VRAM. On
+  an 8 GB card with a desktop session already using ~2 GB, `0.75` fits; raise it only on a
+  dedicated GPU.
+
+---
+
+## 6. Run
+
+```powershell
+.\client.exe
+```
+
+Startup takes roughly 45-60 seconds (model load dominates). The vLLM console tab should show,
+in order: Windows detection → GPU detection via `nvidia-smi` → the mounted `.venv` path → vLLM
+boot.
+
+Verify:
+```powershell
+# vLLM engine
+curl.exe http://127.0.0.1:8100/health
+
+# OpenAI-compatible gateway
+curl.exe -X POST http://127.0.0.1:50006/v1/chat/completions `
+  -H "Content-Type: application/json" `
+  -d '{\"model\":\"Qwen3-4B-AWQ\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}],\"max_tokens\":50}'
+```
+
+Dashboard: <http://localhost:50007>
+
+---
+
+## 7. Optional: run vLLM as a background daemon
+
+To run vLLM alone (without the Go agent), three helper scripts are provided. All three default
+to port **8100**, matching `config.json`'s `vllm.port`:
+
+```powershell
+.\start_vllm.ps1     # launch hidden background process, poll until ready
+.\status_vllm.ps1    # PID, port state, loaded model, API health
+.\stop_vllm.ps1      # terminate and free VRAM
+```
+
+To autostart on login: press `Win + R`, run `shell:startup`, and add a shortcut targeting:
+```cmd
+powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\path\to\your\yuanyi-checkout\start_vllm.ps1"
+```
+
+---
+
+## 8. Troubleshooting
+
+| Symptom | Cause & fix |
+| :--- | :--- |
+| `未找到 .venv 目錄` warning at startup | The venv isn't at one of the four discovery paths in §3. Move it, or run `client.exe` from the directory containing it. |
+| vLLM exits during load, or CUDA OOM | `gpu_memory_utilization` is a fraction of *total* VRAM, not free VRAM. Close other GPU apps or lower it (`0.60`–`0.70` on an 8 GB card). |
+| Gateway returns `404` for your model | The requested `model` string matches neither registered alias. Check what is actually served: `curl.exe http://127.0.0.1:8100/v1/models`. |
+| `Could not apply Windows TCPStore compatibility patch` warning | Harmless on PyTorch 2.6 — the private torch internal that patch targets no longer exists, and this execution path doesn't need it. Startup continues normally. |
+| Bootstrap peer connection fails | Your `swarm.key` must match the mesh you are joining, and the bootstrap node must be reachable. A standalone node with no peers still serves inference locally. |
+| `go build` fails on `embed web-ui/dist` | §4's `npm run build` was skipped — `web-ui/dist` must exist before `go build`. |
+
+---
+
+## Related documentation
+
+- [`docs/test/WINDOWS_NATIVE_TEST.md`](../../test/WINDOWS_NATIVE_TEST.md) — verified test results on real hardware
+- [`docs/CONFIG.md`](../../CONFIG.md) — full configuration reference
+- [`docs/P2P_NETWORK.md`](../../P2P_NETWORK.md) — `swarm.key` generation and mesh joining
+- [`docs/RUNNER_DOCKER.md`](../../RUNNER_DOCKER.md) — the Linux/Docker execution paths

@@ -177,3 +177,13 @@ RELATED UPSTREAM PROJECTS (not embedded, invoked at runtime)
     https://github.com/ray-project/ray
     Note: Invoked as a subprocess inside the Docker runtime container.
     This project does not distribute, modify, or statically link Ray code.
+
+29. vllm-windows (Apache License 2.0)
+    Copyright (c) SystemPanic & vLLM Team & Contributors
+    https://github.com/SystemPanic/vllm-windows
+    Used for: Precompiled Windows (MSVC / win_amd64) vLLM wheels that make the
+    native Windows execution path in runner.go possible.
+    Note: Invoked as a subprocess from a user-provided local virtual
+    environment. This project does not distribute, redistribute, modify, or
+    statically link vllm-windows wheels or code; users install them
+    themselves per docs/install/windows/README.md.

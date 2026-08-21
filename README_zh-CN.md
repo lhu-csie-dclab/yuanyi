@@ -39,6 +39,8 @@ Mooncake 2.0 Client 提供兼容于 OpenAI 规范的 API 网关 Gateway (`/v1/ch
 - **[🖥️ 终端 TUI 面板与 Web 仪表板手册 (`docs/zh_cn/DASHBOARD_UI.md`)](docs/zh_cn/DASHBOARD_UI.md)**：`tui.go`（4 分页终端面板、Headless 模式）与 `web.go`（`50007` 端口内嵌 Web Console）。
 - **[📈 NVIDIA AIPerf 压测数据报告 (`docs/zh_cn/test/BENCHMARK_RESULTS.md`)](docs/zh_cn/test/BENCHMARK_RESULTS.md)**：在 10 张 RTX A2000 8GB 显卡上进行 1 万次请求压测的官方数据。
 - **[🧬 多节点全新 Clone 与并发多卡测试 (`docs/zh_cn/test/MULTI_NODE_CLONE_TEST.md`)](docs/zh_cn/test/MULTI_NODE_CLONE_TEST.md)**：验证从零 `git clone` 部署到 2 台主机共 10 个独立节点后，10 张实体 GPU 各自真的在处理推理（单独测试与 10 台并发测试皆验证）。
+- **[🪟 Windows 本机原生架设与部署手册 (`docs/install/windows/README.md`)](docs/install/windows/README.md)**：使用 `uv`、`.venv` 与 `SystemPanic/vllm-windows` 于 Windows 本机极速部署 vLLM + Qwen AWQ 的完整指南。
+- **[🪟 Windows 原生部署验证测试 (`docs/test/WINDOWS_NATIVE_TEST.md`)](docs/test/WINDOWS_NATIVE_TEST.md)**：在 RTX 3080 Laptop 上实际跑完整条 Windows 原生路径的验证结果——构建、启动、单笔/顺序/并发/流式推理，以及这次测试揪出并修复的两个 Bug。
 - **[🧪 实验阶段与未测试参数说明书 (`docs/zh_cn/EXPERIMENTAL.md`)](docs/zh_cn/EXPERIMENTAL.md)**：包含详细的实验研究范围、经测试的基准设置、未测试参数风险与生产环境免责声明。
 - **[🗂 模块与 Function 参考指南 (`docs/zh_cn/MODULES.md`)](docs/zh_cn/MODULES.md)**：文件对照表、数据结构与跨模块调用矩阵。
 - **[🛰️ Hub 模式手册 (`docs/zh_cn/HUB_MODE.md`)](docs/zh_cn/HUB_MODE.md)**：可选的中央服务器合并能力——节点数据库、GPU 算分、中央派发器、Hub 专属仪表板，以及多 Hub 一致性设计。
@@ -292,6 +294,31 @@ curl http://localhost:50006/v1/chat/completions \
   }'
 ```
 
+### 5. 🪟 Windows 本机原生极速部署 (Windows Native Quick Start)
+
+本项目支持在 Windows 10/11 原生运行，无需依赖 Docker。请依照以下极简步骤完成前置：
+
+#### 步骤 1: 使用 `uv` 创建虚拟环境与安装依赖 (只需执行一次)
+```powershell
+# 1. 创建 Python 3.12 虚拟环境
+uv venv .venv --python 3.12
+
+# 2. 安装 PyTorch (CUDA 12.4 版)
+uv pip install torch==2.6.0+cu124 torchvision==0.21.0+cu124 torchaudio==2.6.0+cu124 --extra-index-url https://download.pytorch.org/whl/cu124
+
+# 3. 安装下载之 Windows 专用 vLLM Wheel 与兼容 Transformers
+uv pip install vllm-0.9.2+cu124-cp312-cp312-win_amd64.whl
+uv pip install "transformers>=4.48.0,<4.50.0"
+```
+
+#### 步骤 2: 启动 Client Agent
+```powershell
+# 执行编译好的二进制文件 (或自行 go build .)
+.\go-p2p.exe
+```
+* 程序会**全自动识别 Windows 平台**，调用 `nvidia-smi` 检测显卡，并自动调用本机 `.venv` 启动 vLLM 与 P2P 网络！
+* 完整教程与后台常驻配置请参阅 **[🪟 Windows 部署手册 (`docs/install/windows/README.md`)](docs/install/windows/README.md)**。
+
 ---
 
 ## ⚙️ 配置文件参考 (Configuration Reference)
@@ -338,6 +365,7 @@ curl http://localhost:50006/v1/chat/completions \
 Mooncake 2.0 Client Agent 基于以下卓越的开源项目构建而成：
 
 - **[vLLM](https://github.com/vllm-project/vllm)** - 高吞吐量与内存高效的 LLM 推理服务引擎。
+- **[vllm-windows](https://github.com/SystemPanic/vllm-windows)** (SystemPanic/vllm-windows) - 提供 Windows 平台专用的高性能 vLLM 编译构建与环境兼容性支持。
 - **[Mooncake](https://github.com/kvcache-ai/Mooncake)** - 以 KVCache 为中心的分离式 LLM 服务架构。
 - **[go-libp2p](https://github.com/libp2p/go-libp2p)** - 模块化 P2P 网络库。
 - **[Ray](https://github.com/ray-project/ray)** - 分布式 AI 与 Python 扩展框架。

@@ -418,8 +418,16 @@ func (r *Runner) startVLLMWindows(ctx context.Context) {
 
 	// 步驟 3: 決定模型名稱或路徑
 	modelName := cfg.VLLM.ModelName
+	substitutedTo := ""
 	if modelName == "" || modelName == "Qwen3-4B-AWQ" || modelName == "mooncake-default" {
+		// These are the Linux/Docker-mode defaults; there's no Windows-native build of the
+		// Mooncake-bundled Qwen3-4B-AWQ checkpoint path for this native path, so fall back
+		// to a Windows-verified Hugging Face model instead of failing to start. Track that
+		// this happened so --served-model-name below reflects what's actually loaded,
+		// rather than silently claiming to serve the original configured model.
 		modelName = "Qwen/Qwen2.5-3B-Instruct-AWQ"
+		substitutedTo = modelName
+		r.app.TUI.AddVLLMLog(fmt.Sprintf("[Warning] 設定檔指定的模型 \"%s\" 在 Windows 原生模式下不可用，已改用 %s 代替", cfg.VLLM.ModelName, modelName))
 	}
 	// 若本機指定了有效的 model_path 則使用該目錄，否則直接使用 Hugging Face 模型名稱
 	if _, err := os.Stat(cfg.Paths.ModelPath); err == nil && cfg.Paths.ModelPath != "/data/model" {
@@ -460,38 +468,42 @@ func (r *Runner) startVLLMWindows(ctx context.Context) {
 		}
 	}
 
-	var cmd *exec.Cmd
-	servedModelName := cfg.VLLM.ModelName
-	if servedModelName == "" {
-		servedModelName = modelName
+	// vLLM's --served-model-name accepts multiple aliases, so expose the engine under
+	// BOTH names when a substitution happened (see 步驟 3 above):
+	//   - the configured model_name, so the gateway/swarm routing that references
+	//     config.json's model_name keeps resolving (callers ask for the configured
+	//     name; without this alias every such request 404s);
+	//   - the model actually loaded, so /v1/models reports the truth about what is
+	//     really answering rather than only echoing back the requested name.
+	servedNames := []string{}
+	if cfg.VLLM.ModelName != "" {
+		servedNames = append(servedNames, cfg.VLLM.ModelName)
+	}
+	if substitutedTo != "" && substitutedTo != cfg.VLLM.ModelName {
+		servedNames = append(servedNames, substitutedTo)
+	}
+	if len(servedNames) == 0 {
+		servedNames = []string{modelName}
 	}
 
+	vllmArgs := []string{"--model", modelName, "--served-model-name"}
+	vllmArgs = append(vllmArgs, servedNames...)
+	vllmArgs = append(vllmArgs,
+		"--quantization", "awq",
+		"--gpu-memory-utilization", fmt.Sprintf("%.2f", gpuUtil),
+		"--max-model-len", fmt.Sprintf("%d", maxModelLen),
+		"--port", fmt.Sprintf("%d", vllmPort),
+		"--host", "0.0.0.0",
+		"--trust-remote-code",
+		"--enforce-eager",
+		"--disable-frontend-multiprocessing",
+	)
+
+	var cmd *exec.Cmd
 	if serveScript != "" {
-		cmd = exec.CommandContext(ctx, pythonBin, serveScript,
-			"--model", modelName,
-			"--served-model-name", servedModelName,
-			"--quantization", "awq",
-			"--gpu-memory-utilization", fmt.Sprintf("%.2f", gpuUtil),
-			"--max-model-len", fmt.Sprintf("%d", maxModelLen),
-			"--port", fmt.Sprintf("%d", vllmPort),
-			"--host", "0.0.0.0",
-			"--trust-remote-code",
-			"--enforce-eager",
-			"--disable-frontend-multiprocessing",
-		)
+		cmd = exec.CommandContext(ctx, pythonBin, append([]string{serveScript}, vllmArgs...)...)
 	} else {
-		cmd = exec.CommandContext(ctx, pythonBin, "-u", "-m", "vllm.entrypoints.openai.api_server",
-			"--model", modelName,
-			"--served-model-name", servedModelName,
-			"--quantization", "awq",
-			"--gpu-memory-utilization", fmt.Sprintf("%.2f", gpuUtil),
-			"--max-model-len", fmt.Sprintf("%d", maxModelLen),
-			"--port", fmt.Sprintf("%d", vllmPort),
-			"--host", "0.0.0.0",
-			"--trust-remote-code",
-			"--enforce-eager",
-			"--disable-frontend-multiprocessing",
-		)
+		cmd = exec.CommandContext(ctx, pythonBin, append([]string{"-u", "-m", "vllm.entrypoints.openai.api_server"}, vllmArgs...)...)
 	}
 
 	// 注入 Windows 關鍵相容環境變數

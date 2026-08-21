@@ -1,3 +1,11 @@
+# Copyright 2026 LHU CSIE DCLAB (yuanyi) Authors.
+# SPDX-License-Identifier: Apache-2.0
+#
+# OpenAI-compatible vLLM API server entrypoint for the native Windows path.
+# Launched as a subprocess by runner.go (startVLLMWindows) or standalone via
+# start_vllm.ps1. Requires a local vLLM Windows wheel -- see
+# docs/install/windows/README.md.
+
 import os
 import sys
 import tempfile
@@ -21,6 +29,13 @@ for p in list(sys.path):
         sys.path.remove(p)
 
 # 自動修補 Windows PyTorch 2.6 TCPStore 格式化缺陷
+#
+# NOTE: torch.distributed.rendezvous._create_c10d_store is a private (underscore-
+# prefixed) PyTorch internal with no compatibility guarantee. If a future PyTorch
+# release renames/removes it, this silently stops patching and the exact Windows
+# TCPStore bug this exists to work around will resurface -- print a warning (not a
+# bare `pass`) so that failure has a visible clue pointing back here instead of
+# looking like an unrelated crash inside torch.distributed.
 try:
     import torch.distributed.rendezvous as rdzv
     import torch.distributed as dist
@@ -34,8 +49,10 @@ try:
             store_path = os.path.join(tempfile.gettempdir(), f"c10d_store_{port}.tmp")
             return dist.FileStore(store_path, world_size)
     rdzv._create_c10d_store = safe_create
-except Exception:
-    pass
+except Exception as e:
+    print(f"[Warning] Could not apply Windows TCPStore compatibility patch ({e}); "
+          f"if startup fails with a TCPStore/rendezvous error, this is likely why.",
+          file=sys.stderr)
 
 if __name__ == "__main__":
     import winloop as uvloop_impl
@@ -51,7 +68,8 @@ if __name__ == "__main__":
         "--trust-remote-code",
         "--enforce-eager",
         "--disable-frontend-multiprocessing",
-        "--port", "8000",
+        "--port", "8100",  # matches config.go's VLLM.Port default, not vLLM's own convention --
+                            # start_vllm.ps1/status_vllm.ps1/stop_vllm.ps1 assume this port too
         "--host", "0.0.0.0"
     ]
     
