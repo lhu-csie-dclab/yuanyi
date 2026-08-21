@@ -18,6 +18,11 @@ allows an LLM to run on encrypted text (homomorphic encryption is not viable at 
 If a prompt would be damaging for a stranger to read, **do not send it through a swarm containing
 machines you do not control.**
 
+> [!TIP]
+> This document is written for **operators**. If you are an end user deciding whether to join a
+> swarm, start with the **[User Notice](USER_NOTICE.md)** instead — it covers what you expose,
+> what runs on your hardware, and the risks of sharing `swarm.key`.
+
 ---
 
 ## How a request actually travels

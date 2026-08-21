@@ -27,7 +27,8 @@ Mooncake 2.0 Client 提供兼容于 OpenAI 规范的 API 网关 Gateway (`/v1/ch
 > **隐私警告：分发到远端节点的 Prompt，该节点运营者看得到明文**
 > - 当本机 GPU 忙碌时，请求会被分发到 **Swarm 中的其他机器**；这些机器必须解密才能执行推理。本项目**没有应用层加密**，而且以目前技术而言 LLM 推理也做不到（同态加密不实用）。
 > - `swarm.key` 控制的是**谁能加入**，不是「加入后能对收到的数据做什么」。Swarm 里**每一位节点运营者都被隐含信任**能接触到用户的 Prompt。
-> - **请勿将敏感数据经由你无法掌控的节点处理。** 详见 **[🔐 安全性与信任模型 (`docs/SECURITY.md`)](docs/SECURITY.md)**。
+> - 你的节点还会**每 3 秒把你的 IP 地址、显卡型号与使用习惯广播给所有 Peer**，同时也会收到别人的。而**别人的 Prompt 会在你的 GPU 上执行**。
+> - **📋 加入任何 Swarm 之前，请先阅读 [用户须知 (`docs/zh_cn/USER_NOTICE.md`)](docs/zh_cn/USER_NOTICE.md)** —— 你会暴露什么、承担什么，以及共用 `swarm.key` 的风险。完整信任模型：**[`docs/SECURITY.md`](docs/SECURITY.md)**。
 
 ---
 
@@ -45,6 +46,7 @@ Mooncake 2.0 Client 提供兼容于 OpenAI 规范的 API 网关 Gateway (`/v1/ch
 - **[🖥️ 终端 TUI 面板与 Web 仪表板手册 (`docs/zh_cn/DASHBOARD_UI.md`)](docs/zh_cn/DASHBOARD_UI.md)**：`tui.go`（4 分页终端面板、Headless 模式）与 `web.go`（`50007` 端口内嵌 Web Console）。
 - **[📈 NVIDIA AIPerf 压测数据报告 (`docs/zh_cn/test/BENCHMARK_RESULTS.md`)](docs/zh_cn/test/BENCHMARK_RESULTS.md)**：在 10 张 RTX A2000 8GB 显卡上进行 1 万次请求压测的官方数据。
 - **[🧬 多节点全新 Clone 与并发多卡测试 (`docs/zh_cn/test/MULTI_NODE_CLONE_TEST.md`)](docs/zh_cn/test/MULTI_NODE_CLONE_TEST.md)**：验证从零 `git clone` 部署到 2 台主机共 10 个独立节点后，10 张实体 GPU 各自真的在处理推理（单独测试与 10 台并发测试皆验证）。
+- **[📋 用户须知 — 加入 Swarm 前必读 (`docs/zh_cn/USER_NOTICE.md`)](docs/zh_cn/USER_NOTICE.md)**：你的节点会广播你的哪些信息（IP、显卡、使用习惯）、你的 GPU 会跑到什么、共用 `swarm.key` 的风险，以及哪些内容绝对不该输入共用 Swarm。
 - **[🔐 安全性与信任模型 (`docs/SECURITY.md`)](docs/SECURITY.md)**：本系统保护什么、不保护什么——为何远端节点看得到被分发的 Prompt、`swarm.key` 真正保证的范围，以及目前未加验证的对外接口。
 - **[🖥️ Proxmox VE + LXC GPU 直通手册 (`docs/install/proxmox/README.md`)](docs/install/proxmox/README.md)**：宿主机驱动安装、创建 LXC、GPU 设备直通、嵌套 Docker 与 `no-cgroups` 关键修正——参考集群的 10 个节点就是这样建起来的。
 - **[🐧 Ubuntu 安装与部署手册 (`docs/install/ubuntu/README.md`)](docs/install/ubuntu/README.md)**：主要且经过正式测试的部署平台——Docker Engine、NVIDIA Container Toolkit、`swarm.key`，以及 Docker 与原生编译两种部署路径。
