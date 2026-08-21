@@ -266,6 +266,8 @@ needs real host networking, and NCCL needs host shared memory. See
 
 ## Related documentation
 
+- [`docs/install/proxmox/README.md`](../proxmox/README.md) — Proxmox VE + LXC GPU passthrough
+- [`docs/install/proxmox/README.md`](../proxmox/README.md) — Proxmox VE + LXC GPU passthrough
 - [`docs/install/windows/README.md`](../windows/README.md) — native Windows deployment
 - [`docs/CONFIG.md`](../../CONFIG.md) — full configuration reference
 - [`docs/P2P_NETWORK.md`](../../P2P_NETWORK.md) — `swarm.key` format and mesh joining

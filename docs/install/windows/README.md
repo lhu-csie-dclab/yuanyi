@@ -227,4 +227,5 @@ powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\path\to\you
 - [`docs/CONFIG.md`](../../CONFIG.md) — full configuration reference
 - [`docs/P2P_NETWORK.md`](../../P2P_NETWORK.md) — `swarm.key` generation and mesh joining
 - [`docs/install/ubuntu/README.md`](../ubuntu/README.md) — Ubuntu / Linux deployment
+- [`docs/install/proxmox/README.md`](../proxmox/README.md) — Proxmox VE + LXC GPU passthrough
 - [`docs/RUNNER_DOCKER.md`](../../RUNNER_DOCKER.md) — the Linux/Docker execution paths
