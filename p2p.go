@@ -321,7 +321,14 @@ func (n *NetworkNode) setupStreams() {
 			uint16(n.app.Config.VLLM.MooncakeBootstrapPort): true,
 		}
 		if !allowedPorts[targetPort] {
-			n.app.TUI.AddLog("[WARN]", fmt.Sprintf("Rejected proxy stream from %s to disallowed local port %d", s.Conn().RemotePeer(), targetPort))
+			// Logged through both channels deliberately: TUI.AddLog is an in-memory
+			// ring buffer (lost on restart, not visible outside the dashboard),
+			// while logError goes to stdout/slog so `docker logs`/the host's log
+			// driver retains a durable, restart-surviving audit trail of rejected
+			// proxy-tunnel attempts and which peer made them.
+			msg := fmt.Sprintf("Rejected proxy stream from %s to disallowed local port %d", s.Conn().RemotePeer(), targetPort)
+			n.app.TUI.AddLog("[WARN]", msg)
+			logError("[security] %s", msg)
 			errResp := &http.Response{
 				StatusCode: http.StatusForbidden,
 				Body:       io.NopCloser(strings.NewReader(fmt.Sprintf("target port %d is not allowed", targetPort))),
