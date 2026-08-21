@@ -36,32 +36,38 @@ usePolling(refresh, 2000)
 <template>
   <PageHeader title="Real-time Logs" />
 
-  <div class="space-y-5 p-8">
+  <div class="space-y-4 sm:space-y-6 p-4 sm:p-6 lg:p-8 max-w-full min-w-0">
     <div class="flex items-center justify-between">
-      <label class="flex cursor-pointer items-center gap-2 text-sm text-ink-muted">
-        <input v-model="autoScroll" type="checkbox" class="accent-brand" />
+      <label class="flex cursor-pointer items-center gap-2 text-xs sm:text-sm text-ink-muted">
+        <input v-model="autoScroll" type="checkbox" class="accent-brand h-4 w-4 rounded" />
         Auto-scroll
       </label>
       <button class="btn btn-ghost btn-sm" @click="refresh">🔄 Refresh</button>
     </div>
 
     <div class="card">
-      <h2 class="mb-2 text-sm font-semibold">System & P2P Logs</h2>
-      <div ref="sysBox" class="code-panel h-80 overflow-y-auto whitespace-pre-wrap break-all !text-lime-400">
+      <h2 class="mb-2 text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
+        <span>🖥️</span> System &amp; P2P Logs
+      </h2>
+      <div ref="sysBox" class="code-panel h-64 sm:h-80 overflow-y-auto overflow-x-auto whitespace-pre-wrap break-all text-xs sm:text-sm !text-lime-400">
         <template v-if="sysLogs.length"><div v-for="(l, i) in sysLogs" :key="i" v-html="l" /></template>
         <span v-else class="text-ink-muted">No logs yet</span>
       </div>
     </div>
     <div class="card">
-      <h2 class="mb-2 text-sm font-semibold">vLLM Model Logs</h2>
-      <div ref="vllmBox" class="code-panel h-80 overflow-y-auto whitespace-pre-wrap break-all !text-lime-400">
+      <h2 class="mb-2 text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
+        <span>⚡</span> vLLM Model Logs
+      </h2>
+      <div ref="vllmBox" class="code-panel h-64 sm:h-80 overflow-y-auto overflow-x-auto whitespace-pre-wrap break-all text-xs sm:text-sm !text-lime-400">
         <template v-if="vllmLogs.length"><div v-for="(l, i) in vllmLogs" :key="i" v-html="l" /></template>
         <span v-else class="text-ink-muted">No logs yet</span>
       </div>
     </div>
     <div class="card">
-      <h2 class="mb-2 text-sm font-semibold">Docker Logs</h2>
-      <div ref="dockerBox" class="code-panel h-80 overflow-y-auto whitespace-pre-wrap break-all !text-lime-400">
+      <h2 class="mb-2 text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
+        <span>🐳</span> Docker Logs
+      </h2>
+      <div ref="dockerBox" class="code-panel h-64 sm:h-80 overflow-y-auto overflow-x-auto whitespace-pre-wrap break-all text-xs sm:text-sm !text-lime-400">
         <template v-if="dockerLogs.length"><div v-for="(l, i) in dockerLogs" :key="i" v-html="l" /></template>
         <span v-else class="text-ink-muted">No logs yet</span>
       </div>

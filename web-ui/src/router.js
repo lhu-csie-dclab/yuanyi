@@ -6,6 +6,8 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 // stay real server paths, untouched by this router.
 const routes = [
   { path: '/', name: 'client-topology', component: () => import('./views/client/TopologyView.vue') },
+  { path: '/top', name: 'client-top', component: () => import('./views/client/TopView.vue') },
+  { path: '/chat', name: 'client-chat', component: () => import('./views/client/ChatView.vue') },
   { path: '/logs', name: 'client-logs', component: () => import('./views/client/LogsView.vue') },
   { path: '/settings', name: 'client-settings', component: () => import('./views/client/SettingsView.vue') },
   { path: '/api', name: 'client-api', component: () => import('./views/client/ApiView.vue') },

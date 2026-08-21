@@ -2,21 +2,24 @@
 defineProps({
   label: { type: String, required: true },
   value: { type: [String, Number], required: true },
+  icon:  { type: String, default: '' },
   accent: { type: Boolean, default: false },
-  bare: { type: Boolean, default: false },
+  bare:   { type: Boolean, default: false },
+  color:  { type: String, default: '' }, // bg-* for icon bg
 })
 </script>
 
 <template>
-  <div :class="bare ? 'flex flex-col' : 'card flex flex-col !p-5'">
-    <div
-      class="text-2xl font-bold leading-tight tabular-nums"
-      :class="accent ? 'text-brand-light' : 'text-ink'"
-    >
-      {{ value }}
-    </div>
-    <div class="mt-2 text-[0.68rem] font-medium uppercase tracking-wider text-ink-muted">
-      {{ label }}
-    </div>
+  <!-- ── bare: inside a parent card ── -->
+  <div v-if="bare" class="flex flex-col gap-0.5">
+    <span class="metric-label">{{ label }}</span>
+    <span class="text-xl font-bold tabular-nums" :class="accent ? 'text-blue-600' : 'text-slate-900'">{{ value }}</span>
+  </div>
+
+  <!-- ── standalone card ── -->
+  <div v-else class="metric-card">
+    <div v-if="icon" class="metric-icon" :class="color || 'bg-slate-100'">{{ icon }}</div>
+    <span class="metric-label">{{ label }}</span>
+    <span class="metric-value" :class="accent ? 'text-blue-600' : 'text-slate-900'">{{ value }}</span>
   </div>
 </template>
