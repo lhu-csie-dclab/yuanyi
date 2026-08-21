@@ -2,6 +2,8 @@ module go-p2p
 
 go 1.26
 
+toolchain go1.26.6
+
 require (
 	github.com/gdamore/tcell/v2 v2.13.10
 	github.com/ipfs/go-ds-badger v0.3.4
