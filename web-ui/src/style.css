@@ -1,25 +1,27 @@
 @import "tailwindcss";
 
 /*
- * Design tokens for the clean, modern Confiss/SaaS dashboard aesthetic.
- * Light surface with pure white cards, soft blue glows, and crisp slate typography.
+ * Design tokens matching the Ocean Blue Top-Nav & Enterprise Workspace aesthetic.
  */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "Cascadia Code", "Fira Code", Menlo, Consolas, monospace;
 
-  --color-surface: #f4f6fc;
+  --color-header-bg: #1c5b88;
+  --color-header-hover: #154c73;
+  
+  --color-surface: #f4f6fb;
   --color-surface-raised: #ffffff;
   --color-surface-card: #ffffff;
-  --color-border: #e6ebf5;
+  --color-border: #e2e8f0;
 
-  --color-ink: #1e293b;
+  --color-ink: #0f172a;
   --color-ink-muted: #64748b;
   --color-ink-faint: #94a3b8;
 
-  --color-brand: #2563eb;
-  --color-brand-light: #3b82f6;
-  --color-cyan: #06b6d4;
+  --color-brand: #1c5b88;
+  --color-brand-light: #2563eb;
+  --color-cyan: #0284c7;
 
   --color-good: #10b981;
   --color-warning: #f59e0b;
@@ -53,30 +55,33 @@
     background: #cbd5e1;
     border-radius: 999px;
   }
-  ::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
-  }
 }
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-border bg-white p-5 sm:p-6 shadow-[0_4px_25px_-4px_rgba(30,41,59,0.05)];
+    @apply rounded-xl border border-slate-200 bg-white p-5 shadow-xs transition-all;
   }
-  .nav-link {
-    @apply flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 transition-all;
+  .task-card {
+    @apply rounded-xl border border-slate-200 bg-white p-4 shadow-xs hover:shadow-md transition-all relative overflow-hidden;
   }
-  .nav-link:hover {
-    @apply bg-slate-100/80 text-slate-900;
+  .nav-tab {
+    @apply flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-600 border-b-2 border-transparent transition-all whitespace-nowrap;
   }
-  .nav-link.router-link-exact-active,
-  .nav-link.nav-link-active {
-    @apply bg-brand text-white font-semibold shadow-md shadow-brand/25;
+  .nav-tab:hover {
+    @apply text-slate-900 border-slate-300;
+  }
+  .nav-tab.router-link-exact-active,
+  .nav-tab.nav-link-active {
+    @apply text-[#1c5b88] font-bold border-[#1c5b88] bg-blue-50/50;
   }
   .btn {
-    @apply inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 shadow-sm;
+    @apply inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 shadow-xs;
   }
   .btn-brand {
-    @apply bg-brand text-white hover:bg-blue-700 hover:shadow-md hover:shadow-brand/20;
+    @apply bg-[#1c5b88] text-white hover:bg-[#154c73];
+  }
+  .btn-outline {
+    @apply bg-white border border-slate-300 text-slate-700 hover:bg-slate-50;
   }
   .btn-warning {
     @apply bg-amber-500 text-white hover:bg-amber-600;
@@ -85,19 +90,20 @@
     @apply bg-rose-500 text-white hover:bg-rose-600;
   }
   .btn-ghost {
-    @apply bg-blue-50 text-brand hover:bg-blue-100 hover:text-blue-700 shadow-none;
+    @apply bg-blue-50 text-[#1c5b88] hover:bg-blue-100 shadow-none;
   }
   .btn-sm {
-    @apply px-3 py-1.5 text-xs rounded-lg;
+    @apply px-3 py-1.5 text-xs rounded-md;
   }
   .code-panel {
     @apply w-full rounded-xl border border-slate-800 bg-[#0f172a] p-4 font-mono text-sm text-lime-400 shadow-inner;
   }
   .th-cell {
-    @apply px-4 py-3.5 text-left text-[0.72rem] font-bold uppercase tracking-wider text-slate-500 bg-slate-50/80 border-b border-border;
+    @apply px-4 py-3 text-left text-[0.72rem] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-200;
   }
   .td-cell {
     @apply px-4 py-3.5 border-b border-slate-100 align-middle text-sm text-slate-700;
   }
 }
+
 

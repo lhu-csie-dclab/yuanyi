@@ -1,40 +1,42 @@
 <script setup>
 import { computed } from 'vue'
-import { useNodeInfo } from '../composables/useNodeInfo.js'
 
 defineProps({
   title: { type: String, required: true },
   badge: { type: String, default: '' },
 })
 
-const nodeInfo = useNodeInfo()
-
-const avatarLetter = computed(() =>
-  nodeInfo.localNodeId ? nodeInfo.localNodeId.substring(0, 1).toUpperCase() : 'N'
-)
-const displayName = computed(() =>
-  nodeInfo.localNodeId ? 'Node ' + nodeInfo.localNodeId.substring(0, 8) : 'Node Cluster'
-)
+const currentDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 </script>
 
 <template>
-  <div class="sticky top-14 lg:top-0 z-20 flex items-center justify-between border-b border-border bg-white/90 px-4 py-3.5 sm:px-6 sm:py-4 lg:px-8 lg:py-4.5 backdrop-blur-md">
+  <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 sm:py-5 border-b border-slate-200/80 bg-white/60 backdrop-blur-xs">
+    <!-- Left: Action Pill Button -->
     <div class="flex items-center gap-3">
-      <h1 class="text-base sm:text-lg lg:text-xl font-bold tracking-tight text-slate-900">{{ title }}</h1>
-      <span v-if="badge" class="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-brand border border-blue-100 shadow-xs">
+      <button class="inline-flex items-center gap-1.5 rounded-full bg-[#1c5b88] hover:bg-[#154668] text-white px-4 py-1.5 text-xs font-semibold shadow-xs transition-colors cursor-pointer">
+        <span>+</span> Add Node / Swarm
+      </button>
+      <span v-if="badge" class="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-[#1c5b88] border border-blue-200/60 shadow-2xs">
         {{ badge }}
       </span>
     </div>
 
-    <!-- Top Right Profile Capsule (Confiss Style) -->
-    <div class="hidden sm:flex items-center gap-2.5 rounded-full border border-slate-200 bg-slate-50/80 px-3 py-1.5 shadow-xs">
-      <div class="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white shadow-xs">
-        {{ avatarLetter }}
-      </div>
-      <span class="text-xs font-semibold text-slate-700 font-mono">{{ displayName }}</span>
-      <span class="h-2 w-2 rounded-full" :class="nodeInfo.loaded ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'" />
+    <!-- Center: Section Title & Date Indicator (Reference Image Style) -->
+    <div class="text-xs sm:text-sm font-bold tracking-wider uppercase text-slate-600 flex items-center gap-2">
+      <span>{{ title }}</span>
+      <span class="text-slate-300">•</span>
+      <span class="text-slate-400 font-mono text-xs">{{ currentDate }}</span>
+    </div>
+
+    <!-- Right: Status Capsule -->
+    <div class="flex items-center gap-2">
+      <span class="inline-flex items-center gap-1.5 rounded-lg bg-white border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 shadow-2xs">
+        <span class="h-2 w-2 rounded-full bg-emerald-500" />
+        Cluster Online
+      </span>
     </div>
   </div>
 </template>
+
 
 
