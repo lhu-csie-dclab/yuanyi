@@ -395,6 +395,7 @@ Mooncake 2.0 Client Agent 基于以下卓越的开源项目构建而成：
 - **[vllm-windows](https://github.com/SystemPanic/vllm-windows)** (SystemPanic/vllm-windows) - 提供 Windows 平台专用的高性能 vLLM 编译构建与环境兼容性支持。
 - **[Mooncake](https://github.com/kvcache-ai/Mooncake)** - 以 KVCache 为中心的分离式 LLM 服务架构。
 - **[go-libp2p](https://github.com/libp2p/go-libp2p)** - 模块化 P2P 网络库。
+- **[gpu-info-api](https://github.com/voidful/gpu-info-api)** (voidful/gpu-info-api) - GPU 规格数据集（数据提取自 Wikipedia），供 Hub 的贡献度算分引擎依据上报的 GPU 型号字符串解析出 VRAM 容量。
 - **[Ray](https://github.com/ray-project/ray)** - 分布式 AI 与 Python 扩展框架。
 - **[aiperf](https://github.com/ai-dynamo/aiperf)** (`nvcr.io/nvidia/ai-dynamo/aiperf`) - 生成式 AI 推理服务压测工具。
 
