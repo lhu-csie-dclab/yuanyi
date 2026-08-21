@@ -1,9 +1,13 @@
 # stop_vllm.ps1 - Stop vLLM background daemon
+#
+# Must match serve_api.py's --port default (8100) and start_vllm.ps1's $Port.
+$Port = 8100
+
 Write-Host "===================================================" -ForegroundColor Cyan
 Write-Host "  Stopping vLLM Windows Background Daemon..." -ForegroundColor Cyan
 Write-Host "===================================================" -ForegroundColor Cyan
 
-$Connections = Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue
+$Connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
 
 if ($Connections) {
     $Pids = $Connections | Select-Object -ExpandProperty OwningProcess -Unique
@@ -19,5 +23,5 @@ if ($Connections) {
     Start-Sleep -Seconds 1
     Write-Host "[SUCCESS] vLLM background daemon stopped." -ForegroundColor Green
 } else {
-    Write-Host "[INFO] No active service detected on Port 8000." -ForegroundColor Yellow
+    Write-Host "[INFO] No active service detected on Port $Port." -ForegroundColor Yellow
 }
