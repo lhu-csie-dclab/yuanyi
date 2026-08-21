@@ -1,3 +1,11 @@
+# Copyright 2026 LHU CSIE DCLAB (yuanyi) Authors.
+# SPDX-License-Identifier: Apache-2.0
+#
+# OpenAI-compatible vLLM API server entrypoint for the native Windows path.
+# Launched as a subprocess by runner.go (startVLLMWindows) or standalone via
+# start_vllm.ps1. Requires a local vLLM Windows wheel -- see
+# docs/install/windows/README.md.
+
 import os
 import sys
 import tempfile

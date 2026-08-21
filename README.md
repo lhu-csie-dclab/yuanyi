@@ -39,7 +39,8 @@ For deep-dive technical documentation, multi-layered architectural specification
 - **[🖥️ User Interfaces & Web Dashboard Guide (`docs/DASHBOARD_UI.md`)](docs/DASHBOARD_UI.md)**: Detailed guide for `tui.go` (4-tab terminal console, headless mode) and the Vue 3 + Vite + Tailwind CSS web dashboard (`web-ui/`, embedded via `web.go` on port `50007`).
 - **[📈 NVIDIA AIPerf Benchmark & Stress Test Results (`docs/test/BENCHMARK_RESULTS.md`)](docs/test/BENCHMARK_RESULTS.md)**: Official 10,000 requests stress test results evaluated on 10 x RTX A2000 8GB GPUs using NVIDIA AIPerf.
 - **[🧬 Multi-Node Fresh-Clone & Concurrent Multi-GPU Test (`docs/test/MULTI_NODE_CLONE_TEST.md`)](docs/test/MULTI_NODE_CLONE_TEST.md)**: Validates a from-scratch `git clone` deployed across 10 independent nodes on 2 hosts, confirming 10 distinct physical GPUs each serve real inference, sequentially and concurrently.
-- **[🪟 Windows Native Deployment Guide (`VLLM_WINDOWS_SETUP.md`)](VLLM_WINDOWS_SETUP.md)**: Step-by-step guide for native Windows deployment with `uv`, `.venv`, and `SystemPanic/vllm-windows`.
+- **[🪟 Windows Native Deployment Guide (`docs/install/windows/README.md`)](docs/install/windows/README.md)**: Step-by-step guide for native Windows deployment with `uv`, `.venv`, and `SystemPanic/vllm-windows`.
+- **[🪟 Windows Native Deployment Test (`docs/test/WINDOWS_NATIVE_TEST.md`)](docs/test/WINDOWS_NATIVE_TEST.md)**: Verified end-to-end run of the native Windows path on an RTX 3080 Laptop — build, startup, single/sequential/concurrent/streaming inference, and the two bugs the run surfaced and fixed.
 - **[🧪 Experimental Stage & Untested Parameters Manual (`docs/EXPERIMENTAL.md`)](docs/EXPERIMENTAL.md)**: Detailed experimental research scope, baseline parameters, untested options, and production disclaimers.
 - **[🗂 Module & Function Reference Guide (`docs/MODULES.md`)](docs/MODULES.md)**: File-by-file index of data structures, struct definitions, and cross-module call matrices.
 - **[🛰️ Hub Mode Guide (`docs/HUB_MODE.md`)](docs/HUB_MODE.md)**: Optional merged Central Server capability — peer database, GPU scoring, central dispatcher, hub dashboard, and the multi-hub consistency model.
@@ -324,7 +325,7 @@ uv pip install "transformers>=4.48.0,<4.50.0"
 .\go-p2p.exe
 ```
 * The application will **automatically detect Windows**, invoke `nvidia-smi` for hardware telemetry, mount the local `.venv`, and start vLLM + P2P networking seamlessly!
-* For complete configuration and background daemon setup, see **[🪟 Windows Deployment Guide (`VLLM_WINDOWS_SETUP.md`)](VLLM_WINDOWS_SETUP.md)**.
+* For complete configuration and background daemon setup, see **[🪟 Windows Deployment Guide (`docs/install/windows/README.md`)](docs/install/windows/README.md)**.
 
 ---
 

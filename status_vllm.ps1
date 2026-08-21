@@ -1,3 +1,5 @@
+# Copyright 2026 LHU CSIE DCLAB (yuanyi) Authors.
+# SPDX-License-Identifier: Apache-2.0
 # status_vllm.ps1 - check vLLM background status
 #
 # Must match serve_api.py's --port default (8100) and start_vllm.ps1's $Port.

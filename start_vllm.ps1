@@ -1,3 +1,5 @@
+# Copyright 2026 LHU CSIE DCLAB (yuanyi) Authors.
+# SPDX-License-Identifier: Apache-2.0
 # start_vllm.ps1 - Start vLLM background daemon
 #
 # $Port must match serve_api.py's hardcoded --port default (8100, same as
