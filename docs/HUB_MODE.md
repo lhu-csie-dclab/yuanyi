@@ -4,8 +4,11 @@ This document specifies **hub mode**, an optional capability added to the client
 merges the responsibilities of the standalone Mooncake 2.0 Central Server into this binary.
 It is implemented across [`server_db.go`](../server_db.go), [`server_rank.go`](../server_rank.go),
 [`server_p2p.go`](../server_p2p.go), [`server_proxy.go`](../server_proxy.go),
-[`server_web.go`](../server_web.go) + `web/hub/`, [`logger.go`](../logger.go), and
-[`scanGPUlevel.go`](../scanGPUlevel.go).
+[`server_web.go`](../server_web.go), [`logger.go`](../logger.go), and
+[`scanGPUlevel.go`](../scanGPUlevel.go). The hub dashboard's UI lives alongside the client
+dashboard's in the shared Vue app at [`web-ui/`](../web-ui) (see
+[`DASHBOARD_UI.md`](DASHBOARD_UI.md)); `server_web.go` only provides its `/hub/api/*` JSON
+endpoints.
 
 ---
 
@@ -27,9 +30,11 @@ process:
 - GPU-based contribution scoring and a `top.json` leaderboard, refreshed every 10 seconds.
 - A central prefill/decode dispatcher and `/api/cluster_topology` endpoint, scoped to this
   node's own view of the mesh, on `server_mode.proxy_port`.
-- A hub-only web dashboard (leaderboard, peer list, audit events, cluster topology) mounted at
-  `/hub/` on the client's own `web_port` — no separate port. The client dashboard shows a "Hub
-  Dashboard" link once it detects hub mode is enabled.
+- Hub-only dashboard views (leaderboard, peer list, audit events, cluster topology) inside the
+  same Vue SPA the client dashboard already serves on `web_port` — no separate port, and no
+  separate page: they're reached client-side via hash routes (`/#/hub`, `/#/hub/history`,
+  `/#/hub/leaderboard`). The sidebar reveals a "Cluster (Hub Mode)" section once it detects hub
+  mode is enabled.
 - Circuit Relay v2 service and a fixed listen port on `server_mode.p2p_port`, so peers behind
   NAT can reach the swarm through this node if it is itself publicly reachable.
 
@@ -108,8 +113,10 @@ PeerID across restarts. This matters most for hub nodes, since other nodes may c
 | `server_mode.check_interval_sec` | `30` | Health-check ping interval, in seconds. |
 | `server_mode.cluster.prefill_nodes` / `decode_nodes` | `0` / `0` | Dedicated P/D node caps; both `0` means PD-Together mode. |
 
-The hub dashboard itself has no `server_mode.*` port of its own — it is mounted at `/hub/` on
-the client's existing `web_port` (default `50007`). `LoadOrCreateConfig` defends
+The hub dashboard itself has no `server_mode.*` port of its own — its views are part of the
+same Vue SPA served on the client's existing `web_port` (default `50007`), reached via hash
+routes rather than a real server path (only `/hub/api/*`, the JSON endpoints, is a real path).
+`LoadOrCreateConfig` defends
 `server_mode.proxy_port`/`p2p_port` against colliding with the client's own `web_port`,
 `proxy_port`, `vllm.port`, or `vllm.mooncake_bootstrap_port`, resetting to the defaults above
 on conflict.

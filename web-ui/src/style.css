@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens for the Mooncake node dashboard.
+ * Dark-only product (no light mode toggle), so this is the single validated
+ * set rather than a light/dark pair. Status colors (good/warning/critical)
+ * are reserved for real health/threshold signals only -- never reused as
+ * decorative per-metric colors.
+ */
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Fira Code", Menlo, Consolas, monospace;
+
+  --color-surface: #0b1120;
+  --color-surface-raised: #0f1629;
+  --color-surface-card: #141d35;
+  --color-border: rgba(255, 255, 255, 0.08);
+
+  --color-ink: #e2e8f0;
+  --color-ink-muted: #7c8aa5;
+  --color-ink-faint: #4b5875;
+
+  --color-brand: #6366f1;
+  --color-brand-light: #818cf8;
+  --color-cyan: #22d3ee;
+
+  --color-good: #10b981;
+  --color-warning: #f59e0b;
+  --color-critical: #f43f5e;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    color-scheme: dark;
+  }
+  body {
+    min-height: 100vh;
+    margin: 0;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 999px;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-border bg-surface-card/80 p-6 backdrop-blur;
+  }
+  .nav-link {
+    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-muted transition-colors;
+  }
+  .nav-link:hover {
+    @apply bg-brand/10 text-ink;
+  }
+  .nav-link.router-link-exact-active,
+  .nav-link.nav-link-active {
+    @apply bg-brand/15 text-brand-light;
+  }
+  .btn {
+    @apply inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-brand {
+    @apply bg-brand text-white hover:bg-brand-light;
+  }
+  .btn-warning {
+    @apply bg-warning text-surface hover:brightness-110;
+  }
+  .btn-critical {
+    @apply bg-critical/90 text-white hover:bg-critical;
+  }
+  .btn-ghost {
+    @apply bg-brand/10 text-brand-light hover:bg-brand/20;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs rounded-md;
+  }
+  .code-panel {
+    @apply w-full rounded-xl border border-border bg-[#080d1a] p-4 font-mono text-sm text-lime-400;
+  }
+  .th-cell {
+    @apply px-4 py-3 text-left text-[0.68rem] font-semibold uppercase tracking-wider text-ink-muted border-b border-border;
+  }
+  .td-cell {
+    @apply px-4 py-3.5 border-b border-border align-middle text-sm;
+  }
+}

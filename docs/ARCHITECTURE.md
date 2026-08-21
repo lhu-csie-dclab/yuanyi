@@ -170,7 +170,11 @@ This document provides an exhaustive, multi-layered architectural specification 
 ### 7.2 `web.go` - Web Dashboard HTTP Server
 - **Module Name**: Web Dashboard HTTP Server
 - **System Role**:
-  Hosts a Web Monitoring Dashboard on port `50007` using Go 1.16+ `embed.FS` to serve static HTML/CSS/JS assets embedded directly into the binary.
+  Hosts a Web Monitoring Dashboard on port `50007`. The dashboard itself is a Vue 3 + Vite +
+  Tailwind CSS single-page app in [`web-ui/`](../web-ui) (hash-based `vue-router`, so the
+  server needs no SPA-fallback logic); its `npm run build` output (`web-ui/dist/`) is embedded
+  directly into the binary via Go 1.16+ `embed.FS`. See
+  [`docs/DASHBOARD_UI.md`](DASHBOARD_UI.md) for the frontend architecture.
 - **RESTful Endpoints**:
   - `GET /`: Renders static dashboard console.
   - `GET /api/peers`: Online P2P peers status.
@@ -203,13 +207,17 @@ This document provides an exhaustive, multi-layered architectural specification 
   its local `peers.db`) rather than the local vLLM instance. Serves `/api/cluster_topology` and
   the same OpenAI-compatible endpoints on `server_mode.proxy_port`.
 
-### 8.4 `server_web.go` - Hub Dashboard
-- **Module Name**: Hub Dashboard HTTP Server
+### 8.4 `server_web.go` - Hub Dashboard API
+- **Module Name**: Hub Dashboard JSON API
 - **System Role**:
-  `RegisterHubRoutes` mounts the leaderboard/peer-list/audit-event dashboard at `/hub/` on the
-  client's own `web.go` HTTP server (`web_port`) rather than listening on a separate port,
-  embedding `web/hub/` via `embed.FS`. `web.go`'s `/api/node_info` reports
-  `hub_mode_enabled`, which the client dashboard uses to show a "Hub Dashboard" link.
+  `RegisterHubRoutes` mounts the leaderboard/peer-list/audit-event JSON endpoints under
+  `/hub/api/*` on the client's own `web.go` HTTP server (`web_port`), rather than listening on
+  a separate port. There is no separate hub HTML page any more: the hub views
+  (`src/views/hub/*.vue`) are part of the same Vue SPA `web.go` embeds, reached client-side via
+  `vue-router`'s hash routes (`/#/hub`, `/#/hub/history`, `/#/hub/leaderboard`) -- `/hub/` is
+  only ever a real server-side path for the `/hub/api/*` JSON endpoints, never for a page.
+  `web.go`'s `/api/node_info` reports `hub_mode_enabled`, which the dashboard uses to reveal
+  the "Cluster (Hub Mode)" nav section.
 
 ### 8.5 Multi-Hub Consistency Model
 Unlike the standalone Central Server this replaces, hub mode has no single fixed instance: any

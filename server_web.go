@@ -4,33 +4,21 @@
 package main
 
 import (
-	"embed"
 	"encoding/json"
-	"io/fs"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 )
 
-// serverWebFS embeds the hub-only static dashboard assets.
-//
-//go:embed web/hub
-var serverWebFS embed.FS
-
-// RegisterHubRoutes mounts the hub dashboard (leaderboard, peer list, audit events, cluster
-// topology) onto the client's own web server, under the /hub/ prefix, instead of listening on
-// a separate port. Config editing is intentionally not duplicated here: the client dashboard's
-// existing /api/config* endpoints already read and write the same config.json file, so the hub
-// UI links out to those instead of re-implementing them. Called from StartClientWebDashboard
-// only when server_mode.enabled is true.
+// RegisterHubRoutes mounts the hub's JSON API (leaderboard, peer list, audit events, cluster
+// topology) under /hub/api/*. The hub dashboard UI itself has no static assets of its own to
+// serve any more -- it is the same Vue SPA bundle web.go already embeds at "/", with the
+// "Cluster (Hub Mode)" nav section revealed once /api/node_info reports hub_mode_enabled.
+// Config editing is intentionally not duplicated here: the client dashboard's existing
+// /api/config* endpoints already read and write the same config.json file. Called from
+// StartClientWebDashboard only when server_mode.enabled is true.
 func RegisterHubRoutes(mux *http.ServeMux, app *App) {
-	if subFS, err := fs.Sub(serverWebFS, "web/hub"); err == nil {
-		mux.Handle("/hub/", http.StripPrefix("/hub", http.FileServer(http.FS(subFS))))
-	} else {
-		logInfo("[ServerWeb] Failed to mount embedded web folder: %v", err)
-	}
-
 	mux.HandleFunc("/hub/api/peers", func(w http.ResponseWriter, r *http.Request) {
 		peers, err := app.DB.GetAllPeers()
 		if err != nil {

@@ -104,6 +104,9 @@ flowchart TB
   運行於多階段 Docker 容器中。Go Agent 作為 **PID 1** 原生管理 Ray Head 與 vLLM 進程，無須掛載 `/var/run/docker.sock` 或宿主機 shell 腳本。
 - **🖥️ 雙監控介面支援 (互動式 TUI 與 Headless 背景模式)**：
   搭載基於 `tview` 的 4 分頁終端面板。自動偵測無 TTY 環境（如容器或背景服務），自動切換至 Headless 背景模式。
+
+- **🎨 Vue 3 + Vite + Tailwind Web 儀表板**：
+  Web 主控台（`web-ui/`）是用 Vue 3、Vite、Tailwind CSS v4 打造的 hash 路由單頁應用，編譯後透過 `embed.FS` 直接打進 Go 執行檔——執行期依然不需要外部前端檔案。Dockerfile 有獨立的 Node 建置階段，跑在 Go build 之前。
 - **🌐 P2P Swarm 與 Mooncake KV Cache 傳輸**：
   透過 libp2p 連接 Mooncake 2.0 P2P Swarm，參與 Prefill/Decode (P/D) 分離推理拓撲，經由 `8998` 埠進行跨節點 KV Cache 傳輸。
 - **🛰️ 選用 Hub 模式（合併中央伺服器能力）**：
@@ -122,7 +125,7 @@ flowchart TB
 | **[`p2p.go`](p2p.go)** / **[`swarm.key.example`](swarm.key.example)** | libp2p 私網、GossipSub 與 VIP 代理 | [🌐 P2P Network & Key Guide (`docs/zh_tw/P2P_NETWORK.md`)](docs/zh_tw/P2P_NETWORK.md) |
 | **[`runner.go`](runner.go)** / **[`Dockerfile`](Dockerfile)** | Ray Head 與 vLLM 推論進程管理 | [🏃 Process & Docker Guide (`docs/zh_tw/RUNNER_DOCKER.md`)](docs/zh_tw/RUNNER_DOCKER.md) |
 | **[`sys.go`](sys.go)** / **[`stats.json`](stats.json)** | 顯卡 NVML 遙測與 Prometheus 爬蟲 | [📊 Telemetry & Metrics Guide (`docs/zh_tw/TELEMETRY_SYS.md`)](docs/zh_tw/TELEMETRY_SYS.md) |
-| **[`tui.go`](tui.go)** / **[`web.go`](web.go)** | TUI 終端面板與 Web 儀表板 | [🖥️ User Interfaces Guide (`docs/zh_tw/DASHBOARD_UI.md`)](docs/zh_tw/DASHBOARD_UI.md) |
+| **[`tui.go`](tui.go)** / **[`web.go`](web.go)** / **[`web-ui/`](web-ui)** | TUI 終端面板與 Web 儀表板（Vue 3 + Vite + Tailwind）| [🖥️ User Interfaces Guide (`docs/zh_tw/DASHBOARD_UI.md`)](docs/zh_tw/DASHBOARD_UI.md) |
 | **`server_*.go`**（選用） | Hub 模式：節點資料庫、算分、派發器、儀表板 | [🛰️ Hub Mode Guide (`docs/zh_tw/HUB_MODE.md`)](docs/zh_tw/HUB_MODE.md) |
 | **`docs/test/`** | 10 x RTX A2000 壓測數據集 | [📈 AIPerf Benchmark Results (`docs/zh_tw/test/BENCHMARK_RESULTS.md`)](docs/zh_tw/test/BENCHMARK_RESULTS.md) |
 | **`docs/test/`** | 10 節點全新 Clone + 併發多卡驗證 | [🧬 Multi-Node Clone Test (`docs/zh_tw/test/MULTI_NODE_CLONE_TEST.md`)](docs/zh_tw/test/MULTI_NODE_CLONE_TEST.md) |
@@ -134,13 +137,13 @@ flowchart TB
 | Port 埠號 | 協定 | 層級 / 服務 | 設定檔來源 | 說明 |
 | :--- | :--- | :--- | :--- | :--- |
 | **`50006`** | HTTP | OpenAI API Gateway | `config.json` (`proxy_port`) | Client API 進入點 (`/v1/chat/completions`, `/v1/models`) |
-| **`50007`** | HTTP | Web UI 儀表板 | `config.json` / `.env` (`CLIENT_WEB_PORT`) | 視覺化監控 Web 主控台與 Stats API；開啟 `server_mode.enabled` 時也在 `/hub/` 提供 Hub 儀表板 |
+| **`50007`** | HTTP | Web UI 儀表板 | `config.json` / `.env` (`CLIENT_WEB_PORT`) | Vue SPA + Stats API；開啟 `server_mode.enabled` 時會出現 Cluster/Hub 分區（`/#/hub/*` hash 路由）|
 | **`8100`** | HTTP | vLLM Engine | `config.json` (`vllm.port`) | 本機 GPU vLLM 推論伺服器端點 |
 | **`8998`** | TCP/HTTP | Mooncake Engine | `config.json` (`mooncake_bootstrap_port`) | Mooncake KV Cache 傳輸控制與協商埠 |
 | **`6389`** | TCP | Python Ray Cluster | Ray Head (`--port`) | Ray 分散式執行 Head 節點埠 |
 | **`8275`** | HTTP | Python Ray Dashboard | Ray Head (`--dashboard-port`) | Ray 叢集 Web 管理儀表板 |
 | **`50004`** | TCP/libp2p | Bootstrap 種子節點 | `config.json` (`p2p.server_address(es)`) | Bootstrap Tracker 與 NAT 中繼 multiaddress 埠（本節點兼任 Hub 時同 `server_mode.p2p_port`） |
-| **`50008`** | HTTP | Hub 派發器（選用） | `config.json` (`server_mode.proxy_port`) | Hub 中央 P/D 派發，僅 `server_mode.enabled` 時啟用（拓樸/排行榜改在上面的 `50007/hub/`） |
+| **`50008`** | HTTP | Hub 派發器（選用） | `config.json` (`server_mode.proxy_port`) | Hub 中央 P/D 派發，僅 `server_mode.enabled` 時啟用（儀表板的拓樸/排行榜頁面改在上面的 `50007`）|
 
 ---
 
@@ -159,11 +162,16 @@ cd yuanyi
 ```
 
 ### 2. Go 環境與本機編譯
-本專案需要 **Go 1.26.0 或更高版本**：
+本專案需要 **Go 1.26.0 或更高版本**。Web 儀表板（`web-ui/`）是透過 `//go:embed` 在編譯期打進執行檔的，
+所以 `go build` 之前必須先有建置好的 `web-ui/dist/`。Docker 建置會自動處理；若要在 Docker 之外本機編譯，
+需要 **Node.js 22+** 先建置一次儀表板：
 
 ```bash
 # 檢查 Go 版本 (需要 1.26.0+)
 go version
+
+# 先建置一次 Web 儀表板（只有非 Docker 建置才需要，web-ui/dist/ 不進版控）
+cd web-ui && npm ci && npm run build && cd ..
 
 # 本機編譯執行檔
 go build -v .
