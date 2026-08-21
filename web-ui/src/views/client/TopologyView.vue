@@ -34,11 +34,13 @@ usePolling(refresh, 2000)
 <template>
   <PageHeader title="Topology & Rank" :badge="`${stats.total_nodes || 0} Peers`" />
 
-  <div class="space-y-5 p-8">
+  <div class="space-y-4 sm:space-y-6 p-4 sm:p-6 lg:p-8 max-w-full min-w-0">
     <!-- My Local Contribution -->
     <div class="card border-brand/30 bg-gradient-to-br from-brand/10 to-cyan/5">
-      <h2 class="mb-4 text-sm font-semibold">📊 My Local Contribution</h2>
-      <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <h2 class="mb-3 text-xs sm:text-sm font-semibold uppercase tracking-wider text-brand-light flex items-center gap-2">
+        <span>📊</span> My Local Contribution
+      </h2>
+      <div class="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard bare label="Total Tokens" :value="fmtNum(local.total_tokens)" accent />
         <StatCard bare label="Input Tokens" :value="fmtNum(local.in_tokens)" />
         <StatCard bare label="Output Tokens" :value="fmtNum(local.out_tokens)" />
@@ -49,7 +51,7 @@ usePolling(refresh, 2000)
     </div>
 
     <!-- Swarm-wide stats -->
-    <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
       <StatCard label="Discovered Peers" :value="stats.total_nodes || 0" />
       <StatCard label="Active Requests" :value="stats.total_active_requests || 0" />
       <StatCard label="Throughput (tok/s)" :value="(stats.total_gen_speed || 0).toFixed(1)" />
@@ -58,12 +60,15 @@ usePolling(refresh, 2000)
 
     <!-- Peers table -->
     <div class="card !p-0 overflow-hidden">
-      <h2 class="px-6 pt-6 pb-4 text-sm font-semibold">P2P Discovered Peers</h2>
-      <div class="overflow-x-auto">
-        <table class="w-full border-collapse">
+      <div class="flex items-center justify-between px-4 py-4 sm:px-6 sm:pt-6 sm:pb-4">
+        <h2 class="text-sm font-semibold text-white">P2P Discovered Peers</h2>
+        <span class="text-xs text-ink-muted lg:hidden">↔ Scroll horizontally</span>
+      </div>
+      <div class="overflow-x-auto w-full">
+        <table class="w-full min-w-[640px] border-collapse text-left">
           <thead>
             <tr>
-              <th class="th-cell">#</th>
+              <th class="th-cell w-12">#</th>
               <th class="th-cell">Peer ID</th>
               <th class="th-cell">IP Address</th>
               <th class="th-cell">GPU Model</th>
@@ -73,24 +78,24 @@ usePolling(refresh, 2000)
           </thead>
           <tbody>
             <tr v-if="!peers.length">
-              <td class="td-cell text-center text-ink-muted" colspan="6">Discovering peers...</td>
+              <td class="td-cell text-center text-ink-muted py-8" colspan="6">Discovering peers...</td>
             </tr>
-            <tr v-for="(p, i) in peers" :key="p.peer_id || p.node_id || i" class="hover:bg-white/[0.02]">
+            <tr v-for="(p, i) in peers" :key="p.peer_id || p.node_id || i" class="hover:bg-white/[0.02] transition-colors">
               <td class="td-cell font-semibold text-ink-muted">{{ i + 1 }}</td>
               <td class="td-cell">
                 <span class="font-mono text-xs text-brand-light">{{ (p.peer_id || p.node_id || '-').substring(0, 12) }}...</span>
                 <span
                   v-if="(p.peer_id || p.node_id) === nodeInfo.localNodeId"
-                  class="ml-1.5 rounded bg-brand px-1.5 py-0.5 text-[0.65rem] font-bold text-white"
+                  class="ml-1.5 rounded bg-brand px-1.5 py-0.5 text-[0.65rem] font-bold text-white shadow-sm"
                 >ME</span>
               </td>
-              <td class="td-cell text-ink-muted">{{ p.ip_address || p.addr || '-' }}</td>
+              <td class="td-cell text-ink-muted font-mono text-xs">{{ p.ip_address || p.addr || '-' }}</td>
               <td class="td-cell font-semibold">
-                <span v-if="!parseGpuInfo(p).summary" class="text-critical">No GPU</span>
-                <span v-else>{{ parseGpuInfo(p).summary }}</span>
+                <span v-if="!parseGpuInfo(p).summary" class="text-critical text-xs">No GPU</span>
+                <span v-else class="text-xs sm:text-sm">{{ parseGpuInfo(p).summary }}</span>
               </td>
               <td class="td-cell"><TelemetryBadges :info="parseGpuInfo(p)" /></td>
-              <td class="td-cell text-xs text-ink-muted">{{ p.engine_id || parseGpuInfo(p).engine_id || '-' }}</td>
+              <td class="td-cell text-xs text-ink-muted font-mono">{{ p.engine_id || parseGpuInfo(p).engine_id || '-' }}</td>
             </tr>
           </tbody>
         </table>

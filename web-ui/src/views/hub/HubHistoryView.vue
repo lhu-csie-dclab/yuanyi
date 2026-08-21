@@ -32,11 +32,14 @@ usePolling(refresh, 3000)
 <template>
   <PageHeader title="Global History" />
 
-  <div class="p-8">
+  <div class="space-y-4 sm:space-y-6 p-4 sm:p-6 lg:p-8 max-w-full min-w-0">
     <div class="card !p-0 overflow-hidden">
-      <h2 class="px-6 pt-6 pb-4 text-sm font-semibold">Global Node History &amp; Audit Log</h2>
-      <div class="overflow-x-auto">
-        <table class="w-full border-collapse">
+      <div class="flex items-center justify-between px-4 py-4 sm:px-6 sm:pt-6 sm:pb-4">
+        <h2 class="text-sm font-semibold text-white">Global Node History &amp; Audit Log</h2>
+        <span class="text-xs text-ink-muted lg:hidden">↔ Scroll horizontally</span>
+      </div>
+      <div class="overflow-x-auto w-full">
+        <table class="w-full min-w-[700px] border-collapse text-left">
           <thead>
             <tr>
               <th class="th-cell">Timestamp</th>
@@ -50,16 +53,16 @@ usePolling(refresh, 3000)
           </thead>
           <tbody>
             <tr v-if="!events.length">
-              <td class="td-cell text-center text-ink-muted" colspan="7">No events</td>
+              <td class="td-cell text-center text-ink-muted py-8" colspan="7">No events</td>
             </tr>
-            <tr v-for="(e, i) in events" :key="e.id ?? i" class="hover:bg-white/[0.02]">
-              <td class="td-cell text-xs text-ink-muted">{{ (e.timestamp || '').replace('T', ' ').substring(0, 19) }}</td>
+            <tr v-for="(e, i) in events" :key="e.id ?? i" class="hover:bg-white/[0.02] transition-colors">
+              <td class="td-cell text-xs text-ink-muted font-mono">{{ (e.timestamp || '').replace('T', ' ').substring(0, 19) }}</td>
               <td class="td-cell"><StatusPill :variant="metaFor(e.event_type).variant" :label="metaFor(e.event_type).label" /></td>
               <td class="td-cell"><span class="font-mono text-xs text-brand-light">{{ e.peer_id ? e.peer_id.substring(0, 12) + '...' : '-' }}</span></td>
-              <td class="td-cell text-ink-muted">{{ e.ip_address || '-' }}</td>
-              <td class="td-cell">{{ e.fail_count || 0 }}</td>
-              <td class="td-cell">{{ e.penalty_points || 0 }}</td>
-              <td class="td-cell text-xs text-ink-muted">{{ e.detail || '' }}</td>
+              <td class="td-cell text-ink-muted font-mono text-xs">{{ e.ip_address || '-' }}</td>
+              <td class="td-cell text-xs sm:text-sm font-mono">{{ e.fail_count || 0 }}</td>
+              <td class="td-cell text-xs sm:text-sm font-mono">{{ e.penalty_points || 0 }}</td>
+              <td class="td-cell text-xs text-ink-muted leading-snug">{{ e.detail || '' }}</td>
             </tr>
           </tbody>
         </table>
