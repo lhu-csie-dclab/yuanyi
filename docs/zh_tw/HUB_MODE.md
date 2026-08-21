@@ -116,5 +116,5 @@ Hub 儀表板本身沒有自己的 `server_mode.*` 埠——它的頁面是同�
 
 在 `config.json` 把 `server_mode.enabled` 設成 `true`（若沒有這個區塊就照上面補上——
 `LoadOrCreateConfig` 會自動幫其餘欄位填入預設值）。不需要其他改動；下次啟動時，節點會在
-GPU 規格資料庫（`gpu_database.json`，跟以前 Central Server 用的是同一個來源）不存在時自動
+GPU 規格資料庫（`gpu_database.json`，來源為 [voidful/gpu-info-api](https://github.com/voidful/gpu-info-api)）不存在時自動
 下載，初始化 `peers.db`，並啟動上述的額外服務。

@@ -126,5 +126,5 @@ on conflict.
 Set `server_mode.enabled` to `true` in `config.json` (add the block above if it is missing —
 `LoadOrCreateConfig` fills in every other field with the defaults shown). No other changes are
 required; on the next start the node downloads the GPU specification database
-(`gpu_database.json`, from the same source used by the former Central Server) if it is not
-already present, initializes `peers.db`, and starts the additional services.
+(`gpu_database.json`, fetched from [voidful/gpu-info-api](https://github.com/voidful/gpu-info-api))
+if it is not already present, initializes `peers.db`, and starts the additional services.
