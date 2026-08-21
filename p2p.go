@@ -173,9 +173,15 @@ func (n *NetworkNode) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to parse swarm.key: %v", err)
 	}
 
-	ds, err := badger.NewDatastore("./my-peerstore", nil)
+	badgerOpts := badger.DefaultOptions
+	badgerOpts.Truncate = true
+	ds, err := badger.NewDatastore("./my-peerstore", &badgerOpts)
 	if err != nil {
-		return err
+		_ = os.RemoveAll("./my-peerstore")
+		ds, err = badger.NewDatastore("./my-peerstore", &badgerOpts)
+		if err != nil {
+			return err
+		}
 	}
 	n.ds = ds
 
