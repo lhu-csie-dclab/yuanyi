@@ -74,7 +74,7 @@ flowchart TB
     end
     
     subgraph Swarm["Mooncake 2.0 P2P Swarm"]
-        HubNode["Hub Node(s) (50004/50007/hub, 50008)\n- Any peer with server_mode.enabled\n- Topology Sync, NAT Relay, Leaderboard"]
+        HubNode["Hub Node(s) (50004/50007 #/hub, 50008)\n- Any peer with server_mode.enabled\n- Topology Sync, NAT Relay, Leaderboard"]
         RemotePeer["Remote P2P Peer Nodes"]
     end
     

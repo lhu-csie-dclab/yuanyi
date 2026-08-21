@@ -74,7 +74,7 @@ flowchart TB
     end
     
     subgraph Swarm["Mooncake 2.0 P2P Swarm 集群"]
-        HubNode["Hub 节点群 (50004/50007/hub、50008)\n- 任何开启 server_mode.enabled 的节点\n- 拓扑同步、NAT 中继、排行榜"]
+        HubNode["Hub 节点群 (50004/50007 #/hub、50008)\n- 任何开启 server_mode.enabled 的节点\n- 拓扑同步、NAT 中继、排行榜"]
         RemotePeer["远程 P2P Peer 节点"]
     end
     
