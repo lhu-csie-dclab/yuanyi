@@ -112,11 +112,42 @@ go build -o client.exe .
 
 ---
 
-## 5. Configure
+## 5. Create the private network key (`swarm.key`)
+
+> [!IMPORTANT]
+> **Do this before the first launch.** The agent refuses to start without a valid `swarm.key`,
+> and **every node in the same mesh must carry the byte-identical key** — it is the pre-shared
+> key (PSK) that defines the private network.
+
+**Starting a new mesh?** Generate a fresh key (pure PowerShell, no OpenSSL required):
 
 ```powershell
-Copy-Item swarm.key.example swarm.key   # replace with your swarm's real key to join an existing mesh
+$bytes = New-Object byte[] 32
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+$hex = -join ($bytes | ForEach-Object { $_.ToString("x2") })
+[IO.File]::WriteAllText("swarm.key", "/key/swarm/psk/1.0.0/`n/base16/`n$hex`n")
 ```
+
+The file must end up exactly **96 bytes** with **LF** line endings — check with
+`(Get-Item swarm.key).Length`. Use `[IO.File]::WriteAllText` as shown rather than
+`Set-Content` or `>` redirection: those add a BOM and/or CRLF endings.
+
+**Joining an existing mesh?** Do **not** generate one — obtain the exact `swarm.key` from
+whoever operates that mesh and copy it in byte-for-byte, then confirm it matches a working
+node:
+
+```powershell
+(Get-FileHash swarm.key -Algorithm SHA256).Hash.ToLower()
+```
+
+> [!WARNING]
+> Do **not** use `swarm.key.example` as your real key. It is a public placeholder committed to
+> this repository, so anyone could use it to join your mesh. Keep the real key out of version
+> control (`.gitignore` already excludes it).
+
+---
+
+## 6. Configure
 
 `config.json` is created automatically on first run. Two Windows-specific notes:
 
@@ -132,7 +163,7 @@ Copy-Item swarm.key.example swarm.key   # replace with your swarm's real key to 
 
 ---
 
-## 6. Run
+## 7. Run
 
 ```powershell
 .\client.exe
@@ -157,7 +188,7 @@ Dashboard: <http://localhost:50007>
 
 ---
 
-## 7. Optional: run vLLM as a background daemon
+## 8. Optional: run vLLM as a background daemon
 
 To run vLLM alone (without the Go agent), three helper scripts are provided. All three default
 to port **8100**, matching `config.json`'s `vllm.port`:
@@ -175,10 +206,12 @@ powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\path\to\you
 
 ---
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 | Symptom | Cause & fix |
 | :--- | :--- |
+| `failed to open swarm.key` on startup | The key was never created. See §5 — the agent will not start without it. |
+| `failed to parse swarm.key` on startup | The file exists but is malformed, usually a BOM or CRLF endings from `Set-Content`/`>`. Recreate it with `[IO.File]::WriteAllText` as shown in §5; it must be exactly 96 bytes. |
 | `未找到 .venv 目錄` warning at startup | The venv isn't at one of the four discovery paths in §3. Move it, or run `client.exe` from the directory containing it. |
 | vLLM exits during load, or CUDA OOM | `gpu_memory_utilization` is a fraction of *total* VRAM, not free VRAM. Close other GPU apps or lower it (`0.60`–`0.70` on an 8 GB card). |
 | Gateway returns `404` for your model | The requested `model` string matches neither registered alias. Check what is actually served: `curl.exe http://127.0.0.1:8100/v1/models`. |

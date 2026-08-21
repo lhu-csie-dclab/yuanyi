@@ -257,7 +257,32 @@ IFACE=eth0
 CLIENT_WEB_PORT=50007
 ```
 
-### 2. 编译与启动容器
+### 2. 生成私有网络密钥 (`swarm.key`)
+
+> [!IMPORTANT]
+> **请在第一次启动之前完成这一步。** 没有有效的 `swarm.key`，节点会直接拒绝启动；而且
+> **同一个 Swarm 里的每个节点都必须持有字节完全相同的密钥**——它就是定义这个私有网络的
+> 预共享密钥 (PSK)。
+
+**要建立一个全新的 Swarm？** 生成一把新的密钥：
+
+```bash
+printf '/key/swarm/psk/1.0.0/\n/base16/\n%s\n' "$(openssl rand -hex 32)" > swarm.key
+```
+
+**要加入既有的 Swarm？** 请**不要**自己生成——向该 Swarm 的管理者获取那把一模一样的
+`swarm.key` 并原封不动放进来。密钥不一致时的错误信息是
+`failed to negotiate security protocol: incoming message was too large`，看起来像网络故障
+而不是密钥问题，非常容易误判。可以用 `sha256sum swarm.key` 跟正常运行的节点比对确认。
+
+> [!WARNING]
+> **不要**直接拿 `swarm.key.example` 当成正式密钥。它是提交在这个 repo 里的公开示例文件，
+> 任何人都能用它加入你的 Swarm。请妥善保管真正的 `swarm.key`，不要进版本控制
+> （`.gitignore` 已经排除它）。
+
+文件格式与其他生成方式请见 [`docs/zh_cn/P2P_NETWORK.md`](docs/zh_cn/P2P_NETWORK.md)。
+
+### 3. 编译与启动容器
 
 通过 Docker Compose 编译并启动 All-in-One 服务：
 
@@ -265,7 +290,7 @@ CLIENT_WEB_PORT=50007
 docker compose up -d --build
 ```
 
-### 3. 验证系统健康状态
+### 4. 验证系统健康状态
 
 检查 API 网关健康状态 (`50006`)：
 
@@ -280,7 +305,7 @@ curl http://localhost:50006/health
 curl http://localhost:50006/v1/models
 ```
 
-### 4. 执行对话推理 (Chat Completion)
+### 5. 执行对话推理 (Chat Completion)
 
 发送兼容于 OpenAI 格式的请求：
 
@@ -294,7 +319,7 @@ curl http://localhost:50006/v1/chat/completions \
   }'
 ```
 
-### 5. 🪟 Windows 本机原生极速部署 (Windows Native Quick Start)
+### 6. 🪟 Windows 本机原生极速部署 (Windows Native Quick Start)
 
 本项目支持在 Windows 10/11 原生运行，无需依赖 Docker。请依照以下极简步骤完成前置：
 
