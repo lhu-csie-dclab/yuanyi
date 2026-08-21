@@ -12,9 +12,27 @@ services:
     restart: unless-stopped
     tty: true
     stdin_open: true
+    # network_mode/ipc stay host-level by functional necessity, not oversight:
+    # - network_mode: host -- libp2p's mDNS LAN discovery needs real multicast
+    #   on the host's interface, and UPnP hole-punching needs to negotiate with
+    #   the actual router; both break (or need significant extra plumbing) under
+    #   Docker's bridge networking.
+    # - ipc: host + shm_size -- required for NCCL's shared-memory ring buffers
+    #   between GPU worker processes (mirrors the equivalent `docker run
+    #   --ipc=host` the Go agent itself uses for the separate Ray container in
+    #   non-all-in-one "Docker Mode", see runner.go).
+    # Neither can be safely narrowed without live GPU hardware to validate
+    # against; noted here rather than silently left unexplained.
     network_mode: "host"
     ipc: host
     shm_size: '16g'
+    # Baseline container hardening that has no interaction with GPU/NCCL/libp2p
+    # networking, so is safe to apply without live testing:
+    security_opt:
+      - no-new-privileges:true # blocks privilege escalation via setuid binaries inside the container
+    cap_drop:
+      - ALL # GPU access is granted via device nodes by the nvidia container runtime, not Linux capabilities -- none of the default Docker capability set is needed by this workload
+    pids_limit: 4096 # caps fork-bomb-style process exhaustion from a runaway/compromised child process
     environment:
       - ALL_IN_ONE=true
       - TERM=xterm-256color
@@ -24,12 +42,12 @@ services:
       - IFACE=${IFACE:-eth0}
 
     volumes:
-      - ./config.json:/app/config.json
-      - ./identity.key:/app/identity.key
-      - ./swarm.key:/app/swarm.key
-      - ./stats.json:/app/stats.json
-      - ./peers.db:/app/peers.db
-      - ./mooncake.json:/data/mooncake.json
+      - ./config.json:/app/config.json # live-edited via /api/config, must stay read-write
+      - ./identity.key:/app/identity.key # auto-generated on first run if missing (loadOrGenerateIdentity), must stay read-write
+      - ./swarm.key:/app/swarm.key:ro # shared network PSK, only ever read -- never written by the app
+      - ./stats.json:/app/stats.json # periodically persisted by the TUI, must stay read-write
+      - ./peers.db:/app/peers.db # hub-mode SQLite database, must stay read-write when server_mode.enabled
+      - ./mooncake.json:/data/mooncake.json:ro # Mooncake transfer-engine config, only ever read
       - ${ABS_MODEL_PATH:-./models}:/data/model:ro
     deploy:
       resources:

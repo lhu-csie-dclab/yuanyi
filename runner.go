@@ -8,6 +8,7 @@ import (
 	"bufio"         // 帶緩衝區的掃描器 (bufio.Scanner 逐行讀取 Docker/vLLM 輸出)
 	"context"       // 上下文機制 (用於傳遞取消訊號與 Process 超時控制)
 	"fmt"           // 格式化字串與控制台訊息輸出
+	"io"            // io.Pipe：合併 docker logs 的 stdout/stderr 而不經過 shell
 	"os"            // 作業系統檔案狀態查詢 (os.Stat)
 	"os/exec"       // 外部子程序呼叫介面 (等同於 C 的 system/exec 或 Python 的 subprocess)
 	"path/filepath" // 路徑轉換 (filepath.Abs 轉換為絕對路徑)
@@ -77,8 +78,8 @@ func (r *Runner) Stop() {
 //
 // 5. 監控 Docker 容器日誌：開啟 Goroutine 執行 `docker logs -f` 並將輸出即時傳給 TUI。
 // 6. 等待容器就緒：使用 select 阻塞 5 秒確保 Ray Head 節點初始化。
-// 7. 構造 vLLM 啟動 Shell 命令 (vllmCmdStr)：
-//   - 匯出 PLACEMENT_GROUP_BUNDLE_STRATEGY, VLLM_USE_V1, ATTENTION_BACKEND, MOONCAKE_CONFIG_PATH 等環境變數。
+// 7. 構造 `docker exec` 的 argv 參數（不經過 bash -lc 字串插值，見下方安全性註解）：
+//   - 以 `-e` 傳遞 PLACEMENT_GROUP_BUNDLE_STRATEGY, VLLM_USE_V1, ATTENTION_BACKEND, MOONCAKE_CONFIG_PATH 等環境變數。
 //   - 構造 `/opt/dynamo/venv/bin/vllm serve` 命令列，帶入 GPU 記憶體使用率、TP 卡數、MooncakeConnector 角色等參數。
 //
 // 8. 透過 `docker exec` 執行 vLLM 程序：
@@ -135,17 +136,23 @@ func (r *Runner) startVLLMContainer(ctx context.Context) {
 	go func() {
 		r.app.TUI.AddVLLMLog("[System] 等待容器就緒 (sleep 5)...")
 
-		// 子 Goroutine: 讀取 `docker logs -f` 輸出並寫送至 TUI
+		// 子 Goroutine: 讀取 `docker logs -f` 輸出並寫送至 TUI。
+		// 直接以 argv 呼叫 docker（不經過 bash -c 字串插值），containerName 來自 config.json，
+		// 若透過 shell 字串組合會有指令注入風險。
 		go func() {
-			logsCmd := exec.CommandContext(ctx, "bash", "-c", fmt.Sprintf("docker logs -f %s 2>&1", containerName))
-			logsStdout, err := logsCmd.StdoutPipe()
-			if err == nil {
-				logsCmd.Start()
-				scanner := bufio.NewScanner(logsStdout)
+			logsCmd := exec.CommandContext(ctx, "docker", "logs", "-f", containerName)
+			pr, pw := io.Pipe()
+			logsCmd.Stdout = pw
+			logsCmd.Stderr = pw
+			if err := logsCmd.Start(); err == nil {
+				go func() {
+					logsCmd.Wait()
+					pw.Close()
+				}()
+				scanner := bufio.NewScanner(pr)
 				for scanner.Scan() {
 					r.app.TUI.AddDockerLog(scanner.Text()) // 至 tui.go 記錄 Docker 容器日誌
 				}
-				logsCmd.Wait()
 			}
 		}()
 
@@ -164,30 +171,29 @@ func (r *Runner) startVLLMContainer(ctx context.Context) {
 			bootstrapPort = 8998
 		}
 
-		// 步驟 5: 構造傳遞給 docker exec 的多行 Bash 命令字串
-		vllmCmdStr := fmt.Sprintf(`export PLACEMENT_GROUP_BUNDLE_STRATEGY=%s
-export VLLM_USE_V1=1
-export ATTENTION_BACKEND=%s
-export MOONCAKE_CONFIG_PATH=/data/mooncake.json
-export VLLM_MOONCAKE_BOOTSTRAP_PORT=%d
-export VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT=%d
-/opt/dynamo/venv/bin/vllm serve /data/model \
-  --served-model-name %s --dtype %s --max-model-len %d \
-  --gpu-memory-utilization %.2f --port %d \
-  --tensor-parallel-size %d \
-  --kv-transfer-config "{\"kv_connector\":\"MooncakeConnector\",\"kv_role\":\"%s\"}"`,
-			cfg.VLLM.PlacementGroupBundleStrategy,
-			cfg.VLLM.AttentionBackend,
-			bootstrapPort,
-			cfg.VLLM.MooncakeAbortRequestTimeout,
-			cfg.VLLM.ModelName, cfg.VLLM.Dtype, cfg.VLLM.MaxModelLen,
-			cfg.VLLM.GpuMemoryUtilization, cfg.VLLM.Port,
-			cfg.VLLM.TensorParallelSize,
-			cfg.VLLM.KVRole,
+		// 步驟 5/6: 透過 docker exec 啟動 vLLM 服務。
+		// 直接以 argv 傳遞環境變數 (-e) 與 vllm 參數給 docker exec，不經過 bash -lc 字串插值 ——
+		// cfg.VLLM.* 這些欄位可透過 /api/config 由設定檔重寫，若組成 shell 字串再交給 bash 執行，
+		// 內含 shell metacharacter（如 `; $() 反引號`) 的值就能造成指令注入；改用 argv 傳遞後，
+		// 這些值無論內容為何都只會被當成單一字面字串參數，不會被任何 shell 解析。
+		kvTransferConfig := fmt.Sprintf(`{"kv_connector":"MooncakeConnector","kv_role":"%s"}`, cfg.VLLM.KVRole)
+		execCmd := exec.CommandContext(ctx, "docker", "exec",
+			"-e", fmt.Sprintf("PLACEMENT_GROUP_BUNDLE_STRATEGY=%s", cfg.VLLM.PlacementGroupBundleStrategy),
+			"-e", "VLLM_USE_V1=1",
+			"-e", fmt.Sprintf("ATTENTION_BACKEND=%s", cfg.VLLM.AttentionBackend),
+			"-e", "MOONCAKE_CONFIG_PATH=/data/mooncake.json",
+			"-e", fmt.Sprintf("VLLM_MOONCAKE_BOOTSTRAP_PORT=%d", bootstrapPort),
+			"-e", fmt.Sprintf("VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT=%d", cfg.VLLM.MooncakeAbortRequestTimeout),
+			containerName,
+			"/opt/dynamo/venv/bin/vllm", "serve", "/data/model",
+			"--served-model-name", cfg.VLLM.ModelName,
+			"--dtype", cfg.VLLM.Dtype,
+			"--max-model-len", fmt.Sprintf("%d", cfg.VLLM.MaxModelLen),
+			"--gpu-memory-utilization", fmt.Sprintf("%.2f", cfg.VLLM.GpuMemoryUtilization),
+			"--port", fmt.Sprintf("%d", cfg.VLLM.Port),
+			"--tensor-parallel-size", fmt.Sprintf("%d", cfg.VLLM.TensorParallelSize),
+			"--kv-transfer-config", kvTransferConfig,
 		)
-
-		// 步驟 6: 透過 docker exec 啟動 vLLM 服務
-		execCmd := exec.CommandContext(ctx, "docker", "exec", containerName, "bash", "-lc", vllmCmdStr)
 
 		stdout, err := execCmd.StdoutPipe()
 		if err != nil {
