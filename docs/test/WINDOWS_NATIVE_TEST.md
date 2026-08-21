@@ -31,7 +31,9 @@ same machine before this document was finalized (see [Bugs found and fixed](#-bu
 
 > [!NOTE]
 > Unlike the Linux nodes in [`MULTI_NODE_CLONE_TEST.md`](MULTI_NODE_CLONE_TEST.md), this is a
-> **single standalone machine with no swarm peers** — which turned out to matter (see bug 2).
+> **single machine**. It was first tested standalone with no swarm peers — which turned out to
+> matter (see bug 2) — and then re-tested joined to those same 10 LXC nodes as an 11-node
+> heterogeneous mesh (§6).
 
 ---
 
@@ -106,12 +108,59 @@ substituted a Windows-verified Hugging Face model and logged it explicitly:
 | `.\status_vllm.ps1` | ✅ `RUNNING (Port 8100 is open)`, correct PID + model |
 | `.\stop_vllm.ps1` | ✅ terminated process, VRAM released (6.9 GB → 2.0 GB) |
 
-### 5. P2P swarm
+### 5. P2P swarm — standalone
 
 The node generated a fresh, stable `identity.key` / PeerID and started its libp2p host
-successfully. It could **not** reach the configured bootstrap node from this network
-(`failed to negotiate security protocol`), so it ran as a **standalone node with 0 peers** —
-which is what exposed bug 2 below. Local inference is unaffected by having no peers.
+successfully. On the first attempt it could **not** reach the configured bootstrap node
+(`failed to negotiate security protocol: incoming message was too large`), so it ran as a
+**standalone node with 0 peers** — which is what exposed bug 2 below. Local inference is
+unaffected by having no peers.
+
+The root cause was later identified as a **`swarm.key` mismatch**: the private-network PSK on
+this machine differed from the one the existing mesh uses (`sha256 70e8051e…` vs `5c8a7d51…`).
+That error message is the standard libp2p symptom of a PSK mismatch, not a network failure.
+With the correct key in place, the node joins normally — see the next section.
+
+### 6. Heterogeneous cross-platform swarm (Windows + 10 Linux LXC nodes)
+
+After correcting `swarm.key` and pointing `p2p.server_address` at a reachable peer, the Windows
+machine joined the **same swarm as the 10 Linux LXC nodes** from
+[`MULTI_NODE_CLONE_TEST.md`](MULTI_NODE_CLONE_TEST.md), forming an 11-node mesh spanning two
+operating systems and three physical machines.
+
+| Check | Result |
+| :--- | :--- |
+| Windows node discovers LXC peers | ✅ all **10** (including nodes on the second host, found via DHT rather than direct dial) |
+| LXC nodes discover the Windows node | ✅ reported as `NVIDIA GeForce RTX 3080 Laptop GPU(8192MB) x1` |
+| Mesh symmetry | ✅ bidirectional |
+
+**Test A — 12 concurrent requests entering at the *Windows* gateway:**
+
+| Executed on | Count |
+| :--- | :---: |
+| Windows RTX 3080 Laptop (local) | 3 |
+| Linux LXC Quadro RTX 4000 (remote, **both** physical hosts) | 9 |
+| **Total** | **12 / 12** ✅ |
+
+**Test B — 12 concurrent requests entering at an *LXC* gateway:**
+
+| Executed on | Count |
+| :--- | :---: |
+| Linux LXC Quadro RTX 4000 | 11 |
+| Windows RTX 3080 Laptop (remote) | 1 |
+| **Total** | **12 / 12** ✅ |
+
+Both directions reconcile exactly against each node's own `vllm:request_success_total` counter —
+no request was double-counted or unaccounted for. All 24 requests completed in 0.56 s – 2.16 s,
+i.e. within a batching window rather than serialized, confirming genuine parallel execution
+across heterogeneous GPUs.
+
+> [!NOTE]
+> This test also validates the dual-alias fix from bug 1 as a **swarm interoperability**
+> requirement, not just a local nicety: the LXC nodes serve the real `Qwen3-4B-AWQ` weights
+> while the Windows node serves `Qwen/Qwen2.5-3B-Instruct-AWQ` under the `Qwen3-4B-AWQ` alias.
+> Cross-node dispatch resolves by model name, so without both aliases registered every
+> cross-platform forward would have returned `404`.
 
 ---
 
@@ -158,8 +207,14 @@ standard Go toolchain, the agent auto-detects Windows, discovers the GPU and the
 environment without configuration, and serves real inference through the OpenAI-compatible
 gateway — single, sequential, concurrent, and streaming — on a consumer 8 GB laptop GPU.
 
+**Windows nodes are first-class swarm members, not an isolated mode.** The same binary joined
+the existing 10-node Linux LXC mesh and exchanged inference in both directions, with a Windows
+consumer GPU and datacenter-class Linux GPUs serving each other's overflow transparently (§6).
+
 The single most important Windows-specific caveat: a **standalone node has no peers to offload
 to**, so the dispatcher must (and now does) queue locally under concurrent load rather than
-attempting a P2P handoff that cannot succeed.
+attempting a P2P handoff that cannot succeed. If you intend to join an existing mesh, note that
+a mismatched `swarm.key` surfaces as a confusing `failed to negotiate security protocol` error
+rather than an obvious authentication failure.
 
 Setup instructions: [`docs/install/windows/README.md`](../install/windows/README.md).
