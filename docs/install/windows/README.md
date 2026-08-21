@@ -183,7 +183,7 @@ powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\path\to\you
 | vLLM exits during load, or CUDA OOM | `gpu_memory_utilization` is a fraction of *total* VRAM, not free VRAM. Close other GPU apps or lower it (`0.60`–`0.70` on an 8 GB card). |
 | Gateway returns `404` for your model | The requested `model` string matches neither registered alias. Check what is actually served: `curl.exe http://127.0.0.1:8100/v1/models`. |
 | `Could not apply Windows TCPStore compatibility patch` warning | Harmless on PyTorch 2.6 — the private torch internal that patch targets no longer exists, and this execution path doesn't need it. Startup continues normally. |
-| Bootstrap peer connection fails | Your `swarm.key` must match the mesh you are joining, and the bootstrap node must be reachable. A standalone node with no peers still serves inference locally. |
+| Bootstrap peer connection fails | Almost always a **`swarm.key` mismatch** — libp2p reports a PSK mismatch as `failed to negotiate security protocol: incoming message was too large`, not as an auth error. Compare hashes with a working node (`sha256sum swarm.key`). Also confirm the bootstrap multiaddress is reachable. A standalone node with no peers still serves inference locally. |
 | `go build` fails on `embed web-ui/dist` | §4's `npm run build` was skipped — `web-ui/dist` must exist before `go build`. |
 
 ---
