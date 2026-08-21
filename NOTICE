@@ -177,3 +177,32 @@ RELATED UPSTREAM PROJECTS (not embedded, invoked at runtime)
     https://github.com/ray-project/ray
     Note: Invoked as a subprocess inside the Docker runtime container.
     This project does not distribute, modify, or statically link Ray code.
+
+29. vllm-windows (Apache License 2.0)
+    Copyright (c) SystemPanic & vLLM Team & Contributors
+    https://github.com/SystemPanic/vllm-windows
+    Used for: Precompiled Windows (MSVC / win_amd64) vLLM wheels that make the
+    native Windows execution path in runner.go possible.
+    Note: Invoked as a subprocess from a user-provided local virtual
+    environment. This project does not distribute, redistribute, modify, or
+    statically link vllm-windows wheels or code; users install them
+    themselves per docs/install/windows/README.md.
+
+================================================================================
+DATA SETS
+================================================================================
+
+30. gpu-info-api (no license declared upstream -- see note)
+    Copyright (c) voidful (https://github.com/voidful)
+    https://github.com/voidful/gpu-info-api
+    Data source: GPU specifications extracted from Wikipedia, which is itself
+    licensed CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/).
+    Used for: resolving VRAM capacity from reported GPU model strings in the
+    hub's contribution-scoring engine (server_rank.go), via the dataset URL in
+    scanGPUlevel.go.
+    Note: at the time of writing the upstream repository declares no license
+    (GitHub API reports `license: null`). A cached copy of the dataset
+    (gpu_database.json) is currently committed to this repository, which
+    constitutes redistribution. Maintainers should either obtain explicit
+    permission/licensing from upstream, or stop committing the cached copy and
+    rely on scanGPUlevel.go's runtime download instead.

@@ -177,7 +177,21 @@ func (n *NetworkNode) Start(ctx context.Context) error {
 	badgerOpts.Truncate = true
 	ds, err := badger.NewDatastore("./my-peerstore", &badgerOpts)
 	if err != nil {
-		_ = os.RemoveAll("./my-peerstore")
+		// Only recreate the datastore for errors that Truncate:true couldn't already
+		// self-heal (that option handles ordinary value-log corruption on open). A
+		// held directory lock means another instance of this process is already
+		// running against the same peerstore -- deleting it would destroy that
+		// other process's data without fixing anything, so fail loudly instead of
+		// silently wiping state out from under it.
+		if strings.Contains(err.Error(), "Cannot acquire directory lock") {
+			return fmt.Errorf("peerstore is locked by another running instance: %v", err)
+		}
+		msg := fmt.Sprintf("Peerstore open failed (%v), recovering by recreating ./my-peerstore", err)
+		n.app.TUI.AddLog("[WARN]", msg)
+		logError("[peerstore] %s", msg)
+		if rmErr := os.RemoveAll("./my-peerstore"); rmErr != nil {
+			return fmt.Errorf("peerstore open failed (%v) and cleanup also failed: %v", err, rmErr)
+		}
 		ds, err = badger.NewDatastore("./my-peerstore", &badgerOpts)
 		if err != nil {
 			return err

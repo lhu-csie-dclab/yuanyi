@@ -23,6 +23,12 @@ Mooncake 2.0 Client 提供相容於 OpenAI 規範的 API 網關 Gateway (`/v1/ch
 > - **實驗研究階段專案**：本軟體目前處於**實驗研究階段**，**不推薦在正式生產環境 (Production) 部署使用**。
 > - **未測試參數聲明**：目前僅有文件明確記載的基準配置（`Qwen3-4B-AWQ`, `protocol: "tcp"`, `concurrency: 100`）經過壓力測試驗證；**其餘未經測試的參數、傳輸協定或模型未經完整驗證**，可能產生不可預期的系統行為。
 
+> [!WARNING]
+> **隱私警語：分發到遠端節點的 Prompt，該節點營運者看得到明文**
+> - 當本機 GPU 忙碌時，請求會被分發到 **Swarm 中的其他機器**；這些機器必須解密才能執行推論。本專案**沒有應用層加密**，而且以目前技術而言 LLM 推論也做不到（同態加密不實用）。
+> - `swarm.key` 控制的是**誰能加入**，不是「加入後能對收到的資料做什麼」。Swarm 裡**每一位節點營運者都被隱含信任**能接觸到使用者的 Prompt。
+> - **請勿將敏感資料經由你無法掌控的節點處理。** 詳見 **[🔐 安全性與信任模型 (`docs/SECURITY.md`)](docs/SECURITY.md)**。
+
 ---
 
 ## 📚 技術文件與架構手冊索引
@@ -39,7 +45,11 @@ Mooncake 2.0 Client 提供相容於 OpenAI 規範的 API 網關 Gateway (`/v1/ch
 - **[🖥️ 終端 TUI 面板與 Web 儀表板手冊 (`docs/zh_tw/DASHBOARD_UI.md`)](docs/zh_tw/DASHBOARD_UI.md)**：`tui.go`（4 分頁終端面板、Headless 模式）與 `web.go`（`50007` 埠內嵌 Web Console）。
 - **[📈 NVIDIA AIPerf 壓測數據報告 (`docs/zh_tw/test/BENCHMARK_RESULTS.md`)](docs/zh_tw/test/BENCHMARK_RESULTS.md)**：在 10 張 RTX A2000 8GB 顯卡上進行 1 萬次請求壓測的官方數據。
 - **[🧬 多節點全新 Clone 與併發多卡測試 (`docs/zh_tw/test/MULTI_NODE_CLONE_TEST.md`)](docs/zh_tw/test/MULTI_NODE_CLONE_TEST.md)**：驗證從零 `git clone` 部署到 2 台主機共 10 個獨立節點後，10 張實體 GPU 各自真的在處理推論（單獨測試與 10 台併發測試皆驗證）。
-- **[🪟 Windows 本機原生架設與部署手冊 (`VLLM_WINDOWS_SETUP.md`)](VLLM_WINDOWS_SETUP.md)**：使用 `uv`、`.venv` 與 `SystemPanic/vllm-windows` 於 Windows 本機極速部署 vLLM + Qwen AWQ 的完整指南。
+- **[🔐 安全性與信任模型 (`docs/SECURITY.md`)](docs/SECURITY.md)**：本系統保護什麼、不保護什麼——為何遠端節點看得到被分發的 Prompt、`swarm.key` 真正保證的範圍，以及目前未加驗證的對外介面。
+- **[🖥️ Proxmox VE + LXC GPU 直通手冊 (`docs/install/proxmox/README.md`)](docs/install/proxmox/README.md)**：宿主機驅動安裝、建立 LXC、GPU 裝置直通、巢狀 Docker 與 `no-cgroups` 關鍵修正——參考叢集的 10 個節點就是這樣建起來的。
+- **[🐧 Ubuntu 安裝與部署手冊 (`docs/install/ubuntu/README.md`)](docs/install/ubuntu/README.md)**：主要且經過正式測試的部署平台——Docker Engine、NVIDIA Container Toolkit、`swarm.key`，以及 Docker 與原生編譯兩種部署路徑。
+- **[🪟 Windows 本機原生架設與部署手冊 (`docs/install/windows/README.md`)](docs/install/windows/README.md)**：使用 `uv`、`.venv` 與 `SystemPanic/vllm-windows` 於 Windows 本機極速部署 vLLM + Qwen AWQ 的完整指南。
+- **[🪟 Windows 原生部署驗證測試 (`docs/test/WINDOWS_NATIVE_TEST.md`)](docs/test/WINDOWS_NATIVE_TEST.md)**：在 RTX 3080 Laptop 上實際跑完整條 Windows 原生路徑的驗證結果——建置、啟動、單筆/循序/併發/串流推論，以及這次測試揪出並修復的兩個 Bug。
 - **[🧪 實驗階段與未測試參數說明書 (`docs/zh_tw/EXPERIMENTAL.md`)](docs/zh_tw/EXPERIMENTAL.md)**：包含詳細的實驗研究範圍、經測試的基準設定、未測試參數風險與正式環境免責聲明。
 - **[🗂 模組與 Function 參考指南 (`docs/zh_tw/MODULES.md`)](docs/zh_tw/MODULES.md)**：檔案對照表、資料結構與跨模組呼叫矩陣。
 - **[🛰️ Hub 模式手冊 (`docs/zh_tw/HUB_MODE.md`)](docs/zh_tw/HUB_MODE.md)**：選用的中央伺服器合併能力——節點資料庫、GPU 算分、中央派發器、Hub 專屬儀表板，以及多 Hub 一致性設計。
@@ -256,7 +266,32 @@ IFACE=eth0
 CLIENT_WEB_PORT=50007
 ```
 
-### 2. 編譯與啟動容器
+### 2. 產生私有網路金鑰 (`swarm.key`)
+
+> [!IMPORTANT]
+> **請在第一次啟動之前完成這一步。** 沒有有效的 `swarm.key`，節點會直接拒絕啟動；而且
+> **同一個 Swarm 裡的每個節點都必須持有位元組完全相同的金鑰**——它就是定義這個私有網路的
+> 預共享金鑰 (PSK)。
+
+**要建立一個全新的 Swarm？** 產生一把新的金鑰：
+
+```bash
+printf '/key/swarm/psk/1.0.0/\n/base16/\n%s\n' "$(openssl rand -hex 32)" > swarm.key
+```
+
+**要加入既有的 Swarm？** 請**不要**自己產生——向該 Swarm 的管理者取得那把一模一樣的
+`swarm.key` 並原封不動放進來。金鑰不一致時的錯誤訊息是
+`failed to negotiate security protocol: incoming message was too large`，看起來像網路故障
+而不是金鑰問題，非常容易誤判。可以用 `sha256sum swarm.key` 跟正常運作的節點比對確認。
+
+> [!WARNING]
+> **不要**直接拿 `swarm.key.example` 當成正式金鑰。它是提交在這個 repo 裡的公開範例檔，
+> 任何人都能用它加入你的 Swarm。請妥善保管真正的 `swarm.key`，不要進版控
+> （`.gitignore` 已經排除它）。
+
+檔案格式與其他產生方式請見 [`docs/zh_tw/P2P_NETWORK.md`](docs/zh_tw/P2P_NETWORK.md)。
+
+### 3. 編譯與啟動容器
 
 透過 Docker Compose 編譯並啟動 All-in-One 服務：
 
@@ -264,7 +299,7 @@ CLIENT_WEB_PORT=50007
 docker compose up -d --build
 ```
 
-### 3. 驗證系統健康狀態
+### 4. 驗證系統健康狀態
 
 檢查 API 網關健康狀態 (`50006`)：
 
@@ -279,7 +314,7 @@ curl http://localhost:50006/health
 curl http://localhost:50006/v1/models
 ```
 
-### 4. 執行對話推理 (Chat Completion)
+### 5. 執行對話推理 (Chat Completion)
 
 發送相容於 OpenAI 格式的請求：
 
@@ -293,7 +328,7 @@ curl http://localhost:50006/v1/chat/completions \
   }'
 ```
 
-### 5. 🪟 Windows 本機原生極速部署 (Windows Native Quick Start)
+### 6. 🪟 Windows 本機原生極速部署 (Windows Native Quick Start)
 
 本專案支援在 Windows 10/11 原生運行，無需依賴 Docker。請依照以下極簡步驟完成前置：
 
@@ -316,7 +351,7 @@ uv pip install "transformers>=4.48.0,<4.50.0"
 .\go-p2p.exe
 ```
 * 程式會**全自動識別 Windows 平台**，呼叫 `nvidia-smi` 檢測顯卡，並自動調用本機 `.venv` 啟動 vLLM 與 P2P 網路！
-* 完整教學與背景常駐設定請參閱 **[🪟 Windows 部署手冊 (`VLLM_WINDOWS_SETUP.md`)](VLLM_WINDOWS_SETUP.md)**。
+* 完整教學與背景常駐設定請參閱 **[🪟 Windows 部署手冊 (`docs/install/windows/README.md`)](docs/install/windows/README.md)**。
 
 ---
 
@@ -367,6 +402,7 @@ Mooncake 2.0 Client Agent 基於以下卓越的開源專案建構而成：
 - **[vllm-windows](https://github.com/SystemPanic/vllm-windows)** (SystemPanic/vllm-windows) - 提供 Windows 平台專用的高效能 vLLM 編譯構建與環境相容性支援。
 - **[Mooncake](https://github.com/kvcache-ai/Mooncake)** - 以 KVCache 為中心的分離式 LLM 服務架構。
 - **[go-libp2p](https://github.com/libp2p/go-libp2p)** - 模組化 P2P 網路庫。
+- **[gpu-info-api](https://github.com/voidful/gpu-info-api)** (voidful/gpu-info-api) - GPU 規格資料集（資料萃取自 Wikipedia），供 Hub 的貢獻度算分引擎依據回報的 GPU 型號字串解析出 VRAM 容量。
 - **[Ray](https://github.com/ray-project/ray)** - 分散式 AI 與 Python 擴充框架。
 - **[aiperf](https://github.com/ai-dynamo/aiperf)** (`nvcr.io/nvidia/ai-dynamo/aiperf`) - 生成式 AI 推理服務壓測工具。
 

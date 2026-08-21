@@ -23,6 +23,12 @@ Mooncake 2.0 Client provides an OpenAI-compatible API Gateway (`/v1/chat/complet
 > - **Experimental Research Software**: This project is currently in an **experimental research phase** and is **NOT RECOMMENDED for production (Production) environments**.
 > - **Untested Parameters Notice**: Only the explicitly documented baseline configuration (`Qwen3-4B-AWQ`, `protocol: "tcp"`, `concurrency: 100`) has been stress-tested. All other unverified parameters, alternative transport layers, or unlisted models remain **untested** and may produce unstable results.
 
+> [!WARNING]
+> **Privacy: prompts sent to remote nodes are readable by those nodes' operators**
+> - When your local GPU is busy, requests are dispatched to **other machines in the swarm**, which must decrypt them to run inference. There is no application-layer encryption, and none is technically possible for LLM inference today.
+> - `swarm.key` controls **who may join**, not what members may do with traffic they receive. Every node operator in your swarm is implicitly trusted with your users' prompts.
+> - **Do not route sensitive data through nodes you do not control.** See **[🔐 Security & Trust Model (`docs/SECURITY.md`)](docs/SECURITY.md)**.
+
 ---
 
 ## 📚 Documentation & Architecture Index
@@ -39,7 +45,11 @@ For deep-dive technical documentation, multi-layered architectural specification
 - **[🖥️ User Interfaces & Web Dashboard Guide (`docs/DASHBOARD_UI.md`)](docs/DASHBOARD_UI.md)**: Detailed guide for `tui.go` (4-tab terminal console, headless mode) and the Vue 3 + Vite + Tailwind CSS web dashboard (`web-ui/`, embedded via `web.go` on port `50007`).
 - **[📈 NVIDIA AIPerf Benchmark & Stress Test Results (`docs/test/BENCHMARK_RESULTS.md`)](docs/test/BENCHMARK_RESULTS.md)**: Official 10,000 requests stress test results evaluated on 10 x RTX A2000 8GB GPUs using NVIDIA AIPerf.
 - **[🧬 Multi-Node Fresh-Clone & Concurrent Multi-GPU Test (`docs/test/MULTI_NODE_CLONE_TEST.md`)](docs/test/MULTI_NODE_CLONE_TEST.md)**: Validates a from-scratch `git clone` deployed across 10 independent nodes on 2 hosts, confirming 10 distinct physical GPUs each serve real inference, sequentially and concurrently.
-- **[🪟 Windows Native Deployment Guide (`VLLM_WINDOWS_SETUP.md`)](VLLM_WINDOWS_SETUP.md)**: Step-by-step guide for native Windows deployment with `uv`, `.venv`, and `SystemPanic/vllm-windows`.
+- **[🔐 Security & Trust Model (`docs/SECURITY.md`)](docs/SECURITY.md)**: What the system does and does not protect — why remote nodes can read dispatched prompts, what `swarm.key` actually guarantees, and the known unauthenticated surfaces.
+- **[🖥️ Proxmox VE + LXC GPU Passthrough Guide (`docs/install/proxmox/README.md`)](docs/install/proxmox/README.md)**: Host driver, LXC creation, GPU device passthrough, nested Docker, and the `no-cgroups` fix — how the 10-node reference cluster is built.
+- **[🐧 Ubuntu Installation Guide (`docs/install/ubuntu/README.md`)](docs/install/ubuntu/README.md)**: The primary, production-tested platform — Docker Engine, NVIDIA Container Toolkit, `swarm.key`, and both the Docker and native build paths.
+- **[🪟 Windows Native Deployment Guide (`docs/install/windows/README.md`)](docs/install/windows/README.md)**: Step-by-step guide for native Windows deployment with `uv`, `.venv`, and `SystemPanic/vllm-windows`.
+- **[🪟 Windows Native Deployment Test (`docs/test/WINDOWS_NATIVE_TEST.md`)](docs/test/WINDOWS_NATIVE_TEST.md)**: Verified end-to-end run of the native Windows path on an RTX 3080 Laptop — build, startup, single/sequential/concurrent/streaming inference, and the two bugs the run surfaced and fixed.
 - **[🧪 Experimental Stage & Untested Parameters Manual (`docs/EXPERIMENTAL.md`)](docs/EXPERIMENTAL.md)**: Detailed experimental research scope, baseline parameters, untested options, and production disclaimers.
 - **[🗂 Module & Function Reference Guide (`docs/MODULES.md`)](docs/MODULES.md)**: File-by-file index of data structures, struct definitions, and cross-module call matrices.
 - **[🛰️ Hub Mode Guide (`docs/HUB_MODE.md`)](docs/HUB_MODE.md)**: Optional merged Central Server capability — peer database, GPU scoring, central dispatcher, hub dashboard, and the multi-hub consistency model.
@@ -264,7 +274,33 @@ IFACE=eth0
 CLIENT_WEB_PORT=50007
 ```
 
-### 2. Build and Launch Container
+### 2. Generate the Private Network Key (`swarm.key`)
+
+> [!IMPORTANT]
+> **Do this before the first launch.** A node refuses to start without a valid `swarm.key`, and
+> **every node in the same mesh must carry the byte-identical key** — it is the pre-shared key
+> (PSK) that defines the private network.
+
+**Starting a new mesh?** Generate a fresh key:
+
+```bash
+printf '/key/swarm/psk/1.0.0/\n/base16/\n%s\n' "$(openssl rand -hex 32)" > swarm.key
+```
+
+**Joining an existing mesh?** Do **not** generate one — obtain the exact `swarm.key` from
+whoever operates that mesh and copy it in verbatim. A mismatched key fails with the misleading
+error `failed to negotiate security protocol: incoming message was too large`, which looks like
+a network fault rather than a key problem. Confirm it matches a working node with
+`sha256sum swarm.key`.
+
+> [!WARNING]
+> Do **not** ship `swarm.key.example` as your real key. It is a public placeholder committed to
+> this repository, so anyone could use it to join your mesh. Keep your real `swarm.key` secret
+> and out of version control (it is already in `.gitignore`).
+
+See [`docs/P2P_NETWORK.md`](docs/P2P_NETWORK.md) for the file format and alternative generators.
+
+### 3. Build and Launch Container
 
 Build the Dockerfile and start the All-in-One service via Docker Compose:
 
@@ -272,7 +308,7 @@ Build the Dockerfile and start the All-in-One service via Docker Compose:
 docker compose up -d --build
 ```
 
-### 3. Verify System Health
+### 4. Verify System Health
 
 Check the API Gateway health status (`50006`):
 
@@ -287,7 +323,7 @@ Query supported models:
 curl http://localhost:50006/v1/models
 ```
 
-### 4. Execute Chat Completion
+### 5. Execute Chat Completion
 
 Send an OpenAI-compatible request using `Qwen3-4B-AWQ`:
 
@@ -301,7 +337,7 @@ curl http://localhost:50006/v1/chat/completions \
   }'
 ```
 
-### 5. 🪟 Windows Native Quick Start
+### 6. 🪟 Windows Native Quick Start
 
 This project natively supports Windows 10/11 without requiring Docker:
 
@@ -324,7 +360,7 @@ uv pip install "transformers>=4.48.0,<4.50.0"
 .\go-p2p.exe
 ```
 * The application will **automatically detect Windows**, invoke `nvidia-smi` for hardware telemetry, mount the local `.venv`, and start vLLM + P2P networking seamlessly!
-* For complete configuration and background daemon setup, see **[🪟 Windows Deployment Guide (`VLLM_WINDOWS_SETUP.md`)](VLLM_WINDOWS_SETUP.md)**.
+* For complete configuration and background daemon setup, see **[🪟 Windows Deployment Guide (`docs/install/windows/README.md`)](docs/install/windows/README.md)**.
 
 ---
 
@@ -374,6 +410,7 @@ Mooncake 2.0 Client Agent is built upon and integrates with the following outsta
 - **[vllm-windows](https://github.com/SystemPanic/vllm-windows)** (SystemPanic/vllm-windows) - High-performance precompiled vLLM Windows runtime builds and environment compatibility support.
 - **[Mooncake](https://github.com/kvcache-ai/Mooncake)** - KVCache-centric Disaggregated Architecture for LLM Serving.
 - **[go-libp2p](https://github.com/libp2p/go-libp2p)** - Modular P2P networking library powering the decentralized mesh network.
+- **[gpu-info-api](https://github.com/voidful/gpu-info-api)** (voidful/gpu-info-api) - GPU specification dataset (extracted from Wikipedia) used by the hub's contribution-scoring engine to resolve VRAM capacity from reported GPU model names.
 - **[Ray](https://github.com/ray-project/ray)** - Unified framework for scaling AI and Python applications.
 - **[aiperf](https://github.com/ai-dynamo/aiperf)** (`nvcr.io/nvidia/ai-dynamo/aiperf`) - Generative AI benchmark suite for load testing LLM inference services.
 
