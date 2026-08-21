@@ -26,17 +26,20 @@ usePolling(refresh, 3000)
 <template>
   <PageHeader title="Leaderboard" />
 
-  <div class="space-y-4 sm:space-y-6 p-4 sm:p-6 lg:p-8 max-w-full min-w-0">
-    <div class="card !p-0 overflow-hidden">
-      <div class="flex items-center justify-between px-4 py-4 sm:px-6 sm:pt-6 sm:pb-4">
-        <h2 class="text-sm font-semibold text-white">Node Contribution Leaderboard 🏆</h2>
-        <span class="text-xs text-ink-muted lg:hidden">↔ Scroll horizontally</span>
+  <div class="space-y-5 sm:space-y-6 p-4 sm:p-6 lg:p-8 max-w-full min-w-0">
+    <div class="card !p-0 overflow-hidden shadow-sm">
+      <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6 sm:py-5 bg-white">
+        <div class="flex items-center gap-2.5">
+          <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600 text-sm font-bold">🏆</span>
+          <h2 class="text-sm sm:text-base font-bold text-slate-800">Node Contribution Leaderboard</h2>
+        </div>
+        <span class="text-xs text-slate-400 font-medium lg:hidden">↔ Scroll horizontally</span>
       </div>
       <div class="overflow-x-auto w-full">
         <table class="w-full min-w-[760px] border-collapse text-left">
           <thead>
             <tr>
-              <th class="th-cell w-16">Rank</th>
+              <th class="th-cell w-20">Rank</th>
               <th class="th-cell">Peer</th>
               <th class="th-cell">IP</th>
               <th class="th-cell">GPU</th>
@@ -47,23 +50,23 @@ usePolling(refresh, 3000)
               <th class="th-cell">Score</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody class="divide-y divide-slate-100">
             <tr v-if="!board.length">
-              <td class="td-cell text-center text-ink-muted py-8" colspan="9">No records</td>
+              <td class="td-cell text-center text-slate-400 py-10" colspan="9">No records found</td>
             </tr>
-            <tr v-for="(p, i) in board" :key="p.peer_id || i" class="hover:bg-white/[0.02] transition-colors">
+            <tr v-for="(p, i) in board" :key="p.peer_id || i" class="hover:bg-blue-50/30 transition-colors">
               <td class="td-cell">
-                <span v-if="i < 3" class="rounded-lg px-2.5 py-1 text-xs font-bold shadow-sm" :class="medals[i].class">{{ medals[i].label }}</span>
-                <span v-else class="font-bold text-ink-muted text-xs">#{{ i + 1 }}</span>
+                <span v-if="i < 3" class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-bold shadow-xs" :class="medals[i].class">{{ medals[i].label }}</span>
+                <span v-else class="font-bold text-slate-400 text-xs ml-2">#{{ i + 1 }}</span>
               </td>
-              <td class="td-cell"><span class="font-mono text-xs text-brand-light">{{ (p.peer_id || '').substring(0, 12) }}...</span></td>
-              <td class="td-cell text-ink-muted font-mono text-xs">{{ p.ip_address || '-' }}</td>
-              <td class="td-cell font-semibold text-xs sm:text-sm">{{ parseGpuInfo(p).summary || 'Unknown' }}</td>
-              <td class="td-cell font-bold tabular-nums text-warning text-xs sm:text-sm">{{ fmtNum(p.total_requests) }}</td>
-              <td class="td-cell font-bold tabular-nums text-good text-xs sm:text-sm">{{ fmtNum(p.in_tokens) }}</td>
-              <td class="td-cell font-bold tabular-nums text-brand-light text-xs sm:text-sm">{{ fmtNum(p.out_tokens) }}</td>
-              <td class="td-cell font-bold tabular-nums text-cyan text-xs sm:text-sm">{{ fmtNum(p.total_tokens) }}</td>
-              <td class="td-cell text-xs sm:text-sm font-bold text-brand-light">{{ (p.contribution_score || 0).toFixed(1) }} pts</td>
+              <td class="td-cell"><span class="font-mono text-xs font-semibold text-brand">{{ (p.peer_id || '').substring(0, 12) }}...</span></td>
+              <td class="td-cell text-slate-500 font-mono text-xs">{{ p.ip_address || '-' }}</td>
+              <td class="td-cell font-semibold text-slate-800 text-xs sm:text-sm">{{ parseGpuInfo(p).summary || 'Unknown' }}</td>
+              <td class="td-cell font-bold tabular-nums text-amber-600 text-xs sm:text-sm">{{ fmtNum(p.total_requests) }}</td>
+              <td class="td-cell font-bold tabular-nums text-emerald-600 text-xs sm:text-sm">{{ fmtNum(p.in_tokens) }}</td>
+              <td class="td-cell font-bold tabular-nums text-brand text-xs sm:text-sm">{{ fmtNum(p.out_tokens) }}</td>
+              <td class="td-cell font-bold tabular-nums text-cyan-600 text-xs sm:text-sm">{{ fmtNum(p.total_tokens) }}</td>
+              <td class="td-cell text-xs sm:text-sm font-bold text-brand">{{ (p.contribution_score || 0).toFixed(1) }} pts</td>
             </tr>
           </tbody>
         </table>

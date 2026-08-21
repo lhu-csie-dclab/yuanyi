@@ -8,16 +8,16 @@ const props = defineProps({
 })
 
 const styles = {
-  good: 'bg-good/15 text-good',
-  warning: 'bg-warning/15 text-warning',
-  critical: 'bg-critical/15 text-critical',
+  good: 'bg-emerald-50 text-emerald-700 border border-emerald-200/80',
+  warning: 'bg-amber-50 text-amber-700 border border-amber-200/80',
+  critical: 'bg-rose-50 text-rose-700 border border-rose-200/80',
 }
 const icons = { good: '●', warning: '▲', critical: '✕' }
 </script>
 
 <template>
   <span
-    class="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold"
+    class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold shadow-xs"
     :class="styles[props.variant] || styles.good"
   >
     <span aria-hidden="true">{{ icons[props.variant] || icons.good }}</span>

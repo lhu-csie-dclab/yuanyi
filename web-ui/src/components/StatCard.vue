@@ -8,15 +8,16 @@ defineProps({
 </script>
 
 <template>
-  <div :class="bare ? 'flex flex-col' : 'card flex flex-col !p-5'">
+  <div :class="bare ? 'flex flex-col' : 'card flex flex-col justify-between !p-5 hover:translate-y-[-2px] transition-transform duration-200'">
+    <div class="text-[0.72rem] font-semibold tracking-wider text-slate-500 uppercase">
+      {{ label }}
+    </div>
     <div
-      class="text-2xl font-bold leading-tight tabular-nums"
-      :class="accent ? 'text-brand-light' : 'text-ink'"
+      class="mt-2 text-2xl sm:text-3xl font-extrabold leading-tight tabular-nums tracking-tight"
+      :class="accent ? 'text-brand' : 'text-slate-800'"
     >
       {{ value }}
     </div>
-    <div class="mt-2 text-[0.68rem] font-medium uppercase tracking-wider text-ink-muted">
-      {{ label }}
-    </div>
   </div>
 </template>
+
