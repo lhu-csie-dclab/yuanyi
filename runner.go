@@ -418,7 +418,7 @@ func (r *Runner) startVLLMWindows(ctx context.Context) {
 
 	// 步驟 3: 決定模型名稱或路徑
 	modelName := cfg.VLLM.ModelName
-	if modelName == "" {
+	if modelName == "" || modelName == "Qwen3-4B-AWQ" || modelName == "mooncake-default" {
 		modelName = "Qwen/Qwen2.5-3B-Instruct-AWQ"
 	}
 	// 若本機指定了有效的 model_path 則使用該目錄，否則直接使用 Hugging Face 模型名稱
@@ -461,9 +461,15 @@ func (r *Runner) startVLLMWindows(ctx context.Context) {
 	}
 
 	var cmd *exec.Cmd
+	servedModelName := cfg.VLLM.ModelName
+	if servedModelName == "" {
+		servedModelName = modelName
+	}
+
 	if serveScript != "" {
 		cmd = exec.CommandContext(ctx, pythonBin, serveScript,
 			"--model", modelName,
+			"--served-model-name", servedModelName,
 			"--quantization", "awq",
 			"--gpu-memory-utilization", fmt.Sprintf("%.2f", gpuUtil),
 			"--max-model-len", fmt.Sprintf("%d", maxModelLen),
@@ -476,6 +482,7 @@ func (r *Runner) startVLLMWindows(ctx context.Context) {
 	} else {
 		cmd = exec.CommandContext(ctx, pythonBin, "-u", "-m", "vllm.entrypoints.openai.api_server",
 			"--model", modelName,
+			"--served-model-name", servedModelName,
 			"--quantization", "awq",
 			"--gpu-memory-utilization", fmt.Sprintf("%.2f", gpuUtil),
 			"--max-model-len", fmt.Sprintf("%d", maxModelLen),
