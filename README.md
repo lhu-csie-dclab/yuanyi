@@ -410,6 +410,7 @@ Mooncake 2.0 Client Agent is built upon and integrates with the following outsta
 - **[vllm-windows](https://github.com/SystemPanic/vllm-windows)** (SystemPanic/vllm-windows) - High-performance precompiled vLLM Windows runtime builds and environment compatibility support.
 - **[Mooncake](https://github.com/kvcache-ai/Mooncake)** - KVCache-centric Disaggregated Architecture for LLM Serving.
 - **[go-libp2p](https://github.com/libp2p/go-libp2p)** - Modular P2P networking library powering the decentralized mesh network.
+- **[gpu-info-api](https://github.com/voidful/gpu-info-api)** (voidful/gpu-info-api) - GPU specification dataset (extracted from Wikipedia) used by the hub's contribution-scoring engine to resolve VRAM capacity from reported GPU model names.
 - **[Ray](https://github.com/ray-project/ray)** - Unified framework for scaling AI and Python applications.
 - **[aiperf](https://github.com/ai-dynamo/aiperf)** (`nvcr.io/nvidia/ai-dynamo/aiperf`) - Generative AI benchmark suite for load testing LLM inference services.
 
