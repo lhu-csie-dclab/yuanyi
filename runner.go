@@ -12,6 +12,7 @@ import (
 	"os"            // 作業系統檔案狀態查詢 (os.Stat)
 	"os/exec"       // 外部子程序呼叫介面 (等同於 C 的 system/exec 或 Python 的 subprocess)
 	"path/filepath" // 路徑轉換 (filepath.Abs 轉換為絕對路徑)
+	"runtime"       // 跨平台作業系統偵測 (runtime.GOOS)
 	"strings"       // 字串去除空白與前綴處理
 	"time"          // 時間延遲 (time.Sleep / time.After)
 )
@@ -41,6 +42,12 @@ func (r *Runner) isDirectExecution() bool {
 
 // Start 對外啟動進入點。
 func (r *Runner) Start(ctx context.Context) {
+	if runtime.GOOS == "windows" {
+		r.app.TUI.AddVLLMLog("[System] 偵測到 Windows 作業系統 (runtime.GOOS=windows)，切換至 Windows 原生推論模式...")
+		r.startVLLMWindows(ctx)
+		return
+	}
+
 	if r.isDirectExecution() {
 		r.app.TUI.AddVLLMLog("[System] 偵測到容器內原生執行環境 (All-in-One 模式)，啟動 Go 原生進程管理器...")
 		r.startVLLMDirectly(ctx)
@@ -59,6 +66,10 @@ func (r *Runner) Stop() {
 	if r.rayCmd != nil && r.rayCmd.Process != nil {
 		fmt.Println("Terminating Ray process...")
 		r.rayCmd.Process.Kill()
+	}
+	if runtime.GOOS == "windows" {
+		// Windows 模式下子程序終止已完成
+		return
 	}
 	if r.app.Config != nil && !r.isDirectExecution() {
 		fmt.Println("Cleaning up Docker container...")
@@ -355,3 +366,186 @@ func (r *Runner) startVLLMDirectly(ctx context.Context) {
 		}
 	}()
 }
+
+// startVLLMWindows Windows 原生進程啟動實作：
+// 【邏輯說明】
+// 1. 自動透過 nvidia-smi 檢測 GPU 狀態與顯存資訊，並即時輸出至 TUI 日誌。
+// 2. 自動搜尋本地 Python (.venv) 虛擬環境路徑。
+// 3. 配置 Windows 專用環境變數 (USE_LIBUV=0, VLLM_USE_V1=0, VLLM_CUDART_SO_PATH, etc.)。
+// 4. 以原生方式啟動 vLLM OpenAI API 服務 (預設 port 8100)，並將 stdout/stderr 即時串流至 TUI 控制台。
+func (r *Runner) startVLLMWindows(ctx context.Context) {
+	cfg := r.app.Config
+
+	// 步驟 1: 檢測 Windows GPU 狀態
+	r.app.TUI.AddVLLMLog("[System] 正在透過 nvidia-smi 檢測 Windows 本機 GPU 狀態...")
+	var gpuSummary string
+	var driverVer string
+	if r.app.Sys != nil {
+		gpuTele := r.app.Sys.GetGPUTelemetry()
+		gpuSummary = gpuTele.Summary
+		driverVer = gpuTele.DriverVersion
+	}
+	if gpuSummary != "" && gpuSummary != "No GPU Detected" {
+		r.app.TUI.AddVLLMLog(fmt.Sprintf("[System] 偵測到 GPU 硬體: %s (驅動版本: %s)", gpuSummary, driverVer))
+	} else {
+		r.app.TUI.AddVLLMLog("[Warning] 未偵測到 NVIDIA GPU 或尚未安裝驅動程式，將嘗試以可用環境啟動...")
+	}
+
+	// 步驟 2: 搜尋 Python 虛擬環境執行檔 (.venv)
+	venvCandidates := []string{
+		filepath.Join(".", ".venv", "Scripts", "python.exe"),
+		filepath.Join(".", "vllm-windows", ".venv", "Scripts", "python.exe"),
+		filepath.Join("..", "vllm-windows", ".venv", "Scripts", "python.exe"),
+		filepath.Join("..", ".venv", "Scripts", "python.exe"),
+	}
+
+	var pythonBin string
+	var venvRoot string
+	for _, candidate := range venvCandidates {
+		if _, err := os.Stat(candidate); err == nil {
+			pythonBin, _ = filepath.Abs(candidate)
+			venvRoot = filepath.Dir(filepath.Dir(pythonBin))
+			break
+		}
+	}
+
+	if pythonBin == "" {
+		pythonBin = "python"
+		r.app.TUI.AddVLLMLog("[Warning] 未找到 .venv 目錄，將嘗試使用系統預設 python 指令...")
+	} else {
+		r.app.TUI.AddVLLMLog(fmt.Sprintf("[System] 成功掛載 Python 虛擬環境: %s", pythonBin))
+	}
+
+	// 步驟 3: 決定模型名稱或路徑
+	modelName := cfg.VLLM.ModelName
+	if modelName == "" {
+		modelName = "Qwen/Qwen2.5-3B-Instruct-AWQ"
+	}
+	// 若本機指定了有效的 model_path 則使用該目錄，否則直接使用 Hugging Face 模型名稱
+	if _, err := os.Stat(cfg.Paths.ModelPath); err == nil && cfg.Paths.ModelPath != "/data/model" {
+		absPath, _ := filepath.Abs(cfg.Paths.ModelPath)
+		modelName = absPath
+	}
+
+	vllmPort := cfg.VLLM.Port
+	if vllmPort <= 0 {
+		vllmPort = 8100
+	}
+
+	gpuUtil := cfg.VLLM.GpuMemoryUtilization
+	if gpuUtil <= 0 {
+		gpuUtil = 0.65
+	}
+
+	maxModelLen := cfg.VLLM.MaxModelLen
+	if maxModelLen <= 0 {
+		maxModelLen = 2048
+	}
+
+	r.app.TUI.AddVLLMLog(fmt.Sprintf("[System] 正在啟動 vLLM (模型: %s, 埠號: %d, 顯存佔用率: %.2f)...", modelName, vllmPort, gpuUtil))
+
+	// 步驟 4: 構建 Windows 執行指令與相容性環境變數
+	// 檢查是否有現成的 serve_api.py，若無則以 python -m vllm 啟動
+	serveScriptCandidates := []string{
+		filepath.Join(".", "serve_api.py"),
+		filepath.Join("..", "serve_api.py"),
+		filepath.Join(".", "vllm-windows", "serve_api.py"),
+	}
+
+	var serveScript string
+	for _, sc := range serveScriptCandidates {
+		if _, err := os.Stat(sc); err == nil {
+			serveScript, _ = filepath.Abs(sc)
+			break
+		}
+	}
+
+	var cmd *exec.Cmd
+	if serveScript != "" {
+		cmd = exec.CommandContext(ctx, pythonBin, serveScript,
+			"--model", modelName,
+			"--quantization", "awq",
+			"--gpu-memory-utilization", fmt.Sprintf("%.2f", gpuUtil),
+			"--max-model-len", fmt.Sprintf("%d", maxModelLen),
+			"--port", fmt.Sprintf("%d", vllmPort),
+			"--host", "0.0.0.0",
+			"--trust-remote-code",
+			"--enforce-eager",
+			"--disable-frontend-multiprocessing",
+		)
+	} else {
+		cmd = exec.CommandContext(ctx, pythonBin, "-u", "-m", "vllm.entrypoints.openai.api_server",
+			"--model", modelName,
+			"--quantization", "awq",
+			"--gpu-memory-utilization", fmt.Sprintf("%.2f", gpuUtil),
+			"--max-model-len", fmt.Sprintf("%d", maxModelLen),
+			"--port", fmt.Sprintf("%d", vllmPort),
+			"--host", "0.0.0.0",
+			"--trust-remote-code",
+			"--enforce-eager",
+			"--disable-frontend-multiprocessing",
+		)
+	}
+
+	// 注入 Windows 關鍵相容環境變數
+	envVars := append(os.Environ(),
+		"USE_LIBUV=0",
+		"VLLM_USE_V1=0",
+		"CUDA_VISIBLE_DEVICES=0",
+		"HF_HUB_DISABLE_SYMLINKS_WARNING=1",
+		"VLLM_WORKER_MULTIPROC_METHOD=spawn",
+	)
+
+	// 自動定位 PyTorch 的 cudart64_12.dll
+	if venvRoot != "" {
+		cudartPath := filepath.Join(venvRoot, "Lib", "site-packages", "torch", "lib", "cudart64_12.dll")
+		if _, err := os.Stat(cudartPath); err == nil {
+			envVars = append(envVars, fmt.Sprintf("VLLM_CUDART_SO_PATH=%s", cudartPath))
+		}
+	}
+	cmd.Env = envVars
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		r.app.TUI.AddVLLMLog(fmt.Sprintf("[Error] 無法綁定 vLLM Stdout: %v", err))
+		return
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		r.app.TUI.AddVLLMLog(fmt.Sprintf("[Error] 無法綁定 vLLM Stderr: %v", err))
+		return
+	}
+
+	r.vllmCmd = cmd
+
+	if err := cmd.Start(); err != nil {
+		r.app.TUI.AddVLLMLog(fmt.Sprintf("[Error] 啟動 Windows vLLM 程序失敗: %v", err))
+		return
+	}
+
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			r.app.TUI.AddVLLMLog(scanner.Text())
+		}
+	}()
+
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			text := scanner.Text()
+			if strings.TrimSpace(text) != "" {
+				r.app.TUI.AddVLLMLog(text)
+			}
+		}
+	}()
+
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			r.app.TUI.AddVLLMLog(fmt.Sprintf("[System] Windows vLLM 程序終止: %v", err))
+		} else {
+			r.app.TUI.AddVLLMLog("[System] Windows vLLM 程序已正常退出。")
+		}
+	}()
+}
+

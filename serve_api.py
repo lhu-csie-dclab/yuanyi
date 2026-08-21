@@ -1,0 +1,74 @@
+import os
+import sys
+import tempfile
+
+# 設置 Windows 環境相容性變數
+os.environ["USE_LIBUV"] = "0"
+os.environ["VLLM_USE_V1"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+os.environ["VLLM_WORKER_MULTIPROC_METHOD"] = "spawn"
+
+# 自動定位 cudart64_12.dll
+venv_dir = os.path.dirname(os.path.dirname(sys.executable))
+cudart_path = os.path.join(venv_dir, "Lib", "site-packages", "torch", "lib", "cudart64_12.dll")
+if os.path.exists(cudart_path):
+    os.environ["VLLM_CUDART_SO_PATH"] = cudart_path
+
+# 排除本機倉庫原始碼目錄以免干擾 site-packages
+for p in list(sys.path):
+    if p.endswith("vllm-windows") or os.path.exists(os.path.join(p, "CMakeLists.txt")):
+        sys.path.remove(p)
+
+# 自動修補 Windows PyTorch 2.6 TCPStore 格式化缺陷
+try:
+    import torch.distributed.rendezvous as rdzv
+    import torch.distributed as dist
+    orig_create = rdzv._create_c10d_store
+    def safe_create(*args, **kwargs):
+        try:
+            return orig_create(*args, **kwargs)
+        except RuntimeError:
+            port = args[1] if len(args) > 1 else kwargs.get("port", 29500)
+            world_size = args[3] if len(args) > 3 else kwargs.get("world_size", 1)
+            store_path = os.path.join(tempfile.gettempdir(), f"c10d_store_{port}.tmp")
+            return dist.FileStore(store_path, world_size)
+    rdzv._create_c10d_store = safe_create
+except Exception:
+    pass
+
+if __name__ == "__main__":
+    import winloop as uvloop_impl
+    from vllm.utils import FlexibleArgumentParser
+    from vllm.entrypoints.openai.cli_args import make_arg_parser, validate_parsed_serve_args
+    from vllm.entrypoints.openai.api_server import run_server, cli_env_setup
+
+    default_args = [
+        "--model", "Qwen/Qwen2.5-3B-Instruct-AWQ",
+        "--quantization", "awq",
+        "--gpu-memory-utilization", "0.65",
+        "--max-model-len", "2048",
+        "--trust-remote-code",
+        "--enforce-eager",
+        "--disable-frontend-multiprocessing",
+        "--port", "8000",
+        "--host", "0.0.0.0"
+    ]
+    
+    cmd_args = sys.argv[1:] if len(sys.argv) > 1 else default_args
+    if "--disable-frontend-multiprocessing" not in cmd_args:
+        cmd_args.append("--disable-frontend-multiprocessing")
+
+    cli_env_setup()
+    parser = FlexibleArgumentParser(description="vLLM OpenAI-Compatible RESTful API server.")
+    parser = make_arg_parser(parser)
+    args = parser.parse_args(cmd_args)
+    validate_parsed_serve_args(args)
+
+    print(f"\n=======================================================")
+    print(f"  vLLM OpenAI 相容 API 伺服器啟動中...")
+    print(f"  模型: {args.model}")
+    print(f"  位址: http://{args.host}:{args.port}")
+    print(f"=======================================================\n")
+
+    uvloop_impl.run(run_server(args))
