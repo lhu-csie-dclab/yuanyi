@@ -308,6 +308,28 @@ func (n *NetworkNode) setupStreams() {
 			return
 		}
 
+		// The mooncake-proxy tunnel exists solely to forward vLLM inference
+		// requests and Mooncake KV-transfer bootstrap calls between peers.
+		// Any peer that can open a libp2p stream to this node controls
+		// targetPort, so without an allowlist a malicious/modified peer
+		// could redirect the raw HTTP request to any localhost service
+		// (e.g. Ray's unauthenticated dashboard/job-submission API on
+		// 8275), turning this into a remote code execution pivot across
+		// the whole swarm.
+		allowedPorts := map[uint16]bool{
+			uint16(n.app.Config.VLLM.Port):                  true,
+			uint16(n.app.Config.VLLM.MooncakeBootstrapPort): true,
+		}
+		if !allowedPorts[targetPort] {
+			n.app.TUI.AddLog("[WARN]", fmt.Sprintf("Rejected proxy stream from %s to disallowed local port %d", s.Conn().RemotePeer(), targetPort))
+			errResp := &http.Response{
+				StatusCode: http.StatusForbidden,
+				Body:       io.NopCloser(strings.NewReader(fmt.Sprintf("target port %d is not allowed", targetPort))),
+			}
+			errResp.Write(s)
+			return
+		}
+
 		req, err := http.ReadRequest(bufio.NewReader(s))
 		if err != nil {
 			return
