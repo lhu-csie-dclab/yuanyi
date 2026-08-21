@@ -265,7 +265,33 @@ IFACE=eth0
 CLIENT_WEB_PORT=50007
 ```
 
-### 2. Build and Launch Container
+### 2. Generate the Private Network Key (`swarm.key`)
+
+> [!IMPORTANT]
+> **Do this before the first launch.** A node refuses to start without a valid `swarm.key`, and
+> **every node in the same mesh must carry the byte-identical key** — it is the pre-shared key
+> (PSK) that defines the private network.
+
+**Starting a new mesh?** Generate a fresh key:
+
+```bash
+printf '/key/swarm/psk/1.0.0/\n/base16/\n%s\n' "$(openssl rand -hex 32)" > swarm.key
+```
+
+**Joining an existing mesh?** Do **not** generate one — obtain the exact `swarm.key` from
+whoever operates that mesh and copy it in verbatim. A mismatched key fails with the misleading
+error `failed to negotiate security protocol: incoming message was too large`, which looks like
+a network fault rather than a key problem. Confirm it matches a working node with
+`sha256sum swarm.key`.
+
+> [!WARNING]
+> Do **not** ship `swarm.key.example` as your real key. It is a public placeholder committed to
+> this repository, so anyone could use it to join your mesh. Keep your real `swarm.key` secret
+> and out of version control (it is already in `.gitignore`).
+
+See [`docs/P2P_NETWORK.md`](docs/P2P_NETWORK.md) for the file format and alternative generators.
+
+### 3. Build and Launch Container
 
 Build the Dockerfile and start the All-in-One service via Docker Compose:
 
@@ -273,7 +299,7 @@ Build the Dockerfile and start the All-in-One service via Docker Compose:
 docker compose up -d --build
 ```
 
-### 3. Verify System Health
+### 4. Verify System Health
 
 Check the API Gateway health status (`50006`):
 
@@ -288,7 +314,7 @@ Query supported models:
 curl http://localhost:50006/v1/models
 ```
 
-### 4. Execute Chat Completion
+### 5. Execute Chat Completion
 
 Send an OpenAI-compatible request using `Qwen3-4B-AWQ`:
 
@@ -302,7 +328,7 @@ curl http://localhost:50006/v1/chat/completions \
   }'
 ```
 
-### 5. 🪟 Windows Native Quick Start
+### 6. 🪟 Windows Native Quick Start
 
 This project natively supports Windows 10/11 without requiring Docker:
 
