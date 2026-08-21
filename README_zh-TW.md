@@ -23,6 +23,12 @@ Mooncake 2.0 Client 提供相容於 OpenAI 規範的 API 網關 Gateway (`/v1/ch
 > - **實驗研究階段專案**：本軟體目前處於**實驗研究階段**，**不推薦在正式生產環境 (Production) 部署使用**。
 > - **未測試參數聲明**：目前僅有文件明確記載的基準配置（`Qwen3-4B-AWQ`, `protocol: "tcp"`, `concurrency: 100`）經過壓力測試驗證；**其餘未經測試的參數、傳輸協定或模型未經完整驗證**，可能產生不可預期的系統行為。
 
+> [!WARNING]
+> **隱私警語：分發到遠端節點的 Prompt，該節點營運者看得到明文**
+> - 當本機 GPU 忙碌時，請求會被分發到 **Swarm 中的其他機器**；這些機器必須解密才能執行推論。本專案**沒有應用層加密**，而且以目前技術而言 LLM 推論也做不到（同態加密不實用）。
+> - `swarm.key` 控制的是**誰能加入**，不是「加入後能對收到的資料做什麼」。Swarm 裡**每一位節點營運者都被隱含信任**能接觸到使用者的 Prompt。
+> - **請勿將敏感資料經由你無法掌控的節點處理。** 詳見 **[🔐 安全性與信任模型 (`docs/SECURITY.md`)](docs/SECURITY.md)**。
+
 ---
 
 ## 📚 技術文件與架構手冊索引
@@ -39,6 +45,7 @@ Mooncake 2.0 Client 提供相容於 OpenAI 規範的 API 網關 Gateway (`/v1/ch
 - **[🖥️ 終端 TUI 面板與 Web 儀表板手冊 (`docs/zh_tw/DASHBOARD_UI.md`)](docs/zh_tw/DASHBOARD_UI.md)**：`tui.go`（4 分頁終端面板、Headless 模式）與 `web.go`（`50007` 埠內嵌 Web Console）。
 - **[📈 NVIDIA AIPerf 壓測數據報告 (`docs/zh_tw/test/BENCHMARK_RESULTS.md`)](docs/zh_tw/test/BENCHMARK_RESULTS.md)**：在 10 張 RTX A2000 8GB 顯卡上進行 1 萬次請求壓測的官方數據。
 - **[🧬 多節點全新 Clone 與併發多卡測試 (`docs/zh_tw/test/MULTI_NODE_CLONE_TEST.md`)](docs/zh_tw/test/MULTI_NODE_CLONE_TEST.md)**：驗證從零 `git clone` 部署到 2 台主機共 10 個獨立節點後，10 張實體 GPU 各自真的在處理推論（單獨測試與 10 台併發測試皆驗證）。
+- **[🔐 安全性與信任模型 (`docs/SECURITY.md`)](docs/SECURITY.md)**：本系統保護什麼、不保護什麼——為何遠端節點看得到被分發的 Prompt、`swarm.key` 真正保證的範圍，以及目前未加驗證的對外介面。
 - **[🖥️ Proxmox VE + LXC GPU 直通手冊 (`docs/install/proxmox/README.md`)](docs/install/proxmox/README.md)**：宿主機驅動安裝、建立 LXC、GPU 裝置直通、巢狀 Docker 與 `no-cgroups` 關鍵修正——參考叢集的 10 個節點就是這樣建起來的。
 - **[🐧 Ubuntu 安裝與部署手冊 (`docs/install/ubuntu/README.md`)](docs/install/ubuntu/README.md)**：主要且經過正式測試的部署平台——Docker Engine、NVIDIA Container Toolkit、`swarm.key`，以及 Docker 與原生編譯兩種部署路徑。
 - **[🪟 Windows 本機原生架設與部署手冊 (`docs/install/windows/README.md`)](docs/install/windows/README.md)**：使用 `uv`、`.venv` 與 `SystemPanic/vllm-windows` 於 Windows 本機極速部署 vLLM + Qwen AWQ 的完整指南。
