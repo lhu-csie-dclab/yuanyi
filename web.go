@@ -78,9 +78,9 @@ func StartClientWebDashboard(app *App) {
 			"server_host":      serverHost,
 			"hub_mode_enabled": app.Config.ServerMode.Enabled,
 			// Expose ports and model so the web UI can auto-configure the chat endpoint.
-			"vllm_port":   app.Config.VLLM.Port,
-			"proxy_port":  app.Config.ProxyPort,
-			"model_name":  app.Config.VLLM.ModelName,
+			"vllm_port":  app.Config.VLLM.Port,
+			"proxy_port": app.Config.ProxyPort,
+			"model_name": app.Config.VLLM.ModelName,
 		})
 	})
 
