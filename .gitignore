@@ -14,6 +14,10 @@ swarm.key
 stats.json
 *.log
 peers.db*
+# GPU specification dataset, downloaded at runtime by scanGPUlevel.go (hub mode only).
+# Not committed: upstream (voidful/gpu-info-api) declares no license, so shipping a
+# copy would constitute redistribution. See NOTICE entry 30.
+gpu_database.json
 my-peerstore/
 
 # IDE & OS files

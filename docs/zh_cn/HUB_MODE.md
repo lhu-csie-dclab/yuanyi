@@ -116,5 +116,5 @@ client 既有的 `web_port`（默认 `50007`）上，用 hash 路由切换而不
 
 在 `config.json` 把 `server_mode.enabled` 设为 `true`（若没有这个区块就照上面补上——
 `LoadOrCreateConfig` 会自动为其余字段填入默认值）。不需要其他改动；下次启动时，节点会在
-GPU 规格数据库（`gpu_database.json`，跟以前 Central Server 用的是同一个来源）不存在时自动
+GPU 规格数据库（`gpu_database.json`，来源为 [voidful/gpu-info-api](https://github.com/voidful/gpu-info-api)）不存在时自动
 下载，初始化 `peers.db`，并启动上述的额外服务。
