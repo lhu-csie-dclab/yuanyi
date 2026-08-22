@@ -13,6 +13,38 @@ subprocess.
 
 ---
 
+## ⚡ Quickest route: the installer script
+
+[`install.ps1`](../../../install.ps1) performs every step in this guide interactively —
+including building the dashboard and Go binary and setting up the Python/vLLM environment —
+and handles uninstall and model management afterwards:
+
+```powershell
+irm https://raw.githubusercontent.com/lhu-csie-dclab/yuanyi/main/install.ps1 -OutFile install.ps1
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+| Command | What it does |
+| :--- | :--- |
+| `install.ps1` | Interactive menu |
+| `install.ps1 install` | Install or update |
+| `install.ps1 models` | Download / switch / delete Hugging Face models |
+| `install.ps1 status` | Show what is installed and whether it is running |
+| `install.ps1 uninstall` | Remove it (offers to back up `swarm.key`, asks about models) |
+
+Every prompt has a default — pressing Enter throughout produces a working node. You can
+override the install directory, node role, `swarm.key` (paste one to join an existing swarm, or
+leave blank to generate), all six ports, and the model.
+
+> [!TIP]
+> Choosing **relay-only** at the first prompt skips the Python environment and model download
+> entirely, so a Windows machine with no GPU can contribute in a couple of minutes.
+
+**The rest of this document is the manual equivalent.** Read it if you want to understand what
+the script does, customise something it does not prompt for, or troubleshoot.
+
+---
+
 ## 1. Prerequisites
 
 | Requirement | Minimum | Verified on |
@@ -37,17 +69,6 @@ nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
 ```
 
 ---
-
-> [!TIP]
-> **Prefer not to do this by hand?** [`install.ps1`](../../../install.ps1) performs every step
-> below interactively — clone, dashboard and Go build, the Python/vLLM environment,
-> `swarm.key`, ports, and model download — and handles uninstall and model switching later:
-> ```powershell
-> irm https://raw.githubusercontent.com/lhu-csie-dclab/yuanyi/main/install.ps1 -OutFile install.ps1
-> powershell -ExecutionPolicy Bypass -File install.ps1
-> ```
-> The manual steps below remain accurate, and are worth reading if you want to understand or
-> customise what the script does.
 
 ## 2. Clone the repository
 
