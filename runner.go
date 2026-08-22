@@ -419,20 +419,31 @@ func (r *Runner) startVLLMWindows(ctx context.Context) {
 	// 步驟 3: 決定模型名稱或路徑
 	modelName := cfg.VLLM.ModelName
 	substitutedTo := ""
-	if modelName == "" || modelName == "Qwen3-4B-AWQ" || modelName == "mooncake-default" {
-		// These are the Linux/Docker-mode defaults; there's no Windows-native build of the
-		// Mooncake-bundled Qwen3-4B-AWQ checkpoint path for this native path, so fall back
-		// to a Windows-verified Hugging Face model instead of failing to start. Track that
-		// this happened so --served-model-name below reflects what's actually loaded,
-		// rather than silently claiming to serve the original configured model.
+
+	// A usable local model_path wins outright, so resolve it first. "/data/model" is the
+	// Linux container mount point and never exists on Windows, so it does not count.
+	localModelPath := ""
+	if cfg.Paths.ModelPath != "" && cfg.Paths.ModelPath != "/data/model" {
+		if _, err := os.Stat(cfg.Paths.ModelPath); err == nil {
+			localModelPath, _ = filepath.Abs(cfg.Paths.ModelPath)
+		}
+	}
+
+	switch {
+	case localModelPath != "":
+		// Local weights are present: load them, and leave substitutedTo empty. Checking
+		// this before the fallback matters -- otherwise a node configured with local
+		// weights *and* the default model_name would log a substitution warning that
+		// never happened and advertise an alias for a model it is not serving.
+		modelName = localModelPath
+	case modelName == "" || modelName == "Qwen3-4B-AWQ" || modelName == "mooncake-default":
+		// These are the Linux/Docker-mode defaults and there are no local weights to fall
+		// back on, so use a Windows-verified Hugging Face model rather than failing to
+		// start. Recording it lets --served-model-name below reflect what is actually
+		// loaded instead of silently claiming to serve the originally configured model.
 		modelName = "Qwen/Qwen2.5-3B-Instruct-AWQ"
 		substitutedTo = modelName
 		r.app.TUI.AddVLLMLog(fmt.Sprintf("[Warning] 設定檔指定的模型 \"%s\" 在 Windows 原生模式下不可用，已改用 %s 代替", cfg.VLLM.ModelName, modelName))
-	}
-	// 若本機指定了有效的 model_path 則使用該目錄，否則直接使用 Hugging Face 模型名稱
-	if _, err := os.Stat(cfg.Paths.ModelPath); err == nil && cfg.Paths.ModelPath != "/data/model" {
-		absPath, _ := filepath.Abs(cfg.Paths.ModelPath)
-		modelName = absPath
 	}
 
 	vllmPort := cfg.VLLM.Port

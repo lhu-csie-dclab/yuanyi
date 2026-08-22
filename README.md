@@ -381,6 +381,20 @@ curl http://localhost:50006/v1/chat/completions \
 
 This project natively supports Windows 10/11 without requiring Docker:
 
+**Easiest path — the installer does all of it:**
+
+```powershell
+irm https://raw.githubusercontent.com/lhu-csie-dclab/yuanyi/main/install.ps1 -OutFile install.ps1
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+Same menu as the Linux `install.sh` (install / uninstall / model download / switch / delete),
+prompting for install path, `swarm.key` (or generating one), ports, and model — and it also
+sets up the Python + vLLM environment for you. Choose **relay-only** at the first prompt to
+contribute without a GPU, which skips the Python environment and model download entirely.
+
+The manual steps below remain accurate if you prefer to do it yourself.
+
 #### Step 1: Create Virtual Environment with `uv` & Install Dependencies (One-time Setup)
 ```powershell
 # 1. Create Python 3.12 virtual environment
