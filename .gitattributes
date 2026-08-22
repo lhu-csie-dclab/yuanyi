@@ -1,0 +1,8 @@
+# Shell scripts must keep LF endings regardless of the contributor's platform.
+# A CRLF shebang makes the file unrunnable on Linux with a confusing error:
+#   /usr/bin/env: 'bash\r': No such file or directory
+*.sh text eol=lf
+
+# Same reasoning for anything else executed by a Linux shell or interpreter.
+Dockerfile* text eol=lf
+*.py text eol=lf
