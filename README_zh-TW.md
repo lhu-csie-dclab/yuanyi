@@ -371,6 +371,20 @@ curl http://localhost:50006/v1/chat/completions \
 
 本專案支援在 Windows 10/11 原生運行，無需依賴 Docker。請依照以下極簡步驟完成前置：
 
+**最省事的方式 —— 安裝腳本會全部幫你做完：**
+
+```powershell
+irm https://raw.githubusercontent.com/lhu-csie-dclab/yuanyi/main/install.ps1 -OutFile install.ps1
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+選單跟 Linux 的 `install.sh` 一樣（安裝／解除安裝／下載／更換／刪除模型），會詢問安裝路徑、
+`swarm.key`（留空即自動產生）、連接埠與模型，**並且會連 Python + vLLM 環境一起幫你建好**。
+第一個問題選 **relay-only（純中繼）** 就能在沒有顯卡的機器上貢獻，會直接跳過 Python 環境
+與模型下載。
+
+如果你想自己手動操作，下面的步驟依然適用。
+
 #### 步驟 1: 使用 `uv` 建立虛擬環境與安裝依賴 (只需執行一次)
 ```powershell
 # 1. 建立 Python 3.12 虛擬環境

@@ -38,6 +38,17 @@ nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
 
 ---
 
+> [!TIP]
+> **Prefer not to do this by hand?** [`install.ps1`](../../../install.ps1) performs every step
+> below interactively — clone, dashboard and Go build, the Python/vLLM environment,
+> `swarm.key`, ports, and model download — and handles uninstall and model switching later:
+> ```powershell
+> irm https://raw.githubusercontent.com/lhu-csie-dclab/yuanyi/main/install.ps1 -OutFile install.ps1
+> powershell -ExecutionPolicy Bypass -File install.ps1
+> ```
+> The manual steps below remain accurate, and are worth reading if you want to understand or
+> customise what the script does.
+
 ## 2. Clone the repository
 
 ```powershell
