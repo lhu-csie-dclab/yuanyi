@@ -33,7 +33,7 @@ func (n *ConnNotifee) Connected(nwt network.Network, c network.Conn) {
 	remoteAddr := c.RemoteMultiaddr().String()
 
 	go func() {
-		if err := n.app.DB.UpsertPeer(remotePeer.String(), remoteAddr, "[]", "", ""); err != nil {
+		if err := n.app.DB.UpsertPeerConnection(remotePeer.String(), remoteAddr); err != nil {
 			logInfo("[Hub] Failed to upsert peer: %v", err)
 			return
 		}
@@ -100,7 +100,7 @@ func serverProcessGossipMessage(info GPUInfo, app *App) {
 	if err != nil {
 		return
 	}
-	if err := app.DB.UpsertPeer(info.NodeID, info.Addr, string(gpuData), info.BootstrapAddr, info.EngineID); err != nil {
+	if err := app.DB.UpsertPeer(info.NodeID, info.Addr, string(gpuData), info.BootstrapAddr, info.EngineID, info.Role); err != nil {
 		return
 	}
 

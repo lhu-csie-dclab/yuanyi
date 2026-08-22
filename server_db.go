@@ -32,6 +32,8 @@ type PeerData struct {
 	InTokens          int64   `json:"in_tokens"`
 	OutTokens         int64   `json:"out_tokens"`
 	ContributionScore float64 `json:"contribution_score"`
+	// Role mirrors GPUInfo.Role; "relay" means the peer serves no inference (see p2p.go).
+	Role              string  `json:"role"`
 }
 
 // PeerEvent is a single row of the peer_events audit table.
@@ -50,7 +52,8 @@ type PeerEvent struct {
 // rows written before an additive migration still scan cleanly.
 const peerColumns = `peer_id, gpu_info, ip_address, last_ping, COALESCE(bootstrap_addr, ''), COALESCE(engine_id, ''),
 	COALESCE(fail_count, 0), COALESCE(penalty_points, 0), COALESCE(total_requests, 0), COALESCE(total_tokens, 0),
-	COALESCE(in_tokens, 0), COALESCE(out_tokens, 0), COALESCE(contribution_score, 0.0)`
+	COALESCE(in_tokens, 0), COALESCE(out_tokens, 0), COALESCE(contribution_score, 0.0),
+	COALESCE(role, '')`
 
 // scanPeers materializes a result set produced with peerColumns into PeerData values.
 func scanPeers(rows *sql.Rows) []PeerData {
@@ -59,7 +62,7 @@ func scanPeers(rows *sql.Rows) []PeerData {
 		var p PeerData
 		if err := rows.Scan(&p.PeerID, &p.GPUInfo, &p.IPAddress, &p.LastPing, &p.BootstrapAddr, &p.EngineID,
 			&p.FailCount, &p.PenaltyPoints, &p.TotalRequests, &p.TotalTokens, &p.InTokens, &p.OutTokens,
-			&p.ContributionScore); err == nil {
+			&p.ContributionScore, &p.Role); err == nil {
 			peers = append(peers, p)
 		}
 	}
@@ -107,6 +110,7 @@ func NewDBManager(dbPath string) (*DBManager, error) {
 		"ALTER TABLE peers ADD COLUMN in_tokens INTEGER DEFAULT 0;",
 		"ALTER TABLE peers ADD COLUMN out_tokens INTEGER DEFAULT 0;",
 		"ALTER TABLE peers ADD COLUMN contribution_score REAL DEFAULT 0.0;",
+		"ALTER TABLE peers ADD COLUMN role TEXT DEFAULT '';",
 	} {
 		db.Exec(stmt)
 	}
@@ -134,18 +138,36 @@ func (m *DBManager) Close() error {
 	return m.db.Close()
 }
 
-// UpsertPeer inserts or refreshes the dynamic state of a peer node.
-func (m *DBManager) UpsertPeer(peerID, ipAddress, gpuInfo, bootstrapAddr, engineID string) error {
+// UpsertPeer inserts or refreshes the dynamic state of a peer node. role carries
+// GPUInfo.Role so the hub dispatcher can exclude relay-only peers from inference backends.
+func (m *DBManager) UpsertPeer(peerID, ipAddress, gpuInfo, bootstrapAddr, engineID, role string) error {
 	_, err := m.db.Exec(`
-		INSERT INTO peers (peer_id, ip_address, last_ping, gpu_info, bootstrap_addr, engine_id)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO peers (peer_id, ip_address, last_ping, gpu_info, bootstrap_addr, engine_id, role)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(peer_id) DO UPDATE SET
 			ip_address=excluded.ip_address,
 			last_ping=excluded.last_ping,
 			gpu_info=excluded.gpu_info,
 			bootstrap_addr=excluded.bootstrap_addr,
-			engine_id=excluded.engine_id;
-	`, peerID, ipAddress, time.Now().Format(time.RFC3339), gpuInfo, bootstrapAddr, engineID)
+			engine_id=excluded.engine_id,
+			role=excluded.role;
+	`, peerID, ipAddress, time.Now().Format(time.RFC3339), gpuInfo, bootstrapAddr, engineID, role)
+	return err
+}
+
+// UpsertPeerConnection records that a peer connected, without touching the columns that
+// only a gossip broadcast can speak for. role in particular must not be reset here: the
+// connect event carries no role information, so writing an empty value would demote a
+// known relay-only peer back to "serves inference" until its next broadcast, and the hub
+// would dispatch work to a node with no engine in the meantime.
+func (m *DBManager) UpsertPeerConnection(peerID, ipAddress string) error {
+	_, err := m.db.Exec(`
+		INSERT INTO peers (peer_id, ip_address, last_ping, gpu_info, role)
+		VALUES (?, ?, ?, '[]', '')
+		ON CONFLICT(peer_id) DO UPDATE SET
+			ip_address=excluded.ip_address,
+			last_ping=excluded.last_ping;
+	`, peerID, ipAddress, time.Now().Format(time.RFC3339))
 	return err
 }
 

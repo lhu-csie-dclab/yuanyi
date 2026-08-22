@@ -39,6 +39,39 @@ Central Server 程序才能做的事：
 
 ## 🌐 多 Hub 設計：沒有單點故障
 
+
+## 🔀 純中繼模式（沒有 GPU 也能貢獻）
+
+把 `server_mode.relay_only` 設為 `true`，就是**貢獻網路頻寬而不是 GPU 算力**。
+適合「網路條件好（尤其有公網 IP）但沒有顯卡」，或是「不想把自己的 GPU 借給別人用」的情況。
+
+純中繼節點會：
+
+- **完全不跑本機推論**：不會啟動 Ray 與 vLLM，因此**根本不需要 GPU**。
+- **提供 libp2p Circuit Relay v2 中繼服務**，讓 NAT 後面的節點能透過它互相連線 —— 這就是貢獻本身。
+- **同時執行 Hub 服務**（節點資料庫、算分、拓樸 API）。`relay_only` 會自動隱含 `enabled`，
+  所以你只需要設定這一個開關。
+- **仍然可以當作你自己的入口**：`proxy_port` 上的閘道照常開啟，你送進去的請求會被轉發給
+  有 GPU 的節點。也就是說，一台沒有顯卡的機器依然可以「同時使用並貢獻」這個 Swarm。
+- **在廣播中標記 `role: "relay"`**，讓其他節點在挑選推論目標時自動排除它。
+  少了這個標記，別人會把它當成可用節點、送出它根本做不到的工作。
+
+```json
+"server_mode": {
+  "relay_only": true
+}
+```
+
+> [!NOTE]
+> **做中繼不會讓你接觸到別人的 Prompt 內容。** Circuit Relay v2 轉發的是**已加密**的 libp2p 串流，
+> 安全握手是在兩個端點之間端對端建立的，中繼者無法解密經過它的內容。
+> 這與「執行推論的節點」形成對比 —— 推論必須解密才能執行，詳見 [`SECURITY.md`](../SECURITY.md)。
+>
+> 但你仍然在執行 Hub 服務，那會把其他節點的 IP 位址寫進 `peers.db`。
+> 請一併參考[使用者須知](USER_NOTICE.md)。
+
+**相容性注意事項**：比這個功能更舊的版本不認得 `role` 欄位，仍可能把推論請求送給純中繼節點、
+失敗後再改派給別人。可以的話請讓整個 Swarm 一起升級。
 現在不再有單一、固定的「Central Server」。相反地，**任意數量的節點可以同時開啟 Hub 模式**。
 這是刻意的設計，而且不需要任何 Hub 之間的資料複寫協定：
 
@@ -98,6 +131,7 @@ Hub 節點也可以設定成空種子清單，這種情況下它就是其他節�
 | :--- | :--- | :--- |
 | `p2p.server_addresses` | `[]` | Bootstrap/Hub 種子節點清單（建議寫法）。 |
 | `server_mode.enabled` | `false` | 是否為這個節點開啟 Hub 模式。 |
+| `server_mode.relay_only` | `false` | 改為貢獻中繼而非 GPU 推論：不啟動本機 vLLM，並廣播 `role: "relay"` 讓其他節點不要派工作過來。會自動隱含 `enabled`。 |
 | `server_mode.p2p_port` | `50004` | 固定 libp2p 監聽埠，供其他節點撥入。 |
 | `server_mode.proxy_port` | `50008` | 中央 Prefill/Decode 派發器 HTTP 埠。 |
 | `server_mode.database_path` | `./peers.db` | SQLite 資料庫檔案路徑。 |

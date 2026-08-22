@@ -38,6 +38,44 @@ process:
 - Circuit Relay v2 service and a fixed listen port on `server_mode.p2p_port`, so peers behind
   NAT can reach the swarm through this node if it is itself publicly reachable.
 
+
+## 🔀 Relay-Only Mode (contribute without a GPU)
+
+Set `server_mode.relay_only: true` to contribute **network capacity instead of GPU capacity**.
+This is useful if you have a well-connected machine (especially a public IP) but no GPU, or you
+simply do not want your GPU used by others.
+
+A relay-only node:
+
+- **Runs no local inference.** Ray and vLLM are never started, so **no GPU is required at all**.
+- **Provides the libp2p Circuit Relay v2 service**, letting NAT'd peers reach each other through
+  it. That is the contribution.
+- **Runs the hub services** (peer database, scoring, topology API) — `relay_only` implies
+  `enabled`, so you only need to set the one flag.
+- **Still works as your own entry point.** Its gateway on `proxy_port` stays open; requests you
+  send to it are forwarded to peers that do have GPUs. A GPU-less machine can therefore both
+  use and contribute to the swarm.
+- **Advertises `role: "relay"`** in its gossip broadcast, so other nodes exclude it when
+  choosing where to dispatch inference. Without this they would send it work it cannot do.
+
+```json
+"server_mode": {
+  "relay_only": true
+}
+```
+
+> [!NOTE]
+> **Relaying does not expose you to other people's prompt content.** Circuit Relay v2 forwards
+> the *encrypted* libp2p stream; the security handshake is end-to-end between the two peers, so
+> a relay cannot read what passes through it. Contrast this with running an inference node,
+> where prompts must be decrypted to be executed — see [`SECURITY.md`](SECURITY.md).
+>
+> You are still running hub services, which store peers' IP addresses in `peers.db`. See the
+> [User Notice](USER_NOTICE.md).
+
+**Interoperability caveat:** peers running builds older than this feature do not understand
+`role`, so they may still try to dispatch inference to a relay-only node and fail over to
+another peer. Upgrade the swarm together where possible.
 ## 🌐 Multi-Hub Design: No Single Point of Failure
 
 There is no longer a single, fixed "Central Server." Instead, **any number of nodes can run in
@@ -106,6 +144,7 @@ PeerID across restarts. This matters most for hub nodes, since other nodes may c
 | :--- | :--- | :--- |
 | `p2p.server_addresses` | `[]` | Preferred list of bootstrap/hub seed multiaddresses. |
 | `server_mode.enabled` | `false` | Turns hub mode on for this node. |
+| `server_mode.relay_only` | `false` | Contribute relaying instead of GPU inference: no local vLLM, advertises `role: "relay"` so peers do not dispatch work here. Implies `enabled`. |
 | `server_mode.p2p_port` | `50004` | Fixed libp2p listen port so other nodes can dial in. |
 | `server_mode.proxy_port` | `50008` | Central prefill/decode dispatcher HTTP port. |
 | `server_mode.database_path` | `./peers.db` | SQLite database file path. |

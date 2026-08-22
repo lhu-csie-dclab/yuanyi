@@ -125,6 +125,9 @@ flowchart TB
 - **🛰️ 可选 Hub 模式（合并中央服务器能力）**：
   任何节点都可以开启 `server_mode.enabled`，额外兼任原本独立中央服务器的角色：本机 SQLite 节点/排行榜数据库、GPU 算分、中央 P/D 派发器、Hub 专属仪表板。可以同时有多个 Hub 运行——每个 Hub 各自通过既有的 GossipSub 广播收敛出相同视图，没有单点故障。详见 [`docs/zh_cn/HUB_MODE.md`](docs/zh_cn/HUB_MODE.md)。
 
+- **🔀 纯中继模式（没有 GPU 也能贡献）**：
+  把 `server_mode.relay_only` 设为 `true`，就是**贡献网络带宽而非 GPU 算力**。节点会加入 Swarm 并提供 libp2p Circuit Relay 服务，让 NAT 后方的节点能通过它互连，但**完全不启动 Ray/vLLM —— 根本不需要显卡**。它会广播 `role: "relay"` 让其他节点派工作时自动跳过它，而它自己的网关照常运作，会把你的请求转发给有 GPU 的节点。由于中继转发的是**已加密**的流，别人的 Prompt 既不会在你的机器上执行，你也读不到内容。详见 [`docs/zh_cn/HUB_MODE.md`](docs/zh_cn/HUB_MODE.md)。
+
 ---
 
 ## 📁 文件与技术手册对照表 (Documentation Map)

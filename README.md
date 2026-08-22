@@ -130,6 +130,9 @@ flowchart TB
 - **🛰️ Optional Hub Mode (Merged Central Server)**:
   Any node can opt into `server_mode.enabled` to additionally take on the standalone Central Server's role: a local SQLite peers/leaderboard database, GPU-based scoring, a central P/D dispatcher, and a hub-only dashboard. Multiple hubs can run at once — each independently converges to the same view over the existing GossipSub topic, so there is no single point of failure. See [`docs/HUB_MODE.md`](docs/HUB_MODE.md).
 
+- **🔀 Relay-Only Mode (contribute without a GPU)**:
+  Set `server_mode.relay_only: true` to contribute **network capacity instead of GPU capacity**. The node joins the swarm and provides the libp2p Circuit Relay service so NAT'd peers can reach each other, but never starts Ray/vLLM — **no GPU required**. It advertises `role: "relay"` so peers exclude it when dispatching inference, while its own gateway still forwards your requests to GPU-equipped peers. Because a circuit relay forwards the *encrypted* stream, other people's prompts never execute on — or become readable to — your machine. See [`docs/HUB_MODE.md`](docs/HUB_MODE.md).
+
 ---
 
 ### 📁 Directory & File Documentation Map

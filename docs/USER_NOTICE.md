@@ -110,6 +110,7 @@ You do not have to join a shared swarm to benefit from this project:
 
 - **Run standalone.** A node with no peers still serves inference from its own GPU. Nothing is
   dispatched anywhere, and nothing is broadcast to anyone.
+- **Contribute as a relay only.** Set `server_mode.relay_only: true` to join and help the network without running inference. No GPU is used, and **other people's prompts never execute on your hardware** — a circuit relay forwards the *encrypted* stream and cannot read it. This removes §4 entirely and most of §3. See [`HUB_MODE.md`](HUB_MODE.md).
 - **Run a private swarm.** Use a key shared only among machines you or your organisation control.
   Every risk above then applies only within a trust boundary you already accept.
 
