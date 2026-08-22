@@ -10,6 +10,34 @@ LXC per GPU, Docker nested inside each container.
 > container from scratch to confirm the procedure end to end. Versions in the tables are
 > observed, not assumed.
 
+---
+
+## ⚡ Where the installer script fits
+
+Unlike the [Ubuntu](../ubuntu/README.md) and [Windows](../windows/README.md) guides, the
+installer **cannot do most of this one**. Sections 1-7 configure the *host* and the *container*
+— host NVIDIA driver, LXC creation, GPU device passthrough, nested Docker — which has to happen
+before there is anywhere for the agent to run.
+
+Once the container is up and `docker run --rm --gpus all ubuntu:24.04 nvidia-smi` works inside
+it (end of §6), [`install.sh`](../../../install.sh) takes over and replaces §7 and §8:
+
+```bash
+# run this INSIDE the LXC container, not on the Proxmox host
+curl -fsSL https://raw.githubusercontent.com/lhu-csie-dclab/yuanyi/main/install.sh -o install.sh
+bash install.sh
+```
+
+It handles the model download, `swarm.key`, ports, build and launch, and manages models and
+uninstall afterwards. For a multi-node cluster, repeat §3-§6 per container and then run the
+installer in each.
+
+> [!WARNING]
+> Do **not** run the installer on the Proxmox host itself. It is meant for the container; the
+> host only needs the driver from §1.
+
+---
+
 ## Why LXC instead of a VM
 
 An LXC container shares the host kernel, so the GPU needs **no VFIO/IOMMU passthrough** and the

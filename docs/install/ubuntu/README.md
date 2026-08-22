@@ -4,6 +4,37 @@ Deploy the Mooncake 2.0 Client Agent on Ubuntu. This is the **primary, productio
 platform** — the benchmark and multi-node results in [`docs/test/`](../../test/) were all
 produced on this path.
 
+---
+
+## ⚡ Quickest route: the installer script
+
+[`install.sh`](../../../install.sh) performs every step in this guide interactively, and
+handles uninstall and model management afterwards. If you just want a working node, this is
+all you need:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lhu-csie-dclab/yuanyi/main/install.sh -o install.sh
+bash install.sh
+```
+
+| Command | What it does |
+| :--- | :--- |
+| `bash install.sh` | Interactive menu |
+| `bash install.sh install` | Install or update |
+| `bash install.sh models` | Download / switch / delete Hugging Face models |
+| `bash install.sh status` | Show what is installed and whether it is running |
+| `bash install.sh uninstall` | Remove it (offers to back up `swarm.key`, asks about models) |
+
+Every prompt has a default — pressing Enter throughout produces a working node. You can
+override the install directory, node role (inference or **relay-only**, which needs no GPU),
+`swarm.key` (paste one to join an existing swarm, or leave blank to generate), all six ports,
+and the model.
+
+**The rest of this document is the manual equivalent.** Read it if you want to understand what
+the script does, customise something it does not prompt for, or troubleshoot.
+
+---
+
 > [!NOTE]
 > Versions in the tables below are from the live 10-node cluster that produced
 > [`MULTI_NODE_CLONE_TEST.md`](../../test/MULTI_NODE_CLONE_TEST.md), not from a fresh install
@@ -43,18 +74,6 @@ nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
 ```
 
 ---
-
-> [!TIP]
-> **Prefer not to do this by hand?** [`install.sh`](../../../install.sh) performs every step
-> below interactively — clone, `swarm.key`, ports, model download, and build — and also
-> handles uninstall and model switching later:
-> ```bash
-> curl -fsSL https://raw.githubusercontent.com/lhu-csie-dclab/yuanyi/main/install.sh -o install.sh
-> bash install.sh
-> ```
-> The manual steps below remain accurate, and are worth reading if you want to understand or
-> customise what the script does.
-
 
 ## 2. Install Git and clone
 
