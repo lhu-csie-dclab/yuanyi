@@ -1,0 +1,682 @@
+#!/usr/bin/env bash
+# Copyright 2026 LHU CSIE DCLAB (yuanyi) Authors.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Mooncake 2.0 Client Agent -- interactive installer and manager for Linux.
+#
+# Handles install, uninstall, and model management (download / switch / delete)
+# from a single menu. Run with no arguments for the menu, or --help for flags.
+#
+#   curl -fsSL https://raw.githubusercontent.com/lhu-csie-dclab/yuanyi/main/install.sh -o install.sh
+#   bash install.sh
+
+set -euo pipefail
+
+REPO_URL="https://github.com/lhu-csie-dclab/yuanyi.git"
+
+# Defaults. Every one of these can be overridden interactively during install.
+DEFAULT_MODEL="Qwen/Qwen3-4B-AWQ"
+DEFAULT_BOOTSTRAP="/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh"
+DEFAULT_WEB_PORT=50007
+DEFAULT_PROXY_PORT=50006
+DEFAULT_VLLM_PORT=8100
+DEFAULT_MOONCAKE_PORT=8998
+DEFAULT_HUB_P2P_PORT=50004
+DEFAULT_HUB_PROXY_PORT=50008
+
+# Install under /opt when run as root, otherwise under the user's home, so the
+# script never needs sudo just to pick a location.
+if [ "$(id -u)" -eq 0 ]; then
+  DEFAULT_INSTALL_DIR="/opt/mooncake-client"
+  DEFAULT_MODEL_DIR="/opt/mooncake-models"
+else
+  DEFAULT_INSTALL_DIR="$HOME/mooncake-client"
+  DEFAULT_MODEL_DIR="$HOME/mooncake-models"
+fi
+
+# State file lets uninstall and model management find a previous install without
+# asking the user to retype the path every time.
+STATE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/mooncake-client/install.conf"
+
+C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
+C_RED=$'\033[31m'; C_GREEN=$'\033[32m'; C_YELLOW=$'\033[33m'; C_CYAN=$'\033[36m'
+
+info()  { printf '%s[*]%s %s\n' "$C_CYAN"  "$C_RESET" "$*"; }
+ok()    { printf '%s[+]%s %s\n' "$C_GREEN" "$C_RESET" "$*"; }
+warn()  { printf '%s[!]%s %s\n' "$C_YELLOW" "$C_RESET" "$*"; }
+err()   { printf '%s[x]%s %s\n' "$C_RED"   "$C_RESET" "$*" >&2; }
+die()   { err "$*"; exit 1; }
+
+heading() {
+  printf '\n%s%s%s\n' "$C_BOLD" "$*" "$C_RESET"
+  printf '%s%s%s\n' "$C_DIM" "$(printf '%.0s-' $(seq 1 ${#1}))" "$C_RESET"
+}
+
+# ----------------------------------------------------------------------------
+# prompts
+# ----------------------------------------------------------------------------
+
+# ask <prompt> <default> -- echoes the answer, or the default when input is empty.
+ask() {
+  local prompt="$1" default="${2:-}" reply
+  if [ -n "$default" ]; then
+    read -r -p "$prompt [$default]: " reply </dev/tty || reply=""
+    printf '%s' "${reply:-$default}"
+  else
+    read -r -p "$prompt: " reply </dev/tty || reply=""
+    printf '%s' "$reply"
+  fi
+}
+
+confirm() {
+  local prompt="$1" reply
+  read -r -p "$prompt [y/N]: " reply </dev/tty || reply=""
+  [[ "$reply" =~ ^[Yy]$ ]]
+}
+
+ask_port() {
+  local prompt="$1" default="$2" value
+  while true; do
+    value="$(ask "$prompt" "$default")"
+    if [[ "$value" =~ ^[0-9]+$ ]] && [ "$value" -ge 1 ] && [ "$value" -le 65535 ]; then
+      printf '%s' "$value"; return 0
+    fi
+    warn "Not a valid port (1-65535): $value"
+  done
+}
+
+# ----------------------------------------------------------------------------
+# state
+# ----------------------------------------------------------------------------
+
+save_state() {
+  mkdir -p "$(dirname "$STATE_FILE")"
+  cat > "$STATE_FILE" <<EOF
+INSTALL_DIR="$INSTALL_DIR"
+MODEL_DIR="$MODEL_DIR"
+EOF
+}
+
+load_state() {
+  INSTALL_DIR="${INSTALL_DIR:-}"
+  MODEL_DIR="${MODEL_DIR:-}"
+  # shellcheck source=/dev/null
+  [ -f "$STATE_FILE" ] && . "$STATE_FILE" || true
+}
+
+# Resolve an existing install, prompting only if the recorded one is gone.
+require_install() {
+  load_state
+  if [ -n "${INSTALL_DIR:-}" ] && [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
+    return 0
+  fi
+  warn "No installation recorded at ${INSTALL_DIR:-<unset>}."
+  INSTALL_DIR="$(ask "Path to the existing installation" "$DEFAULT_INSTALL_DIR")"
+  [ -f "$INSTALL_DIR/docker-compose.yml" ] || die "Not an installation directory: $INSTALL_DIR"
+  MODEL_DIR="${MODEL_DIR:-$DEFAULT_MODEL_DIR}"
+}
+
+# ----------------------------------------------------------------------------
+# prerequisites
+# ----------------------------------------------------------------------------
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+compose() {
+  if docker compose version >/dev/null 2>&1; then
+    docker compose "$@"
+  elif have docker-compose; then
+    docker-compose "$@"
+  else
+    die "Neither 'docker compose' nor 'docker-compose' is available."
+  fi
+}
+
+check_prereqs() {
+  local missing=()
+  have git || missing+=("git")
+  have docker || missing+=("docker")
+  if [ ${#missing[@]} -gt 0 ]; then
+    err "Missing required commands: ${missing[*]}"
+    echo "  Install them first. See docs/install/ubuntu/README.md"
+    return 1
+  fi
+  docker compose version >/dev/null 2>&1 || have docker-compose \
+    || die "Docker Compose plugin not found. See docs/install/ubuntu/README.md"
+
+  if ! docker info >/dev/null 2>&1; then
+    err "Cannot talk to the Docker daemon."
+    echo "  Either start it, or add yourself to the docker group:"
+    echo "    sudo usermod -aG docker \$USER && newgrp docker"
+    return 1
+  fi
+
+  if ! have nvidia-smi; then
+    warn "nvidia-smi not found. Without a GPU this node can only run in relay-only mode."
+  fi
+  return 0
+}
+
+# ----------------------------------------------------------------------------
+# swarm key
+# ----------------------------------------------------------------------------
+
+# libp2p PSK: 7-byte header lines plus 32 random bytes as hex, LF endings, 96 bytes total.
+generate_swarm_key() {
+  local dest="$1" hex
+  if have openssl; then
+    hex="$(openssl rand -hex 32)"
+  else
+    hex="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  fi
+  printf '/key/swarm/psk/1.0.0/\n/base16/\n%s\n' "$hex" > "$dest"
+  chmod 600 "$dest"
+}
+
+validate_swarm_key() {
+  local f="$1"
+  [ -s "$f" ] || return 1
+  head -1 "$f" | grep -q '^/key/swarm/psk/1.0.0/' || return 1
+  [ "$(sed -n '3p' "$f" | tr -d '\r\n' | wc -c)" -eq 64 ] || return 1
+  return 0
+}
+
+setup_swarm_key() {
+  local dest="$INSTALL_DIR/swarm.key"
+
+  if [ -f "$dest" ] && validate_swarm_key "$dest"; then
+    ok "Existing swarm.key kept (sha256: $(sha256sum "$dest" | cut -c1-16)...)"
+    return 0
+  fi
+
+  echo
+  echo "The swarm key (PSK) decides which private network this node joins."
+  echo "  - Joining an existing swarm: paste that swarm's key, it must match exactly."
+  echo "  - Starting a new swarm:      leave blank and one will be generated."
+  echo
+  local path
+  path="$(ask "Path to an existing swarm.key (blank = generate new)" "")"
+
+  if [ -n "$path" ]; then
+    path="${path/#\~/$HOME}"
+    [ -f "$path" ] || die "No such file: $path"
+    validate_swarm_key "$path" || die "Not a valid libp2p swarm.key: $path"
+    install -m 600 "$path" "$dest"
+    ok "swarm.key installed from $path"
+  else
+    generate_swarm_key "$dest"
+    ok "New swarm.key generated."
+    warn "Every node in this swarm needs this exact file. Back it up; it is not recoverable."
+  fi
+  echo "  sha256: $(sha256sum "$dest" | cut -d' ' -f1)"
+}
+
+# ----------------------------------------------------------------------------
+# models
+# ----------------------------------------------------------------------------
+
+# Local directory name for a Hugging Face repo id, e.g. Qwen/Qwen3-4B-AWQ -> Qwen3-4B-AWQ
+model_dirname() { printf '%s' "${1##*/}"; }
+
+list_models() {
+  load_state
+  MODEL_DIR="${MODEL_DIR:-$DEFAULT_MODEL_DIR}"
+  if [ ! -d "$MODEL_DIR" ] || [ -z "$(ls -A "$MODEL_DIR" 2>/dev/null)" ]; then
+    echo "  (no models in $MODEL_DIR)"
+    return 1
+  fi
+  local current=""
+  [ -n "${INSTALL_DIR:-}" ] && [ -f "$INSTALL_DIR/.env" ] &&
+    current="$(grep -E '^ABS_MODEL_PATH=' "$INSTALL_DIR/.env" 2>/dev/null | cut -d= -f2- || true)"
+
+  local i=1 d
+  for d in "$MODEL_DIR"/*/; do
+    [ -d "$d" ] || continue
+    d="${d%/}"
+    local mark="  "
+    [ "$d" = "$current" ] && mark="${C_GREEN}->${C_RESET}"
+    printf '  %s %2d) %-40s %s\n' "$mark" "$i" "$(basename "$d")" "$(du -sh "$d" 2>/dev/null | cut -f1)"
+    i=$((i+1))
+  done
+  return 0
+}
+
+# Echoes the path of the model directory chosen by number, or empty.
+pick_model() {
+  local dirs=() d
+  for d in "$MODEL_DIR"/*/; do [ -d "$d" ] && dirs+=("${d%/}"); done
+  [ ${#dirs[@]} -gt 0 ] || return 1
+  local n
+  n="$(ask "Number" "")"
+  [[ "$n" =~ ^[0-9]+$ ]] || return 1
+  [ "$n" -ge 1 ] && [ "$n" -le ${#dirs[@]} ] || return 1
+  printf '%s' "${dirs[$((n-1))]}"
+}
+
+download_model() {
+  load_state
+  MODEL_DIR="${MODEL_DIR:-$DEFAULT_MODEL_DIR}"
+  mkdir -p "$MODEL_DIR"
+
+  echo
+  echo "Enter any Hugging Face repo id, for example:"
+  echo "    Qwen/Qwen3-4B-AWQ            Qwen/Qwen2.5-7B-Instruct-AWQ"
+  echo "    meta-llama/Llama-3.1-8B      mistralai/Mistral-7B-Instruct-v0.3"
+  echo
+  local repo dest
+  repo="$(ask "Model repo id" "$DEFAULT_MODEL")"
+  [ -n "$repo" ] || { warn "Cancelled."; return 1; }
+  if [[ ! "$repo" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; then
+    err "That does not look like a repo id (expected 'owner/name'): $repo"
+    return 1
+  fi
+
+  dest="$MODEL_DIR/$(model_dirname "$repo")"
+  if [ -d "$dest" ] && [ -n "$(ls -A "$dest" 2>/dev/null)" ]; then
+    warn "Already present: $dest"
+    confirm "Re-download (existing directory will be replaced)?" || return 0
+    rm -rf "$dest"
+  fi
+
+  info "Downloading $repo -> $dest"
+  # Prefer the HF CLI: it resumes, and avoids the duplicate .git objects that make a
+  # git clone roughly twice the on-disk size of the weights.
+  if have huggingface-cli; then
+    huggingface-cli download "$repo" --local-dir "$dest" || { rm -rf "$dest"; die "Download failed."; }
+  elif have hf; then
+    hf download "$repo" --local-dir "$dest" || { rm -rf "$dest"; die "Download failed."; }
+  else
+    have git-lfs || have git lfs >/dev/null 2>&1 || warn "git-lfs not found; weights may download as pointer files."
+    git lfs install --skip-repo >/dev/null 2>&1 || true
+    git clone "https://huggingface.co/$repo" "$dest" || { rm -rf "$dest"; die "Clone failed."; }
+    warn "Downloaded via git. Install 'huggingface-cli' to avoid the extra .git copy."
+  fi
+
+  ok "Model ready: $dest ($(du -sh "$dest" 2>/dev/null | cut -f1))"
+  if [ -n "${INSTALL_DIR:-}" ] && [ -f "$INSTALL_DIR/.env" ]; then
+    confirm "Make this the active model now?" && apply_model "$dest" "$repo"
+  fi
+}
+
+# apply_model <dir> <repo-id-or-name> -- points .env and config.json at a model.
+apply_model() {
+  local dir="$1" name="${2:-}"
+  [ -n "$name" ] || name="$(basename "$dir")"
+  local served="$(model_dirname "$name")"
+
+  sed -i "s|^ABS_MODEL_PATH=.*|ABS_MODEL_PATH=$dir|" "$INSTALL_DIR/.env"
+  if [ -f "$INSTALL_DIR/config.json" ]; then
+    sed -i "s|\"model_name\"[[:space:]]*:[[:space:]]*\"[^\"]*\"|\"model_name\": \"$served\"|" "$INSTALL_DIR/config.json"
+  fi
+  ok "Active model set to $served ($dir)"
+
+  if container_running; then
+    confirm "Restart the node so the change takes effect?" && restart_stack
+  fi
+}
+
+switch_model() {
+  require_install
+  heading "Available models"
+  list_models || { warn "Download one first."; return 1; }
+  local d
+  d="$(pick_model)" || { warn "Cancelled."; return 1; }
+  apply_model "$d"
+}
+
+delete_model() {
+  require_install
+  heading "Available models"
+  list_models || return 1
+  local d
+  d="$(pick_model)" || { warn "Cancelled."; return 1; }
+
+  local current=""
+  [ -f "$INSTALL_DIR/.env" ] &&
+    current="$(grep -E '^ABS_MODEL_PATH=' "$INSTALL_DIR/.env" | cut -d= -f2- || true)"
+  if [ "$d" = "$current" ]; then
+    warn "That is the model currently in use. The node will not start until another is selected."
+  fi
+
+  echo "About to delete: $d ($(du -sh "$d" 2>/dev/null | cut -f1))"
+  confirm "Delete permanently?" || { info "Cancelled."; return 0; }
+  rm -rf "$d"
+  ok "Deleted $d"
+}
+
+# ----------------------------------------------------------------------------
+# install / uninstall
+# ----------------------------------------------------------------------------
+
+container_running() {
+  [ -n "${INSTALL_DIR:-}" ] && [ -f "$INSTALL_DIR/docker-compose.yml" ] || return 1
+  ( cd "$INSTALL_DIR" && compose ps --status running 2>/dev/null | grep -q mooncake )
+}
+
+restart_stack() {
+  ( cd "$INSTALL_DIR" && compose down >/dev/null 2>&1 || true; compose up -d )
+  ok "Node restarted."
+}
+
+write_env() {
+  cat > "$INSTALL_DIR/.env" <<EOF
+# Generated by install.sh on $(date -Iseconds)
+ABS_MODEL_PATH=$MODEL_PATH
+SERVER_ADDRESS=$BOOTSTRAP
+IFACE=$IFACE
+CLIENT_WEB_PORT=$WEB_PORT
+EOF
+}
+
+# Emitted without the "//" comments the shipped template carries; the loader strips
+# those anyway, and comment-free output is far safer to rewrite with sed later.
+write_config() {
+  cat > "$INSTALL_DIR/config.json" <<EOF
+{
+  "version": "1.0",
+  "web_port": $WEB_PORT,
+  "proxy_port": $PROXY_PORT,
+  "p2p": {
+    "server_address": "$BOOTSTRAP",
+    "server_addresses": []
+  },
+  "docker": {
+    "container_name": "vllm_node",
+    "image": "vllm-runtime-mooncake:latest",
+    "network": "host",
+    "shm_size": "16gb",
+    "iface": "$IFACE"
+  },
+  "paths": {
+    "config_path": "/app/config.json",
+    "model_path": "/data/model",
+    "mooncake_path": "/data/mooncake.json"
+  },
+  "vllm": {
+    "model_name": "$MODEL_NAME",
+    "max_model_len": 8192,
+    "gpu_memory_utilization": $GPU_UTIL,
+    "port": $VLLM_PORT,
+    "tensor_parallel_size": 1,
+    "dtype": "float16",
+    "kv_role": "kv_both",
+    "mooncake_bootstrap_port": $MOONCAKE_PORT,
+    "mooncake_abort_request_timeout": 15,
+    "attention_backend": "FLASH_ATTN",
+    "placement_group_bundle_strategy": "SPREAD"
+  },
+  "server_mode": {
+    "enabled": $HUB_ENABLED,
+    "relay_only": $RELAY_ONLY,
+    "p2p_port": $HUB_P2P_PORT,
+    "proxy_port": $HUB_PROXY_PORT,
+    "database_path": "./peers.db",
+    "max_fail_count": 3,
+    "check_interval_sec": 30,
+    "cluster": {
+      "prefill_nodes": 0,
+      "decode_nodes": 0
+    }
+  }
+}
+EOF
+}
+
+do_install() {
+  heading "Install Mooncake 2.0 Client Agent"
+  check_prereqs || return 1
+
+  load_state
+  INSTALL_DIR="$(ask "Install directory" "${INSTALL_DIR:-$DEFAULT_INSTALL_DIR}")"
+  INSTALL_DIR="${INSTALL_DIR/#\~/$HOME}"
+
+  if [ -e "$INSTALL_DIR" ] && [ -n "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]; then
+    if [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
+      warn "An installation already exists at $INSTALL_DIR"
+      confirm "Update it in place (config and swarm.key are preserved)?" || return 0
+      ( cd "$INSTALL_DIR" && git pull --ff-only ) || warn "git pull failed; continuing with the existing checkout."
+    else
+      die "$INSTALL_DIR exists and is not empty, and is not an installation. Choose another path."
+    fi
+  else
+    info "Cloning $REPO_URL"
+    git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
+  fi
+
+  # --- node role -----------------------------------------------------------
+  echo
+  echo "How should this node contribute?"
+  echo "  1) Inference node  - runs a local GPU engine and serves requests (needs an NVIDIA GPU)"
+  echo "  2) Relay only      - contributes network relaying, no GPU required"
+  local role
+  role="$(ask "Choice" "1")"
+  if [ "$role" = "2" ]; then
+    RELAY_ONLY=true; HUB_ENABLED=true
+    info "Relay-only: no model is needed and no local engine will start."
+  else
+    RELAY_ONLY=false
+    HUB_ENABLED=false
+    confirm "Also run hub services (peer database, scoring, topology API)?" && HUB_ENABLED=true
+  fi
+
+  # --- swarm key -----------------------------------------------------------
+  setup_swarm_key
+
+  # --- network -------------------------------------------------------------
+  echo
+  BOOTSTRAP="$(ask "Bootstrap peer multiaddress (blank = start a new swarm)" "$DEFAULT_BOOTSTRAP")"
+  local detected; detected="$(ip -o -4 route show to default 2>/dev/null | awk '{print $5}' | head -1)"
+  IFACE="$(ask "Network interface" "${detected:-eth0}")"
+
+  # --- ports ---------------------------------------------------------------
+  echo
+  if confirm "Use default ports (web $DEFAULT_WEB_PORT, gateway $DEFAULT_PROXY_PORT, vLLM $DEFAULT_VLLM_PORT)?"; then
+    WEB_PORT=$DEFAULT_WEB_PORT; PROXY_PORT=$DEFAULT_PROXY_PORT
+    VLLM_PORT=$DEFAULT_VLLM_PORT; MOONCAKE_PORT=$DEFAULT_MOONCAKE_PORT
+    HUB_P2P_PORT=$DEFAULT_HUB_P2P_PORT; HUB_PROXY_PORT=$DEFAULT_HUB_PROXY_PORT
+  else
+    WEB_PORT="$(ask_port "Web dashboard port" "$DEFAULT_WEB_PORT")"
+    PROXY_PORT="$(ask_port "OpenAI gateway port" "$DEFAULT_PROXY_PORT")"
+    VLLM_PORT="$(ask_port "vLLM engine port" "$DEFAULT_VLLM_PORT")"
+    MOONCAKE_PORT="$(ask_port "Mooncake KV bootstrap port" "$DEFAULT_MOONCAKE_PORT")"
+    HUB_P2P_PORT="$(ask_port "libp2p listen port" "$DEFAULT_HUB_P2P_PORT")"
+    HUB_PROXY_PORT="$(ask_port "Hub dispatcher port" "$DEFAULT_HUB_PROXY_PORT")"
+  fi
+
+  # --- model ---------------------------------------------------------------
+  MODEL_DIR="${MODEL_DIR:-$DEFAULT_MODEL_DIR}"
+  MODEL_NAME="$DEFAULT_MODEL"
+  MODEL_PATH="$MODEL_DIR/$(model_dirname "$DEFAULT_MODEL")"
+  GPU_UTIL="0.75"
+
+  if [ "$RELAY_ONLY" = "true" ]; then
+    mkdir -p "$MODEL_PATH"   # keeps the compose bind mount valid without weights
+  else
+    echo
+    MODEL_DIR="$(ask "Model storage directory" "$MODEL_DIR")"
+    MODEL_DIR="${MODEL_DIR/#\~/$HOME}"
+    mkdir -p "$MODEL_DIR"
+
+    local repo
+    repo="$(ask "Hugging Face model to use" "$DEFAULT_MODEL")"
+    MODEL_NAME="$(model_dirname "$repo")"
+    MODEL_PATH="$MODEL_DIR/$MODEL_NAME"
+    GPU_UTIL="$(ask "GPU memory utilization (fraction of TOTAL VRAM)" "0.75")"
+
+    if [ -d "$MODEL_PATH" ] && [ -n "$(ls -A "$MODEL_PATH" 2>/dev/null)" ]; then
+      ok "Model already present: $MODEL_PATH"
+    else
+      info "Downloading $repo (this can take a while)"
+      mkdir -p "$MODEL_PATH"
+      if have huggingface-cli; then
+        huggingface-cli download "$repo" --local-dir "$MODEL_PATH" || die "Model download failed."
+      elif have hf; then
+        hf download "$repo" --local-dir "$MODEL_PATH" || die "Model download failed."
+      else
+        rmdir "$MODEL_PATH" 2>/dev/null || true
+        git lfs install --skip-repo >/dev/null 2>&1 || true
+        git clone "https://huggingface.co/$repo" "$MODEL_PATH" || die "Model download failed."
+      fi
+      ok "Model ready ($(du -sh "$MODEL_PATH" 2>/dev/null | cut -f1))"
+    fi
+  fi
+
+  write_env
+  write_config
+  save_state
+
+  echo
+  info "Building and starting (first build pulls several GB)"
+  ( cd "$INSTALL_DIR" && compose up -d --build ) || die "Build/start failed. Check 'docker compose logs' in $INSTALL_DIR"
+
+  heading "Installed"
+  echo "  Directory : $INSTALL_DIR"
+  echo "  Models    : $MODEL_DIR"
+  echo "  Dashboard : http://localhost:$WEB_PORT"
+  echo "  Gateway   : http://localhost:$PROXY_PORT/v1/chat/completions"
+  [ "$RELAY_ONLY" = "true" ] && echo "  Role      : relay-only (no local inference)"
+  echo
+  echo "  Logs   : cd $INSTALL_DIR && docker compose logs -f"
+  echo "  Manage : bash $0"
+  echo
+  warn "Model load takes ~1-2 minutes before the gateway answers."
+}
+
+do_uninstall() {
+  heading "Uninstall"
+  require_install
+
+  echo "This will remove the installation at:"
+  echo "    $INSTALL_DIR"
+  echo
+  confirm "Continue?" || { info "Cancelled."; return 0; }
+
+  if [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
+    info "Stopping containers"
+    ( cd "$INSTALL_DIR" && compose down -v ) || warn "Could not stop cleanly; continuing."
+  fi
+
+  # swarm.key is unrecoverable and shared by the whole swarm, so back it up unless
+  # the operator explicitly says otherwise.
+  if [ -f "$INSTALL_DIR/swarm.key" ]; then
+    if confirm "Back up swarm.key before deleting?"; then
+      local backup="$HOME/swarm.key.backup-$(date +%Y%m%d-%H%M%S)"
+      install -m 600 "$INSTALL_DIR/swarm.key" "$backup"
+      ok "Saved to $backup"
+    else
+      warn "swarm.key will be destroyed. Nodes sharing it cannot be rejoined without it."
+    fi
+  fi
+
+  rm -rf "$INSTALL_DIR"
+  ok "Removed $INSTALL_DIR"
+
+  if [ -d "${MODEL_DIR:-}" ] && [ -n "$(ls -A "$MODEL_DIR" 2>/dev/null)" ]; then
+    echo
+    echo "Models are stored separately at $MODEL_DIR ($(du -sh "$MODEL_DIR" 2>/dev/null | cut -f1))"
+    if confirm "Delete downloaded models too?"; then
+      rm -rf "$MODEL_DIR"; ok "Removed $MODEL_DIR"
+    else
+      info "Kept $MODEL_DIR"
+    fi
+  fi
+
+  rm -f "$STATE_FILE"
+  echo
+  ok "Uninstalled."
+  echo "  Docker images were left in place. To reclaim that space: docker image prune -a"
+}
+
+do_status() {
+  heading "Status"
+  load_state
+  if [ -z "${INSTALL_DIR:-}" ] || [ ! -f "$INSTALL_DIR/docker-compose.yml" ]; then
+    echo "  Not installed."
+    return 0
+  fi
+  echo "  Directory : $INSTALL_DIR"
+  [ -f "$INSTALL_DIR/.env" ] && {
+    echo "  Model     : $(grep -E '^ABS_MODEL_PATH=' "$INSTALL_DIR/.env" | cut -d= -f2-)"
+    echo "  Web port  : $(grep -E '^CLIENT_WEB_PORT=' "$INSTALL_DIR/.env" | cut -d= -f2-)"
+  }
+  [ -f "$INSTALL_DIR/swarm.key" ] &&
+    echo "  Key       : sha256 $(sha256sum "$INSTALL_DIR/swarm.key" | cut -c1-16)..."
+  echo -n "  Container : "
+  if container_running; then printf '%srunning%s\n' "$C_GREEN" "$C_RESET"; else printf '%sstopped%s\n' "$C_YELLOW" "$C_RESET"; fi
+
+  local wp; wp="$(grep -E '^CLIENT_WEB_PORT=' "$INSTALL_DIR/.env" 2>/dev/null | cut -d= -f2- || echo "$DEFAULT_WEB_PORT")"
+  if have curl && curl -fsS -m 3 "http://127.0.0.1:$wp/api/node_info" >/dev/null 2>&1; then
+    echo "  Dashboard : responding on http://localhost:$wp"
+  fi
+}
+
+models_menu() {
+  while true; do
+    heading "Models"
+    load_state; MODEL_DIR="${MODEL_DIR:-$DEFAULT_MODEL_DIR}"
+    list_models || true
+    echo
+    echo "  1) Download a model from Hugging Face"
+    echo "  2) Switch active model"
+    echo "  3) Delete a model"
+    echo "  4) Back"
+    case "$(ask "Choice" "4")" in
+      1) download_model || true ;;
+      2) switch_model   || true ;;
+      3) delete_model   || true ;;
+      *) return 0 ;;
+    esac
+  done
+}
+
+usage() {
+  cat <<EOF
+Mooncake 2.0 Client Agent -- installer and manager
+
+  bash $0             interactive menu
+  bash $0 install     install / update
+  bash $0 uninstall   remove this installation
+  bash $0 models      manage models
+  bash $0 status      show current state
+  bash $0 --help      this message
+
+Defaults: install ${DEFAULT_INSTALL_DIR}, models ${DEFAULT_MODEL_DIR},
+dashboard ${DEFAULT_WEB_PORT}, gateway ${DEFAULT_PROXY_PORT}. All are prompted with
+these as defaults, so pressing Enter accepts them.
+EOF
+}
+
+main_menu() {
+  while true; do
+    heading "Mooncake 2.0 Client Agent"
+    load_state
+    if [ -n "${INSTALL_DIR:-}" ] && [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
+      echo "  Installed at $INSTALL_DIR"
+    else
+      echo "  Not installed."
+    fi
+    echo
+    echo "  1) Install / update"
+    echo "  2) Manage models (download / switch / delete)"
+    echo "  3) Status"
+    echo "  4) Uninstall"
+    echo "  5) Exit"
+    case "$(ask "Choice" "5")" in
+      1) do_install   || true ;;
+      2) models_menu  || true ;;
+      3) do_status    || true ;;
+      4) do_uninstall || true ;;
+      *) exit 0 ;;
+    esac
+  done
+}
+
+case "${1:-}" in
+  install)          do_install ;;
+  uninstall)        do_uninstall ;;
+  models)           models_menu ;;
+  status)           do_status ;;
+  -h|--help|help)   usage ;;
+  "")               main_menu ;;
+  *)                err "Unknown command: $1"; echo; usage; exit 1 ;;
+esac

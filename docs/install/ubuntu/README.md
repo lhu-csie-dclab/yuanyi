@@ -44,6 +44,18 @@ nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
 
 ---
 
+> [!TIP]
+> **Prefer not to do this by hand?** [`install.sh`](../../../install.sh) performs every step
+> below interactively — clone, `swarm.key`, ports, model download, and build — and also
+> handles uninstall and model switching later:
+> ```bash
+> curl -fsSL https://raw.githubusercontent.com/lhu-csie-dclab/yuanyi/main/install.sh -o install.sh
+> bash install.sh
+> ```
+> The manual steps below remain accurate, and are worth reading if you want to understand or
+> customise what the script does.
+
+
 ## 2. Install Git and clone
 
 ```bash

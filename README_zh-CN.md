@@ -163,6 +163,40 @@ flowchart TB
 
 ---
 
+## ⚡ 一行命令安装 (Linux)
+
+`install.sh` 用交互菜单涵盖完整生命周期——安装、卸载、模型管理——除非你想手动操作，
+否则不需要照着下面的步骤一步步做。
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lhu-csie-dclab/yuanyi/main/install.sh -o install.sh
+bash install.sh
+```
+
+每一项都会询问，并附上合理的默认值（直接按 Enter 就是接受默认）：
+
+| 询问项目 | 默认值 |
+| :--- | :--- |
+| 安装目录 | root 身份为 `/opt/mooncake-client`，否则 `~/mooncake-client` |
+| 节点角色 | 推理节点，或**纯中继站**（不需要显卡） |
+| `swarm.key` | 粘贴既有密钥以加入现有 Swarm，或**留空自动生成新的** |
+| 模型 | 任何 Hugging Face repo id，例如 `Qwen/Qwen3-4B-AWQ` |
+| 端口 | `50007` 网页、`50006` 网关、`8100` vLLM —— 也可自定义 |
+
+模型管理随时都能从同一个脚本进入：
+
+```bash
+bash install.sh models     # 下载 / 更换 / 删除模型
+bash install.sh status     # 查看安装状态与是否正在运行
+bash install.sh uninstall  # 卸载（会询问是否备份 swarm.key、是否保留模型）
+```
+
+> [!NOTE]
+> 卸载**只会删除它自己创建的目录**。它会先询问是否备份 `swarm.key`（这把密钥无法恢复，
+> 而且整个 Swarm 共用），并且**另外分开询问**是否删除已下载的模型——模型存放在安装目录之外。
+
+---
+
 ## 🛠️ 环境准备与安装步骤 (Prerequisites)
 
 ### 1. Git 安装与项目克隆
