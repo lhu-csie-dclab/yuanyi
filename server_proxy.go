@@ -98,6 +98,21 @@ func (p *ProxyServer) reloadBackendsFromDB() {
 	decodeCount := p.app.Config.ServerMode.Cluster.DecodeNodes
 	isPDTogether := prefillCount == 0 && decodeCount == 0
 
+	// Relay-only peers run no vLLM, so they must never become inference backends --
+	// dispatching to them would always fail. Filter before the prefill/decode split so
+	// the P/D counts describe usable capacity rather than being padded with relays.
+	var usable []PeerData
+	for _, p := range peers {
+		if p.Role == RoleRelay {
+			continue
+		}
+		usable = append(usable, p)
+	}
+	peers = usable
+	if len(peers) == 0 {
+		return
+	}
+
 	var newPrefill, newDecode []*Backend
 	for i, peerData := range peers {
 		pid, err := peer.Decode(peerData.PeerID)

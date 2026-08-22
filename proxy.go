@@ -58,7 +58,12 @@ func NewLocalDispatcher(app *App, h host.Host) *LocalDispatcher {
 		host:     h,
 		topology: ClusterTopologyResponse{IsPDTogether: true}, // 預設採用 PD-Together 混和模式
 	}
-	go d.startVLLMHealthChecker() // 背景輪詢等待本機 vLLM 就緒
+	// A relay-only node has no local vLLM to wait for, so polling would log a failure
+	// every few seconds forever. Leaving vllmReady false is exactly right: the dispatcher
+	// then always routes to peers that do have GPUs.
+	if !app.Config.ServerMode.RelayOnly {
+		go d.startVLLMHealthChecker() // 背景輪詢等待本機 vLLM 就緒
+	}
 	return d
 }
 
@@ -499,9 +504,16 @@ func (d *LocalDispatcher) handleProxyRequest(w http.ResponseWriter, r *http.Requ
 		knownPeers := d.app.TUI.GetPeers()
 		var peerIDs []string
 		for _, p := range knownPeers {
-			if p.NodeID != "" && p.NodeID != d.host.ID().String() {
-				peerIDs = append(peerIDs, p.NodeID)
+			if p.NodeID == "" || p.NodeID == d.host.ID().String() {
+				continue
 			}
+			// Relay-only peers contribute network capacity, not GPU capacity -- they run
+			// no vLLM, so dispatching inference to them would always fail. Any other value
+			// (including empty, sent by older builds) means the peer does serve inference.
+			if p.Role == RoleRelay {
+				continue
+			}
+			peerIDs = append(peerIDs, p.NodeID)
 		}
 
 		// 步驟 1: 只有在本機 vLLM 就緒「且目前沒有其他請求正在使用本機」時才走本機直通。

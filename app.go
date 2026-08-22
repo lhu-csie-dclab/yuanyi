@@ -56,7 +56,16 @@ func (a *App) Start(ctx context.Context) error {
 		return fmt.Errorf("P2P start failed: %w", err)
 	}
 
-	go a.Runner.Start(ctx)
+	// A relay-only node contributes network capacity rather than GPU capacity, so it never
+	// starts Ray/vLLM -- that is what lets it run on a machine with no GPU at all. Its
+	// gateway still runs (see proxy.go): requests sent to it are forwarded to peers that
+	// do have GPUs, so the operator can still use the swarm.
+	if a.Config.ServerMode.RelayOnly {
+		a.TUI.AddVLLMLog("[System] Relay-only mode: skipping local Ray/vLLM startup (no GPU required).")
+		a.TUI.AddLog("[INFO]", "Relay-only mode: relaying + hub services only; no local inference is served.")
+	} else {
+		go a.Runner.Start(ctx)
+	}
 	go StartClientWebDashboard(a)
 
 	if a.Config.ServerMode.Enabled && a.DB != nil {

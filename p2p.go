@@ -33,6 +33,13 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
+// Node roles advertised in GPUInfo.Role. RoleInference is the zero value on purpose:
+// nodes running older builds omit the field entirely, and those nodes do serve inference.
+const (
+	RoleInference = "" // serves inference from a local GPU (default)
+	RoleRelay     = "relay"
+)
+
 const GPUProtocolID = "/gpu-service/1.0.0"
 const ProxyProtocolID = "/mooncake-proxy/1.0.0"
 
@@ -50,8 +57,13 @@ type GPUEntry struct {
 
 // GPUInfo describes the telemetry and capacity payload broadcast across the P2P mesh.
 type GPUInfo struct {
-	NodeID        string `json:"node_id"`
-	Addr          string `json:"addr"`
+	NodeID string `json:"node_id"`
+	Addr   string `json:"addr"`
+	// Role advertises what this node contributes. RoleRelay means the node provides
+	// network relaying but has no local inference engine, so peers must not dispatch
+	// inference to it. An empty value means RoleInference: nodes running older builds
+	// omit the field, and they do serve inference, so empty must keep meaning "usable".
+	Role          string `json:"role,omitempty"`
 	Status        string `json:"status"`
 	Timestamp     int64  `json:"timestamp"`
 	Summary       string `json:"summary"`
@@ -519,9 +531,17 @@ func (n *NetworkNode) gossipPublisher(ctx context.Context, topic *pubsub.Topic) 
 			outTok, _ := localStats["out_tokens"].(int64)
 			totReq, _ := localStats["total_requests"].(int64)
 
+			// Relay-only nodes advertise themselves so peers exclude them when choosing
+			// where to dispatch inference; they contribute relaying, not GPU capacity.
+			role := RoleInference
+			if n.app.Config.ServerMode.RelayOnly {
+				role = RoleRelay
+			}
+
 			info := GPUInfo{
 				NodeID:        n.host.ID().String(),
 				Addr:          addr,
+				Role:          role,
 				Status:        "idle",
 				Timestamp:     time.Now().Unix(),
 				Summary:       summary,

@@ -65,7 +65,17 @@ type ServerModeClusterConfig struct {
 // it is mounted at /hub/ on the client's own web_port (see RegisterHubRoutes in
 // server_web.go).
 type ServerModeConfig struct {
-	Enabled          bool                    `json:"enabled"`
+	Enabled bool `json:"enabled"`
+	// RelayOnly makes this node contribute network capacity instead of GPU capacity:
+	// it joins the swarm, provides the libp2p Circuit Relay service so NAT'd peers can
+	// reach each other, and runs the hub services -- but never starts a local vLLM and
+	// never accepts inference work from other nodes. Its own gateway still works: requests
+	// sent to it are forwarded to peers that do have GPUs, so a machine with no GPU can
+	// still both use and contribute to the swarm.
+	//
+	// Enabling this implies Enabled, since relaying and hub duties share the same host
+	// configuration. LoadOrCreateConfig sets Enabled automatically.
+	RelayOnly        bool                    `json:"relay_only"`
 	P2PPort          int                     `json:"p2p_port"`
 	ProxyPort        int                     `json:"proxy_port"`
 	DatabasePath     string                  `json:"database_path"`
@@ -121,6 +131,7 @@ const defaultClientConfigStr = `{
   },
   "server_mode": {
     "enabled": false,
+    "relay_only": false,
     "p2p_port": 50004,
     "proxy_port": 50008,
     "database_path": "./peers.db",
@@ -232,6 +243,13 @@ func applyServerModeDefaults(cfg *ClientConfig) {
 	}
 	if cfg.ServerMode.DatabasePath == "" {
 		cfg.ServerMode.DatabasePath = "./peers.db"
+	}
+
+	// Relay-only nodes still need the hub subsystems (peer database, relay listener,
+	// topology API), so treat relay_only as implying enabled rather than making the
+	// operator set two flags and silently doing nothing if they set only one.
+	if cfg.ServerMode.RelayOnly && !cfg.ServerMode.Enabled {
+		cfg.ServerMode.Enabled = true
 	}
 
 	used := map[int]bool{cfg.WebPort: true, cfg.ProxyPort: true, cfg.VLLM.Port: true, cfg.VLLM.MooncakeBootstrapPort: true}
