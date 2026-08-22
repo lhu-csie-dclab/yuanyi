@@ -33,7 +33,7 @@ type PeerData struct {
 	OutTokens         int64   `json:"out_tokens"`
 	ContributionScore float64 `json:"contribution_score"`
 	// Role mirrors GPUInfo.Role; "relay" means the peer serves no inference (see p2p.go).
-	Role              string  `json:"role"`
+	Role string `json:"role"`
 }
 
 // PeerEvent is a single row of the peer_events audit table.
