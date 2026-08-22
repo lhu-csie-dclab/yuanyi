@@ -170,6 +170,41 @@ Available port mapping referenced across the system (`config.json`, `.env`, Pyth
 
 ---
 
+## ⚡ One-Command Install (Linux)
+
+`install.sh` handles the whole lifecycle interactively — install, uninstall, and model
+management — so you do not have to follow the manual steps below unless you want to.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lhu-csie-dclab/yuanyi/main/install.sh -o install.sh
+bash install.sh
+```
+
+It prompts for everything with sensible defaults (press Enter to accept):
+
+| Prompt | Default |
+| :--- | :--- |
+| Install directory | `/opt/mooncake-client` as root, else `~/mooncake-client` |
+| Node role | Inference node, or **relay-only** (no GPU required) |
+| `swarm.key` | Paste an existing key to join a swarm, or leave blank to **generate a new one** |
+| Model | Any Hugging Face repo id, e.g. `Qwen/Qwen3-4B-AWQ` |
+| Ports | `50007` web, `50006` gateway, `8100` vLLM — or set your own |
+
+Model management is available any time from the same script:
+
+```bash
+bash install.sh models     # download / switch / delete models
+bash install.sh status     # what is installed and whether it is running
+bash install.sh uninstall  # remove (offers to back up swarm.key and keep models)
+```
+
+> [!NOTE]
+> Uninstall only removes the directory it created. It offers to back up `swarm.key` first —
+> that key is unrecoverable and shared by the whole swarm — and asks separately before
+> deleting downloaded models, which live outside the install directory.
+
+---
+
 ## 🛠️ Prerequisites & Installation Guide
 
 ### 1. Git Installation & Repository Cloning
