@@ -254,6 +254,24 @@ func (d *LocalDispatcher) streamToPeerDirect(ctx context.Context, w http.Respons
 	}
 	defer resp.Body.Close()
 
+	// 遠端節點回 5xx 代表「這台不能服務」（最常見的是它自己的 vLLM 掛了，proxy handler
+	// 回 502 Failed to reach local port 8100），而不是這個請求本身有問題。此時必須當成
+	// 這次嘗試失敗、讓外層換下一個節點重試——絕不能把它 pipe 給客戶端。
+	//
+	// 少了這道判斷，「傳輸成功」就被當成「請求成功」：一台 vLLM 掛掉但 client 還活著的
+	// 節點會持續留在 round-robin 名單中，穩定污染約 1/N 的請求，而既有的重試機制完全使
+	// 不上力，因為 libp2p 這層從頭到尾都是成功的。實測（6 個推理節點、其中 1 台 vLLM
+	// 掛掉）錯誤率 55/300 = 18.3%，恰好接近 1/6。
+	//
+	// 只對 5xx 換節點。4xx 是請求本身的問題（例如模型名稱錯誤），換哪台都一樣會失敗，
+	// 原樣回給客戶端才是正確的。
+	if resp.StatusCode >= 500 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		d.app.TUI.AddLog("[WARN]", fmt.Sprintf("P2P 遠端節點 %s.. 回傳 %d，改試其他節點: %s",
+			peerIDStr[:8], resp.StatusCode, strings.TrimSpace(string(body))))
+		return false
+	}
+
 	// 原封不動地複製所有 Response Headers (包含 Content-Type: text/event-stream 等)
 	for k, vv := range resp.Header {
 		for _, v := range vv {
