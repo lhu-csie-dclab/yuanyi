@@ -209,11 +209,18 @@ func (d *LocalDispatcher) streamToPeer(ctx context.Context, peerIDStr string, pa
 func (d *LocalDispatcher) streamToPeerDirect(ctx context.Context, w http.ResponseWriter, peerIDStr string, path string, reqBytes []byte) bool {
 	pid, err := peer.Decode(peerIDStr)
 	if err != nil {
+		d.app.TUI.AddLog("[WARN]", fmt.Sprintf("P2P 遠端節點 %s.. peer.Decode 失敗: %v", peerIDStr[:8], err))
 		return false
 	}
 
 	stream, err := d.host.NewStream(ctx, pid, ProxyProtocolID)
 	if err != nil {
+		addrs := d.host.Peerstore().Addrs(pid)
+		addrStrs := make([]string, len(addrs))
+		for i, a := range addrs {
+			addrStrs[i] = a.String()
+		}
+		d.app.TUI.AddLog("[WARN]", fmt.Sprintf("P2P 遠端節點 %s.. NewStream 失敗 (已知位址: %v): %+v", peerIDStr[:8], addrStrs, err))
 		return false
 	}
 	defer stream.Close()
@@ -224,6 +231,7 @@ func (d *LocalDispatcher) streamToPeerDirect(ctx context.Context, w http.Respons
 	}
 
 	if err := binary.Write(stream, binary.BigEndian, uint16(vllmPort)); err != nil {
+		d.app.TUI.AddLog("[WARN]", fmt.Sprintf("P2P 遠端節點 %s.. 寫入目標埠失敗: %v", peerIDStr[:8], err))
 		return false
 	}
 
@@ -235,11 +243,13 @@ func (d *LocalDispatcher) streamToPeerDirect(ctx context.Context, w http.Respons
 	req.Host = fmt.Sprintf("127.0.0.1:%d", vllmPort)
 
 	if err := req.Write(stream); err != nil {
+		d.app.TUI.AddLog("[WARN]", fmt.Sprintf("P2P 遠端節點 %s.. 寫入請求失敗: %v", peerIDStr[:8], err))
 		return false
 	}
 
 	resp, err := http.ReadResponse(bufio.NewReader(stream), req)
 	if err != nil {
+		d.app.TUI.AddLog("[WARN]", fmt.Sprintf("P2P 遠端節點 %s.. 讀取回應失敗: %v", peerIDStr[:8], err))
 		return false
 	}
 	defer resp.Body.Close()
@@ -628,13 +638,12 @@ func (d *LocalDispatcher) handleProxyRequest(w http.ResponseWriter, r *http.Requ
 				targetPeerID := peerIDs[d.decodeIndex]
 				d.mu.Unlock()
 
-				// 檢查遠端位址，過濾私有不可達 IP
-				if pid, pErr := peer.Decode(targetPeerID); pErr == nil {
-					if len(d.host.Peerstore().Addrs(pid)) == 0 {
-						continue
-					}
-				}
-
+				// 注意：這裡刻意不再預先檢查 d.host.Peerstore().Addrs(pid)。透過 GossipSub
+				// 得知（而非直接 libp2p 連線）的節點，其位址不會被寫進 Peerstore，用它來
+				// 篩選會把所有「只透過中繼/gossip 認識」的跨 NAT 節點都誤判成不可達，
+				// 導致遠端派發永遠選不到任何目標。可達性交給 NewStream 自己判斷即可——
+				// 它本來就會透過 Kademlia DHT／Circuit Relay／打洞去找路徑，找不到才是
+				// 真正的失敗，由下面 streamToPeerDirect 的回傳值與重試機制處理。
 				d.app.TUI.AddLog("[PROXY]", fmt.Sprintf("P2P 備援轉發 %s -> 遠端節點: %s (嘗試 %d/%d)", modelName, targetPeerID[:8], attempt, maxRetries))
 				if d.streamToPeerDirect(r.Context(), w, targetPeerID, r.URL.Path, reqBytes) {
 					return // 成功：已直接 pipe 遠端節點的回應給客戶端

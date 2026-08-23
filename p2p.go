@@ -25,6 +25,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/pnet"
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
@@ -113,6 +114,7 @@ type NetworkNode struct {
 	ds            *badger.Datastore
 	activeProxies sync.Map
 	cancel        context.CancelFunc
+	seedAddrs     []peer.AddrInfo // bootstrap/hub seeds; also usable as Circuit Relay hops
 }
 
 func NewNetworkNode(app *App) *NetworkNode {
@@ -169,6 +171,7 @@ func (n *NetworkNode) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	n.seedAddrs = seedAddrs
 	if len(seedAddrs) == 0 && !n.app.Config.ServerMode.Enabled {
 		// A plain client always needs at least one bootstrap seed to join the mesh.
 		// A hub-mode node may start with none: it simply becomes a root seed for others.
@@ -596,6 +599,40 @@ func (n *NetworkNode) gossipSubscriber(ctx context.Context, sub *pubsub.Subscrip
 
 		n.app.TUI.RecordPeerInfo(info)
 		n.startLocalProxyForPeer(info.NodeID)
+
+		// GossipSub relays a peer's identity+address to nodes it has no direct libp2p
+		// connection to (that's the whole point of gossip flooding across relay hops),
+		// but the libp2p host's own Peerstore is only populated by actual connections --
+		// it never learns about peers this way on its own. Without this, NewStream() to
+		// a gossip-only-known peer fails with "no addresses" even though the peer is
+		// reachable, which silently breaks remote dispatch for any node that only knows
+		// its swarm-mates through gossip (e.g. everything behind a relay/NAT).
+		if info.Addr != "" {
+			if maddr, err := multiaddr.NewMultiaddr(info.Addr); err == nil {
+				if addrInfo, err := peer.AddrInfoFromP2pAddr(maddr); err == nil && addrInfo.ID != n.host.ID() {
+					n.host.Peerstore().AddAddrs(addrInfo.ID, addrInfo.Addrs, peerstore.TempAddrTTL)
+
+					// The peer's self-reported address is frequently a private-LAN address
+					// (e.g. its own 10.x.x.x) that is only dialable from inside that same
+					// LAN -- gossip floods across the whole swarm regardless of network
+					// boundary, so most recipients cannot reach it directly. Also register a
+					// Circuit Relay v2 hop through each known bootstrap/hub seed (already a
+					// live connection, and already configured as a static relay for this
+					// host's own reachability via EnableAutoRelay), so the swarm dialer has
+					// a real fallback path instead of failing outright with "all dials
+					// failed" for every peer that isn't on the local network.
+					for _, seed := range n.seedAddrs {
+						if seed.ID == addrInfo.ID || seed.ID == n.host.ID() {
+							continue
+						}
+						circuit, cErr := multiaddr.NewMultiaddr("/p2p/" + seed.ID.String() + "/p2p-circuit")
+						if cErr == nil {
+							n.host.Peerstore().AddAddrs(addrInfo.ID, []multiaddr.Multiaddr{circuit}, peerstore.TempAddrTTL)
+						}
+					}
+				}
+			}
+		}
 
 		// Hub mode: also persist the broadcast into the local peers.db. Because every
 		// hub subscribes to this same network-wide topic, each one converges to the same
