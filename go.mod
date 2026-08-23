@@ -13,6 +13,7 @@ require (
 	github.com/multiformats/go-multiaddr v0.16.1
 	github.com/rivo/tview v0.42.0
 	github.com/shirou/gopsutil/v3 v3.24.5
+	golang.org/x/sys v0.47.0
 	modernc.org/sqlite v1.53.0
 )
 
@@ -136,7 +137,6 @@ require (
 	golang.org/x/mod v0.40.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260820143203-7221e139e8d6 // indirect
 	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
