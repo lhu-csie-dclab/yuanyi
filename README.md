@@ -426,8 +426,9 @@ uv venv .venv --python 3.12
 uv pip install torch==2.6.0+cu124 torchvision==0.21.0+cu124 torchaudio==2.6.0+cu124 --extra-index-url https://download.pytorch.org/whl/cu124
 
 # 3. Install precompiled Windows vLLM wheel and compatible Transformers
+#    Both bounds matter: Qwen3 needs >=4.51, and 5.x removes APIs vLLM 0.9.2 still uses.
 uv pip install vllm-0.9.2+cu124-cp312-cp312-win_amd64.whl
-uv pip install "transformers>=4.48.0,<4.50.0"
+uv pip install "transformers>=4.51.0,<5.0.0"
 ```
 
 #### Step 2: Launch Client Agent

@@ -111,14 +111,43 @@ uv pip install torch==2.6.0+cu124 torchvision==0.21.0+cu124 torchaudio==2.6.0+cu
 gh release download v0.9.2 -R SystemPanic/vllm-windows -D wheels_v092
 uv pip install wheels_v092\vllm-0.9.2+cu124-cp312-cp312-win_amd64.whl
 
-# Pin a compatible Transformers to avoid config-registration conflicts
-uv pip install "transformers>=4.48.0,<4.50.0"
+# Pin a compatible Transformers. Both bounds matter:
+#   >=4.51 -- Qwen3 (Qwen3ForCausalLM) was only added in 4.51. Older versions fail at
+#             startup with "Transformers does not recognize this architecture".
+#   <5.0   -- 5.x removes APIs vLLM 0.9.2 still calls (tokenizer.all_special_tokens_extended).
+uv pip install "transformers>=4.51.0,<5.0.0"
 
 cd ..
 ```
 
 No GitHub CLI? Download the `.whl` manually from the
 [v0.9.2 release page](https://github.com/SystemPanic/vllm-windows/releases/tag/v0.9.2).
+
+#### Patch vLLM's `ovis.py` (required)
+
+vLLM 0.9.2 registers an `aimv2` model config at import time, but Transformers ships its
+own `aimv2` (present throughout 4.51–4.x and in 5.x), so vLLM aborts before it can even
+be imported:
+
+```
+ValueError: 'aimv2' is already used by a Transformers config, pick another name.
+```
+
+Pinning Transformers does **not** avoid this. Wrap the three registrations so an
+already-registered config is a no-op — `install.ps1` does this for you automatically:
+
+```powershell
+$ovis = ".\vllm-windows\.venv\Lib\site-packages\vllm\transformers_utils\configs\ovis.py"
+$out = New-Object System.Collections.Generic.List[string]
+foreach ($line in [IO.File]::ReadAllLines($ovis)) {
+    if ($line -match '^AutoConfig\.register\(') {
+        $out.Add('try:'); $out.Add('    ' + $line); $out.Add('except ValueError:'); $out.Add('    pass')
+    } else { $out.Add($line) }
+}
+[IO.File]::WriteAllLines($ovis, $out)
+```
+
+Re-running it is safe: once patched the calls are indented, so they no longer match.
 
 Verify the stack:
 ```powershell

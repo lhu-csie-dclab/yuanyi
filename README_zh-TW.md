@@ -416,8 +416,9 @@ uv venv .venv --python 3.12
 uv pip install torch==2.6.0+cu124 torchvision==0.21.0+cu124 torchaudio==2.6.0+cu124 --extra-index-url https://download.pytorch.org/whl/cu124
 
 # 3. 安裝下載之 Windows 專用 vLLM Wheel 與相容 Transformers
+#    上下限都不能省：Qwen3 需要 >=4.51，而 5.x 移除了 vLLM 0.9.2 仍在呼叫的 API。
 uv pip install vllm-0.9.2+cu124-cp312-cp312-win_amd64.whl
-uv pip install "transformers>=4.48.0,<4.50.0"
+uv pip install "transformers>=4.51.0,<5.0.0"
 ```
 
 #### 步驟 2: 啟動 Client Agent

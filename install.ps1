@@ -204,6 +204,41 @@ function Get-VenvPython {
     return $null
 }
 
+# vLLM 0.9.2's transformers_utils/configs/ovis.py calls AutoConfig.register("aimv2", ...)
+# (and two visual-tokenizer variants) at import time. Transformers ships its own aimv2
+# config -- confirmed present in 4.57.6 and in 5.x -- so that call raises
+#   ValueError: 'aimv2' is already used by a Transformers config, pick another name.
+# and vLLM cannot be imported at all. Pinning transformers does NOT avoid this: it is
+# present across the whole 4.51-4.x range this project supports.
+#
+# Wrap each bare registration in try/except so an already-registered config is a no-op.
+# Line-based rather than regex: a -replace with a single-quoted replacement would insert
+# literal `n characters instead of newlines and silently corrupt the file. Re-running is
+# safe -- once patched the calls are indented, so they no longer match the anchor.
+function Repair-VllmOvisConfig {
+    param($InstallDir)
+    $ovis = Join-Path $InstallDir "vllm-windows\.venv\Lib\site-packages\vllm\transformers_utils\configs\ovis.py"
+    if (-not (Test-Path $ovis)) { return }
+
+    $out = New-Object System.Collections.Generic.List[string]
+    $patched = 0
+    foreach ($line in [IO.File]::ReadAllLines($ovis)) {
+        if ($line -match '^AutoConfig\.register\(') {
+            $out.Add('try:')
+            $out.Add('    ' + $line)
+            $out.Add('except ValueError:')
+            $out.Add('    pass')
+            $patched++
+        } else {
+            $out.Add($line)
+        }
+    }
+    if ($patched -gt 0) {
+        [IO.File]::WriteAllLines($ovis, $out)
+        Write-Ok "Patched vLLM ovis.py ($patched config registrations) to tolerate transformers' own aimv2."
+    }
+}
+
 function Setup-VllmEnv {
     param($InstallDir)
 
@@ -250,17 +285,29 @@ function Setup-VllmEnv {
         Write-Info "Installing vLLM"
         & uv pip install --python .venv\Scripts\python.exe $local
         if (-not $?) { Fail "vLLM install failed." }
-        # vLLM 0.9.2 pulls in transformers but needs 4.x (5.x removes APIs it uses).
-        # Qwen3 needs >=4.51. Pin to the latest 4.x so both work.
+        # vLLM 0.9.2 pulls in transformers but needs 4.x (5.x removes APIs it uses,
+        # e.g. tokenizer.all_special_tokens_extended). Qwen3 needs >=4.51. Pin so both hold.
         & uv pip install --python .venv\Scripts\python.exe "transformers>=4.51.0,<5.0.0"
         Remove-Item $local -Force -ErrorAction SilentlyContinue
     } finally { Pop-Location }
 
+    Repair-VllmOvisConfig $InstallDir
+
     $py = Get-VenvPython $InstallDir
     if (-not $py) { Fail "Environment setup finished but python.exe is missing." }
 
+    # Import the OpenAI serving entrypoint, not just the top-level vllm package. Plain
+    # `import vllm` does not pull in transformers_utils.configs.ovis, so a broken config
+    # registration there still reports success here and only surfaces minutes later when
+    # serve_api.py starts -- exactly how the aimv2 conflict went unnoticed. Importing what
+    # the serving path actually imports turns that into an install-time failure.
     Write-Info "Verifying"
-    $check = & $py -c "import torch,vllm;print(torch.__version__,torch.cuda.is_available(),vllm.__version__)" 2>&1
+    $check = & $py -c "import torch, vllm; import vllm.entrypoints.openai.cli_args; print(torch.__version__, torch.cuda.is_available(), vllm.__version__)" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "The Python environment imports torch/vLLM but cannot load vLLM's OpenAI server:"
+        $check | ForEach-Object { Write-Host "    $_" }
+        Fail "vLLM would fail at startup. Fix the above before continuing."
+    }
     Write-Ok "torch/cuda/vllm: $check"
     return $py
 }
