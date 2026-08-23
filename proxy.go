@@ -199,6 +199,84 @@ func (d *LocalDispatcher) streamToPeer(ctx context.Context, peerIDStr string, pa
 	return io.ReadAll(resp.Body)
 }
 
+// streamToPeerDirect 與 streamToPeer 走相同的 libp2p tunnel，但不把回應整包緩衝
+// 成 []byte 再重新包裝成 application/json —— 那樣做會讓串流請求 (stream: true) 收到
+// 的 SSE `data: {...}\n\n` 內容被誤標成 Content-Type: application/json，導致嚴格檢查
+// Content-Type 的 SSE 客戶端 (例如 aiperf) 解析失敗。這裡改為原封不動複製遠端節點的
+// Response Headers（包含真正的 text/event-stream）並即時 pipe body，做法對齊本機直通
+// 的 proxyToLocalVLLMDirect。僅用於 PD-Together 模式的 P2P 備援路徑；P/D 分離模式的
+// Prefill/Decode 階段仍需要讀取完整回應做判斷，繼續使用會緩衝的 streamToPeer。
+func (d *LocalDispatcher) streamToPeerDirect(ctx context.Context, w http.ResponseWriter, peerIDStr string, path string, reqBytes []byte) bool {
+	pid, err := peer.Decode(peerIDStr)
+	if err != nil {
+		return false
+	}
+
+	stream, err := d.host.NewStream(ctx, pid, ProxyProtocolID)
+	if err != nil {
+		return false
+	}
+	defer stream.Close()
+
+	vllmPort := d.app.Config.VLLM.Port
+	if vllmPort <= 0 {
+		vllmPort = 8100
+	}
+
+	if err := binary.Write(stream, binary.BigEndian, uint16(vllmPort)); err != nil {
+		return false
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", path, bytes.NewReader(reqBytes))
+	if err != nil {
+		return false
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Host = fmt.Sprintf("127.0.0.1:%d", vllmPort)
+
+	if err := req.Write(stream); err != nil {
+		return false
+	}
+
+	resp, err := http.ReadResponse(bufio.NewReader(stream), req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	// 原封不動地複製所有 Response Headers (包含 Content-Type: text/event-stream 等)
+	for k, vv := range resp.Header {
+		for _, v := range vv {
+			w.Header().Add(k, v)
+		}
+	}
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(resp.StatusCode)
+
+	// 透明 Pipe：直接將遠端節點的回應串流 pipe 給客戶端，零緩衝
+	flusher, canFlush := w.(http.Flusher)
+	buf := make([]byte, 4096)
+	for {
+		n, readErr := resp.Body.Read(buf)
+		if n > 0 {
+			w.Write(buf[:n])
+			if canFlush {
+				flusher.Flush()
+			}
+		}
+		if readErr != nil {
+			break
+		}
+	}
+
+	d.app.TUI.UpdateStats(func(st *Stats) {
+		st.requests++
+		st.decode++
+		st.successCount++
+	})
+	return true
+}
+
 // getPortFromURL 從網址字串 (例如 "http://127.0.0.1:8998/...") 中解析出 Port 數字。
 func getPortFromURL(u string) uint16 {
 	parts := strings.Split(u, ":")
@@ -558,21 +636,17 @@ func (d *LocalDispatcher) handleProxyRequest(w http.ResponseWriter, r *http.Requ
 				}
 
 				d.app.TUI.AddLog("[PROXY]", fmt.Sprintf("P2P 備援轉發 %s -> 遠端節點: %s (嘗試 %d/%d)", modelName, targetPeerID[:8], attempt, maxRetries))
-				respBytes, err := d.streamToPeer(r.Context(), targetPeerID, r.URL.Path, reqBytes)
-				if err == nil {
-					d.recordMetrics(respBytes, nil, false)
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(http.StatusOK)
-					w.Write(respBytes)
-					return
+				if d.streamToPeerDirect(r.Context(), w, targetPeerID, r.URL.Path, reqBytes) {
+					return // 成功：已直接 pipe 遠端節點的回應給客戶端
 				}
 				time.Sleep(200 * time.Millisecond)
 			}
 		}
 
 		// 步驟 3: 若本地與遠端備援皆失敗，紀錄失敗指標並回傳 HTTP 502
-		d.recordMetrics(nil, err, false)
-		writeJSONError(w, fmt.Sprintf("Proxy error: %v", err), http.StatusBadGateway)
+		proxyErr := fmt.Errorf("local vLLM unavailable and all %d remote peer attempts failed", maxRetries)
+		d.recordMetrics(nil, proxyErr, false)
+		writeJSONError(w, fmt.Sprintf("Proxy error: %v", proxyErr), http.StatusBadGateway)
 		return
 	}
 
