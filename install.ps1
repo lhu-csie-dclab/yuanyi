@@ -621,7 +621,16 @@ function Do-Uninstall {
         }
     }
 
-    Remove-Item $s.InstallDir -Recurse -Force
+    # Killing client.exe does not guarantee Windows has released its handle on the Badger
+    # peerstore's memory-mapped .vlog file yet -- Remove-Item can fail with "being used by
+    # another process" for a few seconds afterward even though the process is already gone.
+    # Retry with backoff instead of failing the whole uninstall on that race.
+    $removed = $false
+    for ($i = 0; $i -lt 5; $i++) {
+        try { Remove-Item $s.InstallDir -Recurse -Force -ErrorAction Stop; $removed = $true; break }
+        catch { Start-Sleep -Seconds 2 }
+    }
+    if (-not $removed) { Fail "Could not remove $($s.InstallDir): a file is still locked. Close any program using it and re-run uninstall." }
     Write-Ok "Removed $($s.InstallDir)"
 
     if ($s.ModelDir -and (Test-Path $s.ModelDir) -and (Get-ChildItem $s.ModelDir -ErrorAction SilentlyContinue)) {
