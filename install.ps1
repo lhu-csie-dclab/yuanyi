@@ -250,7 +250,8 @@ function Setup-VllmEnv {
         Write-Info "Installing vLLM"
         & uv pip install --python .venv\Scripts\python.exe $local
         if (-not $?) { Fail "vLLM install failed." }
-        & uv pip install --python .venv\Scripts\python.exe "transformers>=4.48.0,<4.50.0"
+        # Do NOT pin an upper bound on transformers — Qwen3 and newer architectures
+        # require 4.51+, and vLLM's own dependency resolution picks a compatible version.
         Remove-Item $local -Force -ErrorAction SilentlyContinue
     } finally { Pop-Location }
 
