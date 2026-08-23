@@ -12,9 +12,31 @@
 [![Mooncake Transfer Engine](https://img.shields.io/badge/Mooncake-v0.3.10.post2-red?style=flat)](https://github.com/kvcache-ai/Mooncake)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-An all-in-one, high-performance **P2P Large Language Model (LLM) Inference Client Agent** built with Go, libp2p, Ray, and vLLM. 
+A decentralized, peer-to-peer LLM inference network that lets **anyone with a GPU contribute computing power** and **anyone with internet access run large language models** — from home, from a data center, or from a phone on mobile data.
 
-Mooncake 2.0 Client provides an OpenAI-compatible API Gateway (`/v1/chat/completions`) with **Local-First Proxy Routing**, **Zero-Buffer SSE Streaming**, **vLLM Readiness Health Checking**, and **Mooncake KV Cache Transfer Engine** (`mooncake-transfer-engine-cuda13==0.3.10.post2`) integration for distributed Prefill/Decode (P/D) inference swarms.
+One binary, one shared key file, and you're part of a global GPU mesh. No central server required.
+
+---
+
+## Why Mooncake 2.0?
+
+**Run LLMs anywhere, powered by GPUs everywhere.**
+
+Traditional LLM deployment locks you into a single machine or a cloud provider. Mooncake 2.0 turns every participating GPU into a node in a global inference network:
+
+- **Prefill/Decode (P/D) Disaggregation** — The inference pipeline is split across nodes: one machine handles the compute-heavy prefill stage, another handles token generation. This is powered by [vLLM](https://github.com/vllm-project/vllm)'s native P/D separation with [Mooncake KV-cache transfer](https://github.com/kvcache-ai/Mooncake), moving KV caches directly between GPUs over the network instead of recomputing them.
+
+- **True Peer-to-Peer, No Central Dependency** — Built on [libp2p](https://github.com/libp2p/go-libp2p) with Kademlia DHT, GossipSub, and automatic NAT traversal (hole punching, UPnP, relay). Nodes discover each other on the local network via mDNS and across the internet via bootstrap seeds. Any number of nodes can act as hubs — there is no single point of failure.
+
+- **Works Behind Any NAT, Even Mobile Networks** — Nodes behind NAT4, CGNAT, or carrier-grade firewalls can still participate thanks to the built-in Circuit Relay. As long as at least one relay-capable node is reachable, **every node can reach every other node** — your home PC behind a router, a cloud VM, a phone hotspot, all in the same swarm.
+
+- **One Key File = One Private Network** — A single `swarm.key` file defines who can join. Share it with your team, your lab, or your friends — every node carrying the same key automatically forms an encrypted private mesh. No accounts, no API tokens, no registration.
+
+- **Everyone Can Contribute** — Got a powerful GPU? Run inference for the network. Got no GPU at all? Run in **relay-only mode** and contribute network capacity so NAT'd peers can reach each other. Every participant makes the network stronger.
+
+- **Access Every Connected GPU on Earth** — Your local gateway (`/v1/chat/completions`) is OpenAI-compatible. When your own GPU is busy or absent, requests are automatically dispatched to the best available peer in the swarm. One endpoint, global GPU access.
+
+- **GPU Leaderboard & Smart Routing** — Every node broadcasts its GPU specs and throughput metrics. Hub nodes score GPUs by hardware capability (VRAM, model, count) using the [gpu-info-api](https://github.com/voidful/gpu-info-api) dataset and publish a live leaderboard. The dispatcher routes requests to the fastest available node.
 
 ---
 
