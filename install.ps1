@@ -296,8 +296,18 @@ function Setup-VllmEnv {
     $py = Get-VenvPython $InstallDir
     if (-not $py) { Fail "Environment setup finished but python.exe is missing." }
 
+    # Import the OpenAI serving entrypoint, not just the top-level vllm package. Plain
+    # `import vllm` does not pull in transformers_utils.configs.ovis, so a broken config
+    # registration there still reports success here and only surfaces minutes later when
+    # serve_api.py starts -- exactly how the aimv2 conflict went unnoticed. Importing what
+    # the serving path actually imports turns that into an install-time failure.
     Write-Info "Verifying"
-    $check = & $py -c "import torch,vllm;print(torch.__version__,torch.cuda.is_available(),vllm.__version__)" 2>&1
+    $check = & $py -c "import torch, vllm; import vllm.entrypoints.openai.cli_args; print(torch.__version__, torch.cuda.is_available(), vllm.__version__)" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "The Python environment imports torch/vLLM but cannot load vLLM's OpenAI server:"
+        $check | ForEach-Object { Write-Host "    $_" }
+        Fail "vLLM would fail at startup. Fix the above before continuing."
+    }
     Write-Ok "torch/cuda/vllm: $check"
     return $py
 }
