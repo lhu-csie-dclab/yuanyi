@@ -221,6 +221,56 @@ setup_swarm_key() {
 # Local directory name for a Hugging Face repo id, e.g. Qwen/Qwen3-4B-AWQ -> Qwen3-4B-AWQ
 model_dirname() { printf '%s' "${1##*/}"; }
 
+# fetch_model_weights <repo> <dest> -- the one place that actually pulls weights, used by
+# both do_install() and the models-menu download_model() so they can't drift out of sync
+# (they used to have separate copies; only one of them warned about missing git-lfs).
+#
+# Without huggingface-cli/hf, this falls back to a plain git clone. If git-lfs isn't
+# present, that clone silently succeeds with LFS *pointer* files instead of the actual
+# weights -- a few hundred bytes each instead of gigabytes -- and every prior version of
+# this script reported that as "Model ready". The container then builds and starts fine,
+# and vLLM fails to load the model with a confusing error minutes later, far from this
+# step. Auto-install git-lfs (best effort, matches how this script already handles other
+# missing prerequisites) and verify the result actually contains weight-sized files
+# before calling it done.
+fetch_model_weights() {
+  local repo="$1" dest="$2"
+  mkdir -p "$dest"
+
+  if have huggingface-cli; then
+    huggingface-cli download "$repo" --local-dir "$dest" || { rm -rf "$dest"; die "Download failed."; }
+  elif have hf; then
+    hf download "$repo" --local-dir "$dest" || { rm -rf "$dest"; die "Download failed."; }
+  else
+    if ! have git-lfs; then
+      info "git-lfs not found; installing it so weights download as real files, not pointers"
+      if have apt-get; then
+        (apt-get update -qq && apt-get install -y -qq git-lfs) >/dev/null 2>&1 || true
+      elif have dnf; then
+        dnf install -y -q git-lfs >/dev/null 2>&1 || true
+      elif have yum; then
+        yum install -y -q git-lfs >/dev/null 2>&1 || true
+      fi
+    fi
+    if ! have git-lfs; then
+      rm -rf "$dest"
+      die "Cannot download model weights: no huggingface-cli/hf, and git-lfs could not be installed automatically. Install git-lfs (or huggingface-cli) yourself and re-run."
+    fi
+    git lfs install --skip-repo >/dev/null 2>&1 || true
+    git clone "https://huggingface.co/$repo" "$dest" || { rm -rf "$dest"; die "Clone failed."; }
+    warn "Downloaded via git. Install 'huggingface-cli' to avoid the extra .git copy."
+  fi
+
+  # A real model directory (even a small/quantized one) is at minimum tens of MB. Anything
+  # under that is almost certainly LFS pointer files, not weights -- catch it here instead
+  # of leaving the user to debug a vLLM crash with no clue why the model won't load.
+  local size_kb; size_kb="$(du -sk "$dest" 2>/dev/null | cut -f1)"
+  if [ -z "$size_kb" ] || [ "$size_kb" -lt 51200 ]; then
+    rm -rf "$dest"
+    die "Downloaded model is only $((size_kb / 1024))MB -- that's LFS pointer files, not real weights (git-lfs was likely unavailable during clone). Install huggingface-cli (pip install huggingface_hub) or git-lfs and re-run."
+  fi
+}
+
 list_models() {
   load_state
   MODEL_DIR="${MODEL_DIR:-$DEFAULT_MODEL_DIR}"
@@ -282,18 +332,7 @@ download_model() {
   fi
 
   info "Downloading $repo -> $dest"
-  # Prefer the HF CLI: it resumes, and avoids the duplicate .git objects that make a
-  # git clone roughly twice the on-disk size of the weights.
-  if have huggingface-cli; then
-    huggingface-cli download "$repo" --local-dir "$dest" || { rm -rf "$dest"; die "Download failed."; }
-  elif have hf; then
-    hf download "$repo" --local-dir "$dest" || { rm -rf "$dest"; die "Download failed."; }
-  else
-    have git-lfs || have git lfs >/dev/null 2>&1 || warn "git-lfs not found; weights may download as pointer files."
-    git lfs install --skip-repo >/dev/null 2>&1 || true
-    git clone "https://huggingface.co/$repo" "$dest" || { rm -rf "$dest"; die "Clone failed."; }
-    warn "Downloaded via git. Install 'huggingface-cli' to avoid the extra .git copy."
-  fi
+  fetch_model_weights "$repo" "$dest"
 
   ok "Model ready: $dest ($(du -sh "$dest" 2>/dev/null | cut -f1))"
   if [ -n "${INSTALL_DIR:-}" ] && [ -f "$INSTALL_DIR/.env" ]; then
@@ -537,16 +576,7 @@ do_install() {
       ok "Model already present: $MODEL_PATH"
     else
       info "Downloading $repo (this can take a while)"
-      mkdir -p "$MODEL_PATH"
-      if have huggingface-cli; then
-        huggingface-cli download "$repo" --local-dir "$MODEL_PATH" || die "Model download failed."
-      elif have hf; then
-        hf download "$repo" --local-dir "$MODEL_PATH" || die "Model download failed."
-      else
-        rmdir "$MODEL_PATH" 2>/dev/null || true
-        git lfs install --skip-repo >/dev/null 2>&1 || true
-        git clone "https://huggingface.co/$repo" "$MODEL_PATH" || die "Model download failed."
-      fi
+      fetch_model_weights "$repo" "$MODEL_PATH"
       ok "Model ready ($(du -sh "$MODEL_PATH" 2>/dev/null | cut -f1))"
     fi
   fi
