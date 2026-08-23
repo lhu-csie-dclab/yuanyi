@@ -384,6 +384,16 @@ function Models-Menu {
             "3" {
                 $d = Select-Model $dirs
                 if ($d) {
+                    # Warn when deleting the model the node is configured to load, since
+                    # it will not start again until another one is selected. install.sh
+                    # does the same.
+                    $envFile = Join-Path $s.InstallDir ".env"
+                    if (Test-Path $envFile) {
+                        $cur = Get-Content $envFile | Where-Object { $_ -match '^ABS_MODEL_PATH=' } | Select-Object -First 1
+                        if ($cur -and (($cur -split '=', 2)[1] -eq $d)) {
+                            Write-Warn "That is the model currently in use. The node will not start until another is selected."
+                        }
+                    }
                     Write-Host "About to delete: $d"
                     if (Confirm-Action "Delete permanently?") {
                         Remove-Item $d -Recurse -Force; Write-Ok "Deleted."
@@ -638,7 +648,13 @@ function Do-Status {
     $webPort = $DefaultWebPort
     if (Test-Path $envFile) {
         foreach ($l in Get-Content $envFile) {
-            if ($l -match '^ABS_MODEL_PATH=(.*)') { Write-Host "  Model     : $($Matches[1])" }
+            if ($l -match '^ABS_MODEL_PATH=(.*)') {
+                # Relay-only nodes have no model, so the value is empty. Say so rather
+                # than printing a blank field that reads like something went wrong.
+                $m = $Matches[1]
+                if ([string]::IsNullOrWhiteSpace($m)) { $m = "(none - relay-only node)" }
+                Write-Host "  Model     : $m"
+            }
             if ($l -match '^CLIENT_WEB_PORT=(.*)') { $webPort = $Matches[1]; Write-Host "  Web port  : $webPort" }
         }
     }
