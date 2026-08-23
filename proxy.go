@@ -631,7 +631,15 @@ func (d *LocalDispatcher) handleProxyRequest(w http.ResponseWriter, r *http.Requ
 			}
 		}
 
-		for attempt := 1; attempt <= maxRetries; attempt++ {
+		// 重試次數必須至少覆蓋「每個已知節點各試一次」。原本寫死 3 次：當 Swarm 裡的節點數
+		// 多於 3，而 round-robin 前幾次剛好選到當下不可達的節點時，就會在還有其他健康節點
+		// 沒被嘗試過的情況下直接放棄並回 502。以節點數為下限，確保輪完一圈才判定失敗。
+		peerAttempts := maxRetries
+		if len(peerIDs) > peerAttempts {
+			peerAttempts = len(peerIDs)
+		}
+
+		for attempt := 1; attempt <= peerAttempts; attempt++ {
 			if len(peerIDs) > 0 {
 				d.mu.Lock()
 				d.decodeIndex = (d.decodeIndex + 1) % len(peerIDs)
@@ -644,7 +652,7 @@ func (d *LocalDispatcher) handleProxyRequest(w http.ResponseWriter, r *http.Requ
 				// 導致遠端派發永遠選不到任何目標。可達性交給 NewStream 自己判斷即可——
 				// 它本來就會透過 Kademlia DHT／Circuit Relay／打洞去找路徑，找不到才是
 				// 真正的失敗，由下面 streamToPeerDirect 的回傳值與重試機制處理。
-				d.app.TUI.AddLog("[PROXY]", fmt.Sprintf("P2P 備援轉發 %s -> 遠端節點: %s (嘗試 %d/%d)", modelName, targetPeerID[:8], attempt, maxRetries))
+				d.app.TUI.AddLog("[PROXY]", fmt.Sprintf("P2P 備援轉發 %s -> 遠端節點: %s (嘗試 %d/%d)", modelName, targetPeerID[:8], attempt, peerAttempts))
 				if d.streamToPeerDirect(r.Context(), w, targetPeerID, r.URL.Path, reqBytes) {
 					return // 成功：已直接 pipe 遠端節點的回應給客戶端
 				}
@@ -652,8 +660,19 @@ func (d *LocalDispatcher) handleProxyRequest(w http.ResponseWriter, r *http.Requ
 			}
 		}
 
-		// 步驟 3: 若本地與遠端備援皆失敗，紀錄失敗指標並回傳 HTTP 502
-		proxyErr := fmt.Errorf("local vLLM unavailable and all %d remote peer attempts failed", maxRetries)
+		// 步驟 3: 所有遠端節點都失敗時的最終保險——只要本機 vLLM 還就緒，就排隊由本機處理。
+		// 走到這裡通常是「本機忙碌 → 嘗試分流 → 遠端全部不可達」，但本機忙碌不代表本機不能
+		// 處理：vLLM 自己會做 continuous batching，多等一下遠比直接回 502 好。少了這層，
+		// 一旦遠端暫時全部連不上，明明本機有能力服務的請求也會失敗。
+		if d.vllmReady.Load() {
+			d.app.TUI.AddLog("[WARN]", fmt.Sprintf("所有 %d 個遠端節點皆不可達，改由本機排隊處理...", peerAttempts))
+			if d.proxyToLocalVLLMDirect(w, r, reqBytes) {
+				return // 成功：本機排隊處理完成
+			}
+		}
+
+		// 步驟 4: 本地與遠端備援皆失敗，紀錄失敗指標並回傳 HTTP 502
+		proxyErr := fmt.Errorf("local vLLM unavailable and all %d remote peer attempts failed", peerAttempts)
 		d.recordMetrics(nil, proxyErr, false)
 		writeJSONError(w, fmt.Sprintf("Proxy error: %v", proxyErr), http.StatusBadGateway)
 		return
