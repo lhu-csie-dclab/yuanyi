@@ -12,9 +12,31 @@
 [![Mooncake Transfer Engine](https://img.shields.io/badge/Mooncake-v0.3.10.post2-red?style=flat)](https://github.com/kvcache-ai/Mooncake)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-基于 Go、libp2p、Ray 与 vLLM 构建的高性能全功能 **P2P 大语言模型 (LLM) 分布式推理 Agent 客户端**。
+一个去中心化的 P2P LLM 推理网络——**任何有 GPU 的人都能贡献算力**，**任何有网络的人都能使用大语言模型**——无论是在家里、在数据中心、还是用手机移动网络。
 
-Mooncake 2.0 Client 提供兼容于 OpenAI 规范的 API 网关 Gateway (`/v1/chat/completions`)，具备 **Local-First 本地优先代理分发**、**透明零延迟 SSE 流式传输**、**vLLM 健康状态自动预热检查**，以及整合 **Mooncake KV Cache 传输引擎** (`mooncake-transfer-engine-cuda13==0.3.10.post2`)，支持 Prefill/Decode (P/D) 分离推理集群。
+一个可执行文件、一把共享密钥，你就是全球 GPU 网格的一部分。不需要中央服务器。
+
+---
+
+## 为什么选择 Mooncake 2.0？
+
+**在任何地方跑 LLM，由世界各地的 GPU 驱动。**
+
+传统的 LLM 部署把你锁在一台机器或一个云端服务商上。Mooncake 2.0 把每一张参与的 GPU 变成全球推理网络的一个节点：
+
+- **Prefill/Decode (P/D) 分离** — 推理流程拆分到不同节点：一台机器负责高运算量的 prefill 阶段，另一台处理 token 生成。底层使用 [vLLM](https://github.com/vllm-project/vllm) 原生 P/D 分离搭配 [Mooncake KV-cache 传输](https://github.com/kvcache-ai/Mooncake)，KV cache 在 GPU 之间直接通过网络传送，无需重新计算。
+
+- **真正的 P2P 无中心依赖** — 基于 [libp2p](https://github.com/libp2p/go-libp2p)，采用 Kademlia DHT、GossipSub 以及自动 NAT 穿越（Hole Punching、UPnP、中继）。局域网通过 mDNS 自动发现，广域网通过 bootstrap 种子连接。任意数量的节点都可以充当 Hub——没有单点故障。
+
+- **任何 NAT 环境都能运行，包括手机网络** — 在 NAT4、CGNAT 或电信级防火墙后方的节点，仍然可以通过内置的 Circuit Relay 参与。只要有一个可达的中继节点，**每个节点都能连上任何其他节点**——你家路由器后面的电脑、云端 VM、手机热点，全部在同一个 swarm 里。
+
+- **一把密钥 = 一个私有网络** — 一个 `swarm.key` 文件决定谁能加入。把它分享给你的团队、实验室或朋友——携带相同密钥的节点会自动形成加密的私有网格。不需要账号、不需要 API token、不需要注册。
+
+- **每个人都能贡献** — 有强力 GPU？为网络执行推理。完全没有 GPU？用**纯中继模式**贡献网络带宽，让 NAT 后方的节点能够互连。每一位参与者都让网络更强大。
+
+- **访问地球上每一张已连接的 GPU** — 你的本地网关（`/v1/chat/completions`）完全兼容 OpenAI API。当你自己的 GPU 忙碌或不存在时，请求会自动派发到 swarm 中最佳的可用节点。一个端点，全球 GPU 访问。
+
+- **GPU 排行榜与智能路由** — 每个节点每 3 秒广播自己的 GPU 规格与吞吐量指标。Hub 节点使用 [gpu-info-api](https://github.com/voidful/gpu-info-api) 数据集，根据硬件能力（VRAM、型号、数量）为 GPU 评分，并发布实时排行榜。分发器会将请求路由到最快的可用节点。
 
 ---
 
