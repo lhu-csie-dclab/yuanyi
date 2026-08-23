@@ -111,8 +111,12 @@ uv pip install torch==2.6.0+cu124 torchvision==0.21.0+cu124 torchaudio==2.6.0+cu
 gh release download v0.9.2 -R SystemPanic/vllm-windows -D wheels_v092
 uv pip install wheels_v092\vllm-0.9.2+cu124-cp312-cp312-win_amd64.whl
 
-# Pin a compatible Transformers to avoid config-registration conflicts
-uv pip install "transformers>=4.48.0,<4.50.0"
+# Pin a compatible Transformers. Both bounds matter:
+#   >=4.51 -- Qwen3 (Qwen3ForCausalLM) was only added in 4.51. Older versions fail at
+#             startup with "Transformers does not recognize this architecture".
+#   <5.0   -- 5.x removes APIs vLLM 0.9.2 still calls (tokenizer.all_special_tokens_extended)
+#             and ships the `aimv2` config vLLM also registers, so vLLM cannot even import.
+uv pip install "transformers>=4.51.0,<5.0.0"
 
 cd ..
 ```
