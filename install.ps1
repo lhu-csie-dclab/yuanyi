@@ -250,9 +250,17 @@ function Setup-VllmEnv {
         Write-Info "Installing vLLM"
         & uv pip install --python .venv\Scripts\python.exe $local
         if (-not $?) { Fail "vLLM install failed." }
-        # Do NOT pin an upper bound on transformers — Qwen3 and newer architectures
-        # require 4.51+, and vLLM's own dependency resolution picks a compatible version.
         Remove-Item $local -Force -ErrorAction SilentlyContinue
+
+        # vLLM 0.9.2 calls AutoConfig.register("aimv2", ...) at import time, but
+        # transformers 5.x already has that config built-in, causing a ValueError.
+        # Patch the three bare register() calls in ovis.py to swallow the conflict.
+        $ovis = Join-Path $venvRoot ".venv\Lib\site-packages\vllm\transformers_utils\configs\ovis.py"
+        if (Test-Path $ovis) {
+            $txt = [IO.File]::ReadAllText($ovis)
+            $txt = $txt -replace '(?m)^(AutoConfig\.register\([^)]+\))', 'try:`n    $1`nexcept ValueError:`n    pass'
+            [IO.File]::WriteAllText($ovis, $txt)
+        }
     } finally { Pop-Location }
 
     $py = Get-VenvPython $InstallDir
