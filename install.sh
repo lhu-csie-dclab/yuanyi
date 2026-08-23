@@ -490,6 +490,44 @@ write_config() {
 EOF
 }
 
+# docker-compose.yml pins container_name, so only one node can run per host. If a container
+# with that name already exists from a *different* install directory, `compose up` fails with
+# Docker's raw "Conflict. The container name ... is already in use by container <hex id>",
+# which names neither the other installation nor a way out -- and it surfaces only after the
+# full image build, so the user waits several minutes to reach a dead end.
+#
+# Catch it before building and say where the other node lives and how to proceed.
+preflight_container_name() {
+  have docker || return 0
+
+  local name
+  name="$(sed -n 's/^[[:space:]]*container_name:[[:space:]]*//p' "$INSTALL_DIR/docker-compose.yml" 2>/dev/null | head -1)"
+  [ -n "$name" ] || return 0
+
+  local existing
+  existing="$(docker ps -a --filter "name=^/${name}$" --format '{{.ID}}' 2>/dev/null | head -1)"
+  [ -n "$existing" ] || return 0
+
+  # Compose labels each container with the directory it was brought up from. If that is this
+  # install, compose will simply recreate it -- expected on re-install, nothing to report.
+  local owner
+  owner="$(docker inspect "$existing" \
+    --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null)"
+  [ "$owner" = "$INSTALL_DIR" ] && return 0
+
+  err "A container named '$name' already exists on this host."
+  if [ -n "$owner" ]; then
+    echo "    It belongs to another installation at: $owner" >&2
+  else
+    echo "    It was not created by this installer (no compose project label)." >&2
+  fi
+  echo "    docker-compose.yml pins this name, so only one node can run per host." >&2
+  echo >&2
+  echo "    Either uninstall that node:   bash install.sh uninstall" >&2
+  echo "    or remove the container:      docker rm -f $name" >&2
+  die "Stopping before the build, which would fail on the name conflict."
+}
+
 do_install() {
   heading "Install Mooncake 2.0 Client Agent"
   check_prereqs || return 1
@@ -510,6 +548,11 @@ do_install() {
     info "Cloning $REPO_URL"
     git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
   fi
+
+  # Check for a name clash with another node as soon as docker-compose.yml exists, i.e.
+  # before the model download. Checking any later means the user waits through a multi-GB
+  # download only to be told the node cannot start.
+  preflight_container_name
 
   # --- node role -----------------------------------------------------------
   echo

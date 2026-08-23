@@ -59,16 +59,24 @@ func (r *Runner) Start(ctx context.Context) {
 
 // Stop 清理序列：當使用者按 Q 退出或收到關機訊號時，終止相關子程序或刪除 Docker 容器。
 func (r *Runner) Stop() {
+	// 用 killProcessTree 而非 Process.Kill()：Ray 與 vLLM 都會再開孫行程（vLLM 的
+	// APIServer 與 EngineCore 是各自獨立的 PID），只砍直接子行程會留下佔著顯存的孤兒，
+	// 累積幾次重啟後新的 vLLM 就會因顯存不足而啟動失敗。
 	if r.vllmCmd != nil && r.vllmCmd.Process != nil {
-		fmt.Println("Terminating vLLM process...")
-		r.vllmCmd.Process.Kill()
+		fmt.Println("Terminating vLLM process tree...")
+		if err := killProcessTree(r.vllmCmd); err != nil {
+			fmt.Printf("warning: could not fully terminate vLLM process tree: %v\n", err)
+		}
 	}
 	if r.rayCmd != nil && r.rayCmd.Process != nil {
-		fmt.Println("Terminating Ray process...")
-		r.rayCmd.Process.Kill()
+		fmt.Println("Terminating Ray process tree...")
+		if err := killProcessTree(r.rayCmd); err != nil {
+			fmt.Printf("warning: could not fully terminate Ray process tree: %v\n", err)
+		}
 	}
 	if runtime.GOOS == "windows" {
-		// Windows 模式下子程序終止已完成
+		// Windows 無 Docker 清理階段；行程樹已於上方收掉，Job Object 會在 client.exe
+		// 結束時（含被強制終止）由核心再保證一次。
 		return
 	}
 	if r.app.Config != nil && !r.isDirectExecution() {
@@ -285,9 +293,14 @@ func (r *Runner) startVLLMDirectly(ctx context.Context) {
 	r.rayCmd = exec.CommandContext(ctx, rayBinary, "start", "--head",
 		"--dashboard-host", "0.0.0.0", "--dashboard-port", "8275", "--port", "6389", "--disable-usage-stats", "--block")
 
+	prepareProcessTree(r.rayCmd)
+
 	if err := r.rayCmd.Start(); err != nil {
 		r.app.TUI.AddVLLMLog(fmt.Sprintf("[Error] 啟動 Ray 失敗: %v", err))
 		return
+	}
+	if err := superviseProcessTree(r.rayCmd); err != nil {
+		r.app.TUI.AddVLLMLog(fmt.Sprintf("[Warning] 無法納管 Ray 行程樹（結束時可能殘留孤兒行程）: %v", err))
 	}
 
 	// 背景 Goroutine 負責後續 vLLM 的啟動與日誌掃描
@@ -337,9 +350,14 @@ func (r *Runner) startVLLMDirectly(ctx context.Context) {
 			return
 		}
 
+		prepareProcessTree(r.vllmCmd)
+
 		if err := r.vllmCmd.Start(); err != nil {
 			r.app.TUI.AddVLLMLog(fmt.Sprintf("[Error] 啟動 vLLM 程序失敗: %v", err))
 			return
+		}
+		if err := superviseProcessTree(r.vllmCmd); err != nil {
+			r.app.TUI.AddVLLMLog(fmt.Sprintf("[Warning] 無法納管 vLLM 行程樹（結束時可能殘留孤兒行程）: %v", err))
 		}
 
 		go func() {
@@ -548,9 +566,14 @@ func (r *Runner) startVLLMWindows(ctx context.Context) {
 
 	r.vllmCmd = cmd
 
+	prepareProcessTree(cmd)
+
 	if err := cmd.Start(); err != nil {
 		r.app.TUI.AddVLLMLog(fmt.Sprintf("[Error] 啟動 Windows vLLM 程序失敗: %v", err))
 		return
+	}
+	if err := superviseProcessTree(cmd); err != nil {
+		r.app.TUI.AddVLLMLog(fmt.Sprintf("[Warning] 無法納管 vLLM 行程樹（結束時可能殘留孤兒行程）: %v", err))
 	}
 
 	go func() {
