@@ -23,8 +23,19 @@ const showConfig = ref(false)
 const messagesEl = ref(null)
 
 // Config (persisted)
+// Default port 50006 is this project's own documented default gateway/proxy port (see
+// config.go / install.ps1 / install.sh), matching the comment above: go through the Go
+// server's gateway, not vLLM's raw port. The onMounted auto-detect below corrects this to
+// the *actual* configured proxy_port once /api/node_info loads, in case it was customized
+// during install -- this static value is only the fallback shown before that resolves (or
+// if the user has an override flag set from an unrelated earlier session on this browser
+// origin). Pointing this at vLLM's raw port (8100) instead was a real bug: 8100 is the one
+// port a relay-only node never listens on at all (it runs no local vLLM by design), so the
+// chat page failed with "Failed to fetch" for exactly the operators most likely to try it
+// first -- and for an inference node, it also failed during the vLLM warm-up window even
+// though the gateway (50006) would have queued the request correctly the whole time.
 const cfg = ref({
-  endpoint: 'http://localhost:8100/v1/chat/completions',
+  endpoint: 'http://localhost:50006/v1/chat/completions',
   model:    '',
   systemPrompt: '',
   temperature: 0.7,
