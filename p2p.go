@@ -641,7 +641,14 @@ func (n *NetworkNode) gossipSubscriber(ctx context.Context, sub *pubsub.Subscrip
 			serverProcessGossipMessage(info, n.app)
 		}
 
-		n.app.TUI.AddLog("[GOSSIP]", fmt.Sprintf("Received broadcast from %s - GPU: %s", info.NodeID[:8], info.Summary))
+		// Deliberately worded "peer's GPU", not bare "GPU:" -- a relay-only node runs no
+		// GPU workload of its own, but every peer's telemetry broadcast still flows through
+		// this same log line, so its System Logs fill up with "GPU: Quadro RTX 4000..." at
+		// gossip frequency (every ~3s per peer). A user who chose relay-only specifically to
+		// avoid GPU usage and then sees "GPU" scrolling through their own node's log reads
+		// that as "it's running on GPU after all" -- this node's process/GPU-utilization
+		// telemetry says otherwise, but a log line is what people actually watch.
+		n.app.TUI.AddLog("[GOSSIP]", fmt.Sprintf("Received broadcast from %s (peer's GPU: %s)", info.NodeID[:8], info.Summary))
 	}
 }
 

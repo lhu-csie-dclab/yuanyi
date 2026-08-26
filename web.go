@@ -77,6 +77,13 @@ func StartClientWebDashboard(app *App) {
 			"local_node_id":    localID,
 			"server_host":      serverHost,
 			"hub_mode_enabled": app.Config.ServerMode.Enabled,
+			// A relay-only node runs no local GPU workload, but its own dashboard/logs
+			// otherwise give no persistent, at-a-glance confirmation of that: the only prior
+			// signal was a one-time startup log line and other peers' GPU telemetry
+			// scrolling through the same log view. Expose it so the web UI can show an
+			// explicit "Relay-only" badge instead of leaving the operator to infer their own
+			// node's role from ambiguous log text.
+			"relay_only": app.Config.ServerMode.RelayOnly,
 			// Expose ports and model so the web UI can auto-configure the chat endpoint.
 			"vllm_port":  app.Config.VLLM.Port,
 			"proxy_port": app.Config.ProxyPort,

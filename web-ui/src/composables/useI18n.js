@@ -57,6 +57,7 @@ const messages = {
     col_status:       'Status',
     no_gpu:           'No GPU',
     local_badge:      'Local',
+    relay_badge:      'Relay-only',
     loading_nodes:    'Searching nodes…',
 
     // ── Hub Topology ─────────────────────────────────────────────────
@@ -176,6 +177,7 @@ const messages = {
     col_status:       '狀態',
     no_gpu:           '無 GPU',
     local_badge:      '本機',
+    relay_badge:      '純中繼',
     loading_nodes:    '搜尋節點中…',
 
     // ── Hub Topology ─────────────────────────────────────────────────

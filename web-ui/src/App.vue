@@ -106,6 +106,11 @@ const shortId = computed(() =>
             <div class="flex items-center gap-1.5 mt-0.5">
               <span class="h-1.5 w-1.5 rounded-full" :class="nodeInfo.loaded ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'" />
               <span class="text-[0.68rem] text-slate-500">{{ nodeInfo.loaded ? t('status_online') : t('status_connecting') }}</span>
+              <!-- Persistent, page-independent confirmation of relay-only mode. Previously the
+                   only signal was a one-time startup log line plus ambiguous "GPU:" text in
+                   other peers' gossip broadcasts scrolling through this node's own logs --
+                   easy to misread as "this node is running on GPU" when it deliberately isn't. -->
+              <span v-if="nodeInfo.relayOnly" class="pill pill-blue text-[0.6rem] py-0" :title="t('relay_badge')">{{ t('relay_badge') }}</span>
             </div>
           </div>
         </div>

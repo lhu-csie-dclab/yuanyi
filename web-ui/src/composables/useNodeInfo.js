@@ -7,6 +7,7 @@ const state = reactive({
   localNodeId: '',
   serverHost: '127.0.0.1',
   hubModeEnabled: false,
+  relayOnly: false,
   // vLLM / proxy info derived from config.json (exposed by /api/node_info)
   vllmPort: 8100,
   proxyPort: 50006,
@@ -23,6 +24,7 @@ export function useNodeInfo() {
         state.localNodeId    = data.local_node_id    || ''
         state.serverHost     = data.server_host      || '127.0.0.1'
         state.hubModeEnabled = !!data.hub_mode_enabled
+        state.relayOnly      = !!data.relay_only
         state.vllmPort       = data.vllm_port        || 8100
         state.proxyPort      = data.proxy_port       || 50006
         state.modelName      = data.model_name       || ''
