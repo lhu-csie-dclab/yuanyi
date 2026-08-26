@@ -726,10 +726,16 @@ function Do-Status {
     if ($proc) { Write-Host "  Process   : running (PID $($proc.Id))" -ForegroundColor Green }
     else { Write-Host "  Process   : stopped" -ForegroundColor Yellow }
 
-    try {
-        $r = Invoke-WebRequest -Uri "http://127.0.0.1:$webPort/api/node_info" -TimeoutSec 3 -UseBasicParsing
-        if ($r.StatusCode -eq 200) { Write-Host "  Dashboard : responding on http://localhost:$webPort" -ForegroundColor Green }
-    } catch { }
+    # Only probe the dashboard when THIS install's process is actually running. The port is
+    # a shared machine-wide resource, so if our process is stopped a 200 on that port means
+    # some other node is holding it -- reporting that as "our dashboard is responding" is
+    # misleading (seen while running a second install on a host that already had a node up).
+    if ($proc) {
+        try {
+            $r = Invoke-WebRequest -Uri "http://127.0.0.1:$webPort/api/node_info" -TimeoutSec 3 -UseBasicParsing
+            if ($r.StatusCode -eq 200) { Write-Host "  Dashboard : responding on http://localhost:$webPort" -ForegroundColor Green }
+        } catch { }
+    }
 }
 
 function Show-Usage {
