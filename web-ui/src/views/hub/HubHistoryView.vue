@@ -34,42 +34,47 @@ usePolling(refresh, 3000)
   <PageHeader :title="t('page_history')" />
 
   <div class="p-5 max-w-full min-w-0">
-    <div class="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
-      <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+    <div class="rounded-2xl border border-border bg-surface-card shadow-sm overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
         <div class="flex items-center gap-2">
-          <span class="h-2 w-2 rounded-full bg-blue-400" />
-          <h2 class="text-sm font-semibold text-slate-800">{{ t('section_events') }}</h2>
+          <span class="h-2 w-2 rounded-full bg-brand" />
+          <h2 class="text-sm font-semibold text-ink">{{ t('section_events') }}</h2>
         </div>
-        <span class="text-xs text-slate-400">{{ t('records_count', events.length) }}</span>
+        <span class="text-xs text-ink-faint">{{ t('records_count', events.length) }}</span>
       </div>
-      <div class="overflow-x-auto w-full">
-        <table class="w-full min-w-[600px] border-collapse text-left">
-          <thead>
-            <tr>
-              <th class="th-cell">{{ t('col_time') }}</th>
-              <th class="th-cell">{{ t('col_event') }}</th>
-              <th class="th-cell">{{ t('col_node_id') }}</th>
-              <th class="th-cell">{{ t('col_ip') }}</th>
-              <th class="th-cell">{{ t('col_retries') }}</th>
-              <th class="th-cell">{{ t('col_penalties') }}</th>
-              <th class="th-cell">{{ t('col_detail') }}</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-if="!events.length">
-              <td class="td-cell text-center text-slate-400 py-10" colspan="7">{{ t('no_events') }}</td>
-            </tr>
-            <tr v-for="(e, i) in events" :key="e.id ?? i" class="hover:bg-slate-50/70 transition-colors">
-              <td class="td-cell text-xs text-slate-500 font-mono">{{ (e.timestamp || '').replace('T', ' ').substring(0, 19) }}</td>
-              <td class="td-cell"><StatusPill :variant="metaFor(e.event_type).variant" :label="metaFor(e.event_type).label" /></td>
-              <td class="td-cell font-mono text-xs font-semibold text-blue-600">{{ e.peer_id ? e.peer_id.substring(0, 12) + '…' : '-' }}</td>
-              <td class="td-cell text-slate-500 font-mono text-xs">{{ e.ip_address || '-' }}</td>
-              <td class="td-cell text-xs font-mono font-semibold text-slate-700">{{ e.fail_count || 0 }}</td>
-              <td class="td-cell text-xs font-mono font-semibold text-rose-500">{{ e.penalty_points || 0 }}</td>
-              <td class="td-cell text-xs text-slate-500 leading-snug">{{ e.detail || '' }}</td>
-            </tr>
-          </tbody>
-        </table>
+      <!--
+        Was a plain <table>: the IP/multiaddr and free-text "detail" columns have no natural
+        width cap, so the table forced itself wider than the viewport and squeezed/clipped
+        the retries/penalties/detail columns on the right. Replaced with two-tier rows: a
+        main row of only short, truncatable identity fields (each independently min-w-0'd so
+        one long field can't force the row wide), and a sub-row for the retries/penalties
+        pills plus the free-text detail, which is allowed to wrap normally instead.
+      -->
+      <div v-if="!events.length" class="py-10 text-center text-ink-faint text-sm">{{ t('no_events') }}</div>
+      <div v-else class="w-full max-w-full overflow-x-auto box-border">
+        <div
+          v-for="(e, i) in events"
+          :key="e.id ?? i"
+          class="flex flex-col gap-2 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors min-w-0 w-full max-w-full box-border"
+        >
+          <div class="flex items-center gap-3 min-w-0">
+            <span class="shrink-0 text-xs text-ink-faint font-mono">{{ (e.timestamp || '').replace('T', ' ').substring(0, 19) }}</span>
+            <span class="shrink-0"><StatusPill :variant="metaFor(e.event_type).variant" :label="metaFor(e.event_type).label" /></span>
+            <span
+              class="min-w-0 flex-1 font-mono text-xs font-semibold text-brand-light truncate"
+              :title="e.peer_id || ''"
+            >{{ e.peer_id || '-' }}</span>
+            <span
+              class="min-w-0 flex-1 font-mono text-xs text-ink-faint truncate"
+              :title="e.ip_address || ''"
+            >{{ e.ip_address || '-' }}</span>
+          </div>
+          <div class="pl-1 flex flex-wrap items-center gap-2 min-w-0">
+            <span class="pill pill-amber">{{ t('col_retries') }}: {{ e.fail_count || 0 }}</span>
+            <span class="pill pill-red">{{ t('col_penalties') }}: {{ e.penalty_points || 0 }}</span>
+            <span v-if="e.detail" class="text-xs text-ink-faint leading-snug break-words min-w-0">{{ e.detail }}</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>

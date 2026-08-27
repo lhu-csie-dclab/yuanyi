@@ -8,7 +8,7 @@ import PageHeader from '../../components/PageHeader.vue'
 import StatCard from '../../components/StatCard.vue'
 import StatusPill from '../../components/StatusPill.vue'
 import Pagination from '../../components/Pagination.vue'
-import TelemetryBadges from '../../components/TelemetryBadges.vue'
+import PeerListRow from '../../components/PeerListRow.vue'
 
 const toast = useToast()
 const { t } = useI18n()
@@ -51,9 +51,9 @@ async function runDebug(fn) {
 
   <div class="space-y-5 p-5 max-w-full min-w-0">
     <!-- Cluster totals -->
-    <div class="rounded-2xl border border-blue-200/60 bg-gradient-to-r from-blue-50 to-indigo-50/40 p-5">
-      <div class="mb-4 text-xs font-bold uppercase tracking-widest text-blue-600">{{ t('section_cluster') }}</div>
-      <div class="grid grid-cols-2 gap-4 sm:grid-cols-4 divide-x divide-blue-100">
+    <div class="rounded-2xl border border-brand/25 bg-gradient-to-r from-brand/10 to-cyan/5 p-5">
+      <div class="mb-4 text-xs font-bold uppercase tracking-widest text-brand-light">{{ t('section_cluster') }}</div>
+      <div class="grid grid-cols-2 gap-4 sm:grid-cols-4 divide-x divide-white/10">
         <StatCard bare :label="t('stat_cluster_tokens')" :value="fmtNum(stats.total_cluster_tokens)" accent />
         <StatCard bare :label="t('stat_input')"          :value="fmtNum(stats.total_in_tokens)"      class="pl-4" />
         <StatCard bare :label="t('stat_output')"         :value="fmtNum(stats.total_out_tokens)"     class="pl-4" />
@@ -62,56 +62,38 @@ async function runDebug(fn) {
     </div>
 
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <StatCard icon="🛰️" color="bg-blue-50"    :label="t('stat_nodes')"      :value="stats.total_nodes || 0" accent />
-      <StatCard icon="⚡"  color="bg-violet-50"  :label="t('stat_requests')"   :value="stats.total_active_requests || 0" />
-      <StatCard icon="📈" color="bg-emerald-50"  :label="t('stat_throughput')" :value="(stats.total_gen_speed || 0).toFixed(1)" />
-      <StatCard icon="⏱"  color="bg-amber-50"   :label="t('stat_ttft')"       :value="(stats.avg_ttft || 0).toFixed(2)" />
+      <StatCard icon="🛰️" color="bg-brand/10"    :label="t('stat_nodes')"      :value="stats.total_nodes || 0" accent />
+      <StatCard icon="⚡"  color="bg-violet-400/10"  :label="t('stat_requests')"   :value="stats.total_active_requests || 0" />
+      <StatCard icon="📈" color="bg-emerald-400/10"  :label="t('stat_throughput')" :value="(stats.total_gen_speed || 0).toFixed(1)" />
+      <StatCard icon="⏱"  color="bg-amber-400/10"   :label="t('stat_ttft')"       :value="(stats.avg_ttft || 0).toFixed(2)" />
     </div>
 
     <!-- Node list -->
-    <div class="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
-      <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
+    <div class="rounded-2xl border border-border bg-surface-card shadow-sm overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-3.5 border-b border-white/5 bg-white/[0.03]">
         <div class="flex items-center gap-2">
           <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-          <h2 class="text-sm font-semibold text-slate-800">{{ t('section_node_list') }}</h2>
+          <h2 class="text-sm font-semibold text-ink">{{ t('section_node_list') }}</h2>
         </div>
-        <span class="text-xs text-slate-400">{{ t('peer_count', peers.length) }}</span>
+        <span class="text-xs text-ink-faint">{{ t('peer_count', peers.length) }}</span>
       </div>
-      <div class="overflow-x-auto w-full">
-        <table class="w-full min-w-[640px] border-collapse text-left">
-          <thead>
-            <tr>
-              <th class="th-cell w-12">{{ t('col_rank') }}</th>
-              <th class="th-cell">{{ t('col_node_id') }}</th>
-              <th class="th-cell">{{ t('col_ip') }}</th>
-              <th class="th-cell">{{ t('col_gpu') }}</th>
-              <th class="th-cell">{{ t('col_status') }}</th>
-              <th class="th-cell">{{ t('col_telemetry') }}</th>
-              <th class="th-cell">{{ t('col_engine') }}</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-if="!paginatedPeers.length">
-              <td class="td-cell text-center text-slate-400 py-12" colspan="7">{{ t('loading_cluster') }}</td>
-            </tr>
-            <tr v-for="(p, i) in paginatedPeers" :key="p.peer_id || i" class="hover:bg-slate-50/70 transition-colors">
-              <td class="td-cell text-slate-400 font-semibold">{{ (currentPage - 1) * PAGE_SIZE + i + 1 }}</td>
-              <td class="td-cell font-mono text-xs font-semibold text-blue-600">{{ (p.peer_id || '').substring(0, 12) }}…</td>
-              <td class="td-cell text-slate-500 font-mono text-xs">{{ p.ip_address || '-' }}</td>
-              <td class="td-cell text-xs font-semibold text-slate-800">
-                <span v-if="!parseGpuInfo(p).summary" class="pill pill-red">{{ t('no_gpu') }}</span>
-                <span v-else>{{ parseGpuInfo(p).summary }}</span>
-              </td>
-              <td class="td-cell">
-                <StatusPill v-if="p.fail_count > 0" variant="warning" :label="t('retry_label', p.fail_count)" />
-                <StatusPill v-else variant="good" :label="t('status_healthy')" />
-                <div v-if="p.penalty_points" class="mt-0.5 text-[0.68rem] text-rose-400 font-mono">{{ t('penalty', p.penalty_points) }}</div>
-              </td>
-              <td class="td-cell"><TelemetryBadges :info="parseGpuInfo(p)" /></td>
-              <td class="td-cell text-xs text-slate-400 font-mono">{{ p.engine_id || '-' }}</td>
-            </tr>
-          </tbody>
-        </table>
+      <div v-if="!paginatedPeers.length" class="py-12 text-center text-ink-faint text-sm">{{ t('loading_cluster') }}</div>
+      <div v-else class="w-full max-w-full overflow-x-auto box-border">
+        <PeerListRow
+          v-for="(p, i) in paginatedPeers"
+          :key="p.peer_id || i"
+          :peer="p"
+          :rank="(currentPage - 1) * PAGE_SIZE + i + 1"
+        >
+          <template #extra>
+            <StatusPill v-if="p.fail_count > 0" variant="warning" :label="t('retry_label', p.fail_count)" />
+            <StatusPill v-else variant="good" :label="t('status_healthy')" />
+          </template>
+          <template #sub-extra>
+            <span v-if="p.penalty_points" class="text-[0.68rem] text-rose-400 font-mono">{{ t('penalty', p.penalty_points) }}</span>
+            <span v-if="p.engine_id" class="text-[0.68rem] text-ink-faint font-mono">engine: {{ p.engine_id }}</span>
+          </template>
+        </PeerListRow>
       </div>
 
       <Pagination
@@ -123,8 +105,8 @@ async function runDebug(fn) {
     </div>
 
     <!-- Admin -->
-    <div class="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
-      <h2 class="mb-3 text-xs font-bold uppercase tracking-widest text-slate-400">🛠️ {{ t('hub_admin') }}</h2>
+    <div class="rounded-2xl border border-border bg-surface-card p-4 shadow-sm">
+      <h2 class="mb-3 text-xs font-bold uppercase tracking-widest text-ink-faint">🛠️ {{ t('hub_admin') }}</h2>
       <div class="flex flex-wrap gap-2">
         <button class="btn btn-brand btn-sm" @click="runDebug(hubForceRank)">{{ t('btn_force_rank') }}</button>
         <button class="btn btn-critical btn-sm" @click="runDebug(hubClearOffline)">{{ t('btn_clear_offline') }}</button>

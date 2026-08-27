@@ -36,51 +36,55 @@ usePolling(refresh, 3000)
   <PageHeader :title="t('page_leaderboard')" />
 
   <div class="p-5 max-w-full min-w-0">
-    <div class="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
-      <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
+    <div class="rounded-2xl border border-border bg-surface-card shadow-sm overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-3.5 border-b border-white/5 bg-white/[0.03]">
         <div class="flex items-center gap-2">
           <span class="h-2 w-2 rounded-full bg-amber-400" />
-          <h2 class="text-sm font-semibold text-slate-800">{{ t('section_board') }}</h2>
+          <h2 class="text-sm font-semibold text-ink">{{ t('section_board') }}</h2>
         </div>
-        <span class="text-xs text-slate-400">{{ t('peer_count', board.length) }}</span>
+        <span class="text-xs text-ink-faint">{{ t('peer_count', board.length) }}</span>
       </div>
-      <div class="overflow-x-auto w-full">
-        <table class="w-full min-w-[640px] border-collapse text-left">
-          <thead>
-            <tr>
-              <th class="th-cell w-20">{{ t('col_rank_label') }}</th>
-              <th class="th-cell">{{ t('col_peer') }}</th>
-              <th class="th-cell">{{ t('col_ip') }}</th>
-              <th class="th-cell">{{ t('col_gpu') }}</th>
-              <th class="th-cell">{{ t('col_tasks') }}</th>
-              <th class="th-cell">{{ t('col_in_tokens') }}</th>
-              <th class="th-cell">{{ t('col_out_tokens') }}</th>
-              <th class="th-cell">{{ t('col_total_tokens') }}</th>
-              <th class="th-cell">{{ t('col_score') }}</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-if="!paginatedBoard.length">
-              <td class="td-cell text-center text-slate-400 py-12" colspan="9">{{ t('no_records') }}</td>
-            </tr>
-            <tr v-for="(p, i) in paginatedBoard" :key="p.peer_id || i" class="hover:bg-slate-50/70 transition-colors">
-              <td class="td-cell">
-                <span v-if="(currentPage - 1) * PAGE_SIZE + i < 3" class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-bold" :class="medals[(currentPage - 1) * PAGE_SIZE + i].class">
-                  {{ medals[(currentPage - 1) * PAGE_SIZE + i].label }}
-                </span>
-                <span v-else class="font-bold text-slate-400 text-xs ml-2">#{{ (currentPage - 1) * PAGE_SIZE + i + 1 }}</span>
-              </td>
-              <td class="td-cell font-mono text-xs font-semibold text-blue-600">{{ (p.peer_id || '').substring(0, 12) }}…</td>
-              <td class="td-cell text-slate-500 font-mono text-xs">{{ p.ip_address || '-' }}</td>
-              <td class="td-cell text-xs font-semibold text-slate-800">{{ parseGpuInfo(p).summary || '-' }}</td>
-              <td class="td-cell font-bold tabular-nums text-amber-600 text-xs">{{ fmtNum(p.total_requests) }}</td>
-              <td class="td-cell font-bold tabular-nums text-slate-600 text-xs">{{ fmtNum(p.in_tokens) }}</td>
-              <td class="td-cell font-bold tabular-nums text-blue-600 text-xs">{{ fmtNum(p.out_tokens) }}</td>
-              <td class="td-cell font-bold tabular-nums text-cyan-600 text-xs">{{ fmtNum(p.total_tokens) }}</td>
-              <td class="td-cell text-xs font-bold text-blue-700">{{ (p.contribution_score || 0).toFixed(1) }}</td>
-            </tr>
-          </tbody>
-        </table>
+      <!--
+        Was a 9-column <table>: the IP/multiaddr column has no width cap and 5 more numeric
+        columns followed it, so the table forced itself far wider than the viewport and
+        clipped the trailing score column. Replaced with two-tier rows: a main row of only
+        short, independently-truncatable identity fields, and a sub-row of the numeric
+        metrics as pills, free to wrap.
+      -->
+      <div v-if="!paginatedBoard.length" class="py-12 text-center text-ink-faint text-sm">{{ t('no_records') }}</div>
+      <div v-else class="w-full max-w-full overflow-x-auto box-border">
+        <div
+          v-for="(p, i) in paginatedBoard"
+          :key="p.peer_id || i"
+          class="flex flex-col gap-2 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors min-w-0 w-full max-w-full box-border"
+        >
+          <div class="flex items-center gap-3 min-w-0">
+            <span class="shrink-0 w-16">
+              <span v-if="(currentPage - 1) * PAGE_SIZE + i < 3" class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-bold whitespace-nowrap" :class="medals[(currentPage - 1) * PAGE_SIZE + i].class">
+                {{ medals[(currentPage - 1) * PAGE_SIZE + i].label }}
+              </span>
+              <span v-else class="font-bold text-ink-faint text-xs">#{{ (currentPage - 1) * PAGE_SIZE + i + 1 }}</span>
+            </span>
+            <span
+              class="min-w-0 flex-1 font-mono text-xs font-semibold text-brand-light truncate"
+              :title="p.peer_id || ''"
+            >{{ p.peer_id || '-' }}</span>
+            <span
+              class="min-w-0 flex-1 font-mono text-xs text-ink-faint truncate"
+              :title="p.ip_address || ''"
+            >{{ p.ip_address || '-' }}</span>
+            <span class="min-w-0 shrink-0 max-w-[35%] text-xs font-semibold text-ink truncate" :title="parseGpuInfo(p).summary || ''">
+              {{ parseGpuInfo(p).summary || '-' }}
+            </span>
+          </div>
+          <div class="pl-1 flex flex-wrap items-center gap-2 min-w-0">
+            <span class="pill pill-amber">{{ t('col_tasks') }} {{ fmtNum(p.total_requests) }}</span>
+            <span class="pill pill-blue">{{ t('col_in_tokens') }} {{ fmtNum(p.in_tokens) }}</span>
+            <span class="pill pill-blue">{{ t('col_out_tokens') }} {{ fmtNum(p.out_tokens) }}</span>
+            <span class="pill pill-cyan">{{ t('col_total_tokens') }} {{ fmtNum(p.total_tokens) }}</span>
+            <span class="pill pill-green">{{ t('col_score') }} {{ (p.contribution_score || 0).toFixed(1) }}</span>
+          </div>
+        </div>
       </div>
 
       <Pagination

@@ -10,14 +10,14 @@ const emit = defineEmits(['update:currentPage'])
 </script>
 
 <template>
-  <div v-if="totalItems > pageSize" class="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-t border-slate-100 bg-slate-50/50">
-    <div class="text-xs text-slate-500">
-      <span class="font-medium text-slate-700">
+  <div v-if="totalItems > pageSize" class="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-t border-white/5 bg-white/[0.03]">
+    <div class="text-xs text-ink-faint">
+      <span class="font-medium text-ink-muted">
         {{ (currentPage - 1) * pageSize + 1 }}–{{ Math.min(currentPage * pageSize, totalItems) }}
       </span>
-      <span class="mx-1 text-slate-400">/</span>
+      <span class="mx-1 text-ink-faint">/</span>
       <span>共 {{ totalItems }} 筆</span>
-      <span class="ml-2 text-slate-400">({{ totalPages }} 頁)</span>
+      <span class="ml-2 text-ink-faint">({{ totalPages }} 頁)</span>
     </div>
 
     <div class="flex items-center gap-1.5">
@@ -34,7 +34,7 @@ const emit = defineEmits(['update:currentPage'])
           v-for="p in totalPages"
           :key="p"
           class="h-7 min-w-[28px] px-1.5 rounded-lg text-xs font-semibold transition-colors"
-          :class="p === currentPage ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200/70'"
+          :class="p === currentPage ? 'bg-brand text-white shadow-xs' : 'text-ink-muted hover:bg-white/10'"
           @click="emit('update:currentPage', p)"
         >
           {{ p }}

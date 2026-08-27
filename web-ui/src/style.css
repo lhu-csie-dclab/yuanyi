@@ -5,27 +5,31 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Menlo, monospace;
 
-  --color-surface: #f0f4f9;
-  --color-surface-raised: #ffffff;
-  --color-surface-card: #ffffff;
-  --color-border: #e2e8f0;
+  /* Dark glass surfaces -- translucent white-on-black panels over the starry body
+     background (see body's radial-gradient stack in @layer base), not solid fills. */
+  --color-surface: #05060c;
+  --color-surface-raised: rgba(255, 255, 255, 0.05);
+  --color-surface-card: rgba(255, 255, 255, 0.045);
+  --color-border: rgba(255, 255, 255, 0.1);
 
-  --color-ink: #0f172a;
-  --color-ink-muted: #64748b;
-  --color-ink-faint: #94a3b8;
+  --color-ink: #f1f5f9;
+  --color-ink-muted: #94a3b8;
+  --color-ink-faint: #64748b;
 
-  --color-brand: #3b5bdb;
-  --color-brand-light: #4c6ef5;
-  --color-cyan: #0ea5e9;
+  /* Neon accent trio: pink-purple brand, sky blue, emerald -- the rest of this theme's
+     color usage (pills, status dots, chart accents) draws from these three. */
+  --color-brand: #c084fc;
+  --color-brand-light: #e879f9;
+  --color-cyan: #22d3ee;
 
-  --color-good: #10b981;
-  --color-warning: #f59e0b;
-  --color-critical: #ef4444;
+  --color-good: #34d399;
+  --color-warning: #fbbf24;
+  --color-critical: #fb7185;
 
-  --color-sidebar-bg: #1e293b;
+  --color-sidebar-bg: #090a13;
   --color-sidebar-text: #94a3b8;
-  --color-sidebar-hover: #334155;
-  --color-sidebar-active: #3b5bdb;
+  --color-sidebar-hover: rgba(255, 255, 255, 0.08);
+  --color-sidebar-active: var(--color-brand);
 }
 
 @layer base {
@@ -42,19 +46,39 @@
     min-height: 100vh;
     margin: 0;
     overflow-x: hidden;
+    /* Starry night sky: layered radial-gradient "stars" plus two soft neon glows, all pure
+       CSS (no image asset to ship/fetch). Fixed attachment so the field doesn't scroll with
+       page content -- it's the room the glass panels float in, not part of the page flow. */
+    background-color: var(--color-surface);
+    background-image:
+      radial-gradient(1px 1px at 12% 18%, #ffffff 100%, transparent),
+      radial-gradient(1px 1px at 32% 62%, #ffffff 100%, transparent),
+      radial-gradient(1.5px 1.5px at 52% 28%, #ffffff 100%, transparent),
+      radial-gradient(1px 1px at 68% 74%, #ffffff 100%, transparent),
+      radial-gradient(1px 1px at 78% 12%, #ffffff 100%, transparent),
+      radial-gradient(1.5px 1.5px at 88% 48%, #ffffff 100%, transparent),
+      radial-gradient(1px 1px at 6% 82%, #ffffff 100%, transparent),
+      radial-gradient(1px 1px at 42% 92%, #ffffff 100%, transparent),
+      radial-gradient(1px 1px at 95% 85%, #ffffff 100%, transparent),
+      radial-gradient(1px 1px at 22% 42%, #ffffff 100%, transparent),
+      radial-gradient(ellipse 60% 40% at 20% 0%, rgba(192, 132, 252, 0.14), transparent 60%),
+      radial-gradient(ellipse 55% 40% at 100% 30%, rgba(34, 211, 238, 0.1), transparent 60%);
+    background-size: 100% 100%;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
   }
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 999px; }
 }
 
 @layer components {
-  /* ── Cards ── */
+  /* ── Cards (glass panels) ── */
   .card {
-    @apply rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition-all duration-150;
+    @apply rounded-2xl border border-border bg-surface-card p-5 shadow-sm backdrop-blur-md transition-all duration-150;
   }
   .card-hover {
-    @apply rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition-all duration-150 hover:shadow-md hover:-translate-y-px;
+    @apply rounded-2xl border border-border bg-surface-card p-5 shadow-sm backdrop-blur-md transition-all duration-150 hover:shadow-md hover:-translate-y-px hover:border-white/20;
   }
 
   /* ── Sidebar nav ── */
@@ -66,7 +90,7 @@
   }
   .nav-link.router-link-exact-active,
   .nav-link.nav-link-active {
-    @apply bg-blue-600/20 text-blue-400 font-semibold;
+    @apply bg-brand/20 text-brand-light font-semibold;
   }
   .nav-section {
     @apply px-3 pt-4 pb-1 text-[0.65rem] font-bold uppercase tracking-widest text-slate-600;
@@ -74,13 +98,13 @@
 
   /* ── Metric card ── */
   .metric-card {
-    @apply rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm flex flex-col gap-1 transition-all duration-150 hover:shadow-md hover:-translate-y-px;
+    @apply rounded-2xl border border-border bg-surface-card p-4 shadow-sm backdrop-blur-md flex flex-col gap-1 transition-all duration-150 hover:shadow-md hover:-translate-y-px hover:border-white/20;
   }
   .metric-value {
-    @apply text-2xl font-bold tabular-nums tracking-tight text-slate-900;
+    @apply text-2xl font-bold tabular-nums tracking-tight text-ink;
   }
   .metric-label {
-    @apply text-[0.72rem] font-semibold text-slate-400 uppercase tracking-wider;
+    @apply text-[0.72rem] font-semibold text-ink-faint uppercase tracking-wider;
   }
   .metric-icon {
     @apply mb-1 flex h-8 w-8 items-center justify-center rounded-lg text-base;
@@ -91,10 +115,10 @@
     @apply inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-150 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-brand {
-    @apply bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow-md;
+    @apply bg-brand text-slate-950 hover:bg-brand-light shadow-sm hover:shadow-md hover:shadow-brand/30;
   }
   .btn-ghost {
-    @apply bg-slate-100 text-slate-700 hover:bg-slate-200 shadow-none;
+    @apply bg-white/[0.06] text-ink-muted hover:bg-white/10 hover:text-ink shadow-none;
   }
   .btn-critical {
     @apply bg-rose-500 text-white hover:bg-rose-600;
@@ -107,21 +131,22 @@
   .pill {
     @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
   }
-  .pill-blue   { @apply bg-blue-50 text-blue-700 border border-blue-200/60; }
-  .pill-green  { @apply bg-emerald-50 text-emerald-700 border border-emerald-200/60; }
-  .pill-amber  { @apply bg-amber-50 text-amber-700 border border-amber-200/60; }
-  .pill-red    { @apply bg-rose-50 text-rose-700 border border-rose-200/60; }
+  .pill-blue   { @apply bg-brand/10 text-brand-light border border-brand/30; }
+  .pill-green  { @apply bg-emerald-400/10 text-emerald-300 border border-emerald-400/30; }
+  .pill-amber  { @apply bg-amber-400/10 text-amber-300 border border-amber-400/30; }
+  .pill-red    { @apply bg-rose-400/10 text-rose-300 border border-rose-400/30; }
+  .pill-cyan   { @apply bg-cyan/10 text-cyan border border-cyan/30; }
 
   /* ── Table ── */
   .th-cell {
-    @apply px-4 py-3 text-left text-[0.68rem] font-bold uppercase tracking-wider text-slate-400 bg-slate-50/80 border-b border-slate-200;
+    @apply px-4 py-3 text-left text-[0.68rem] font-bold uppercase tracking-wider text-ink-faint bg-white/[0.03] border-b border-border;
   }
   .td-cell {
-    @apply px-4 py-3 border-b border-slate-100 align-middle text-sm text-slate-700;
+    @apply px-4 py-3 border-b border-white/5 align-middle text-sm text-ink-muted;
   }
 
   /* ── Code / log ── */
   .code-panel {
-    @apply w-full rounded-xl border border-slate-200 bg-slate-950 p-4 font-mono text-sm text-emerald-400;
+    @apply w-full rounded-xl border border-border bg-black/40 p-4 font-mono text-sm text-emerald-400 backdrop-blur-md;
   }
 }

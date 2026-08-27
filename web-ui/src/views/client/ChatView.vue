@@ -259,14 +259,14 @@ watch(cfg, saveCfg, { deep: true })
 </script>
 
 <template>
-  <div class="flex h-[calc(100vh-0px)] overflow-hidden bg-[#f0f4f9]">
+  <div class="flex h-[calc(100vh-0px)] overflow-hidden bg-surface">
 
     <!-- ═══ Session Sidebar ═══════════════════════════════════════════════════ -->
-    <aside class="hidden sm:flex w-56 shrink-0 flex-col border-r border-slate-200 bg-white">
-      <div class="flex items-center justify-between px-4 py-3.5 border-b border-slate-100">
-        <span class="text-xs font-bold uppercase tracking-widest text-slate-400">{{ t('chat_sessions') }}</span>
+    <aside class="hidden sm:flex w-56 shrink-0 flex-col border-r border-border bg-surface-card">
+      <div class="flex items-center justify-between px-4 py-3.5 border-b border-white/5">
+        <span class="text-xs font-bold uppercase tracking-widest text-ink-faint">{{ t('chat_sessions') }}</span>
         <button
-          class="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-bold"
+          class="flex h-7 w-7 items-center justify-center rounded-lg bg-brand text-white hover:bg-brand-light transition-colors text-sm font-bold"
           :title="t('chat_new')"
           @click="newSession"
         >+</button>
@@ -277,21 +277,21 @@ watch(cfg, saveCfg, { deep: true })
           :key="s.id"
           class="group w-full flex items-center gap-2 rounded-xl px-3 py-2 text-left text-xs transition-colors"
           :class="s.id === activeId
-            ? 'bg-blue-50 text-blue-700 font-semibold'
-            : 'text-slate-600 hover:bg-slate-50'"
+            ? 'bg-brand/10 text-brand-light font-semibold'
+            : 'text-ink-muted hover:bg-white/5'"
           @click="selectSession(s.id)"
         >
           <span class="truncate flex-1">{{ s.title }}</span>
           <span
-            class="hidden group-hover:flex h-5 w-5 items-center justify-center rounded-md hover:bg-rose-100 hover:text-rose-500 text-slate-400 text-[0.7rem]"
+            class="hidden group-hover:flex h-5 w-5 items-center justify-center rounded-md hover:bg-rose-100 hover:text-rose-500 text-ink-faint text-[0.7rem]"
             @click.stop="deleteSession(s.id)"
           >✕</span>
         </button>
       </div>
       <!-- Config button -->
-      <div class="border-t border-slate-100 p-2">
+      <div class="border-t border-white/5 p-2">
         <button
-          class="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs text-slate-500 hover:bg-slate-50 transition-colors"
+          class="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs text-ink-faint hover:bg-white/5 transition-colors"
           @click="showConfig = !showConfig"
         >
           <span>⚙️</span> {{ t('chat_settings') }}
@@ -303,27 +303,27 @@ watch(cfg, saveCfg, { deep: true })
     <div class="flex flex-1 flex-col min-w-0 overflow-hidden">
 
       <!-- Header -->
-      <div class="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-3 shrink-0">
+      <div class="flex items-center justify-between border-b border-border bg-surface-card px-5 py-3 shrink-0">
         <div class="flex items-center gap-3">
           <!-- Mobile new chat button -->
-          <button class="sm:hidden flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white text-sm font-bold" @click="newSession">+</button>
+          <button class="sm:hidden flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-white text-sm font-bold" @click="newSession">+</button>
           <div>
-            <div class="font-semibold text-slate-900 text-sm truncate max-w-[200px]">
+            <div class="font-semibold text-ink text-sm truncate max-w-[200px]">
               {{ activeSession?.title || t('page_chat') }}
             </div>
-            <div class="text-[0.68rem] text-slate-400 font-mono">{{ cfg.endpoint }}</div>
+            <div class="text-[0.68rem] text-ink-faint font-mono">{{ cfg.endpoint }}</div>
           </div>
         </div>
         <div class="flex items-center gap-2">
           <span v-if="streaming" class="pill pill-blue animate-pulse">{{ t('chat_streaming') }}</span>
           <button
-            class="btn btn-ghost btn-sm text-slate-500"
+            class="btn btn-ghost btn-sm text-ink-faint"
             :title="t('chat_clear')"
             @click="clearSession"
           >🗑 {{ t('chat_clear') }}</button>
           <button
             class="btn btn-ghost btn-sm"
-            :class="showConfig ? 'bg-blue-50 text-blue-600' : ''"
+            :class="showConfig ? 'bg-brand/10 text-brand-light' : ''"
             @click="showConfig = !showConfig"
           >⚙️</button>
         </div>
@@ -331,10 +331,10 @@ watch(cfg, saveCfg, { deep: true })
 
       <!-- Config panel -->
       <Transition name="slide-down">
-        <div v-if="showConfig" class="shrink-0 border-b border-slate-200 bg-slate-50 px-5 py-4">
+        <div v-if="showConfig" class="shrink-0 border-b border-border bg-white/[0.04] px-5 py-4">
           <!-- Source hint -->
           <div class="mb-3 flex items-center justify-between">
-            <div class="flex items-center gap-2 text-[0.68rem] text-slate-400">
+            <div class="flex items-center gap-2 text-[0.68rem] text-ink-faint">
               <span class="h-1.5 w-1.5 rounded-full" :class="nodeInfo.loaded ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'" />
               <span v-if="nodeInfo.loaded">
                 {{ t('cfg_from_config', nodeInfo.proxyPort, nodeInfo.vllmPort, nodeInfo.modelName) }}
@@ -342,7 +342,7 @@ watch(cfg, saveCfg, { deep: true })
               <span v-else>{{ t('cfg_reading') }}</span>
             </div>
             <button
-              class="text-[0.68rem] text-blue-500 hover:text-blue-700 font-semibold"
+              class="text-[0.68rem] text-cyan hover:text-brand-light font-semibold"
               :class="{ 'opacity-40 cursor-not-allowed': !nodeInfo.loaded }"
               :disabled="!nodeInfo.loaded"
               @click="() => {
@@ -356,7 +356,7 @@ watch(cfg, saveCfg, { deep: true })
           </div>
           <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 max-w-3xl">
             <label class="flex flex-col gap-1">
-              <span class="text-[0.68rem] font-bold uppercase tracking-wider text-slate-400">API Endpoint</span>
+              <span class="text-[0.68rem] font-bold uppercase tracking-wider text-ink-faint">API Endpoint</span>
               <input
                 v-model="cfg.endpoint"
                 class="chat-input text-xs font-mono"
@@ -365,26 +365,26 @@ watch(cfg, saveCfg, { deep: true })
               />
             </label>
             <label class="flex flex-col gap-1">
-              <span class="text-[0.68rem] font-bold uppercase tracking-wider text-slate-400">Model</span>
+              <span class="text-[0.68rem] font-bold uppercase tracking-wider text-ink-faint">Model</span>
               <input v-model="cfg.model" class="chat-input text-xs font-mono" placeholder="留空 = server default" />
             </label>
             <label class="flex flex-col gap-1">
-              <span class="text-[0.68rem] font-bold uppercase tracking-wider text-slate-400">{{ t('cfg_api_key') }}</span>
+              <span class="text-[0.68rem] font-bold uppercase tracking-wider text-ink-faint">{{ t('cfg_api_key') }}</span>
               <input v-model="cfg.apiKey" type="password" class="chat-input text-xs font-mono" placeholder="sk-..." />
             </label>
             <label class="flex flex-col gap-1">
-              <span class="text-[0.68rem] font-bold uppercase tracking-wider text-slate-400">Temperature</span>
+              <span class="text-[0.68rem] font-bold uppercase tracking-wider text-ink-faint">Temperature</span>
               <div class="flex items-center gap-2">
-                <input v-model.number="cfg.temperature" type="range" min="0" max="2" step="0.05" class="flex-1 accent-blue-600" />
-                <span class="text-xs font-mono w-8 text-right text-slate-600">{{ cfg.temperature }}</span>
+                <input v-model.number="cfg.temperature" type="range" min="0" max="2" step="0.05" class="flex-1 accent-brand" />
+                <span class="text-xs font-mono w-8 text-right text-ink-muted">{{ cfg.temperature }}</span>
               </div>
             </label>
             <label class="flex flex-col gap-1">
-              <span class="text-[0.68rem] font-bold uppercase tracking-wider text-slate-400">Max Tokens</span>
+              <span class="text-[0.68rem] font-bold uppercase tracking-wider text-ink-faint">Max Tokens</span>
               <input v-model.number="cfg.maxTokens" type="number" class="chat-input text-xs font-mono" min="64" max="32768" step="64" />
             </label>
             <label class="flex flex-col gap-1 sm:col-span-2 lg:col-span-1">
-              <span class="text-[0.68rem] font-bold uppercase tracking-wider text-slate-400">{{ t('cfg_system') }}</span>
+              <span class="text-[0.68rem] font-bold uppercase tracking-wider text-ink-faint">{{ t('cfg_system') }}</span>
               <textarea v-model="cfg.systemPrompt" class="chat-input text-xs resize-none" rows="2" placeholder="You are a helpful assistant." />
             </label>
           </div>
@@ -392,7 +392,7 @@ watch(cfg, saveCfg, { deep: true })
       </Transition>
 
       <!-- Error banner -->
-      <div v-if="error" class="shrink-0 flex items-center gap-2 bg-rose-50 border-b border-rose-200 px-5 py-2.5 text-sm text-rose-700">
+      <div v-if="error" class="shrink-0 flex items-center gap-2 bg-rose-400/10 border-b border-rose-400/30 px-5 py-2.5 text-sm text-rose-300">
         <span>⚠️</span>
         <span class="flex-1 truncate">{{ error }}</span>
         <button class="text-rose-400 hover:text-rose-600 font-bold" @click="error = ''">✕</button>
@@ -404,8 +404,8 @@ watch(cfg, saveCfg, { deep: true })
         <div v-if="!messages.length" class="flex h-full items-center justify-center">
           <div class="text-center space-y-2">
             <div class="text-4xl">💬</div>
-            <div class="text-slate-500 text-sm font-medium">{{ t('chat_empty_title') }}</div>
-            <div class="text-slate-400 text-xs font-mono">{{ cfg.endpoint }}</div>
+            <div class="text-ink-faint text-sm font-medium">{{ t('chat_empty_title') }}</div>
+            <div class="text-ink-faint text-xs font-mono">{{ cfg.endpoint }}</div>
           </div>
         </div>
 
@@ -419,7 +419,7 @@ watch(cfg, saveCfg, { deep: true })
           <div
             v-if="msg.role !== 'user'"
             class="h-7 w-7 shrink-0 rounded-lg flex items-center justify-center text-sm mt-0.5"
-            :class="msg.loading ? 'bg-blue-100 animate-pulse' : 'bg-blue-600'"
+            :class="msg.loading ? 'bg-brand/15 animate-pulse' : 'bg-brand'"
           >
             <span v-if="!msg.loading" class="text-white text-xs font-bold">AI</span>
             <span v-else>⋯</span>
@@ -429,13 +429,13 @@ watch(cfg, saveCfg, { deep: true })
           <div
             class="max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
             :class="msg.role === 'user'
-              ? 'bg-blue-600 text-white rounded-br-sm'
-              : 'bg-white border border-slate-200 text-slate-800 rounded-bl-sm shadow-xs'"
+              ? 'bg-brand text-white rounded-br-sm'
+              : 'bg-surface-card border border-border text-ink rounded-bl-sm shadow-xs'"
           >
             <div v-if="msg.role === 'user'" class="whitespace-pre-wrap">{{ msg.content }}</div>
             <div
               v-else-if="msg.loading"
-              class="flex items-center gap-1.5 text-slate-400"
+              class="flex items-center gap-1.5 text-ink-faint"
             >
               <span class="animate-bounce" style="animation-delay:0ms">●</span>
               <span class="animate-bounce" style="animation-delay:150ms">●</span>
@@ -451,13 +451,13 @@ watch(cfg, saveCfg, { deep: true })
           <!-- User avatar -->
           <div
             v-if="msg.role === 'user'"
-            class="h-7 w-7 shrink-0 rounded-lg bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 mt-0.5"
+            class="h-7 w-7 shrink-0 rounded-lg bg-white/10 flex items-center justify-center text-xs font-bold text-ink-muted mt-0.5"
           >{{ t('chat_user_me') }}</div>
         </div>
       </div>
 
       <!-- Input area -->
-      <div class="shrink-0 border-t border-slate-200 bg-white px-4 py-3.5">
+      <div class="shrink-0 border-t border-border bg-surface-card px-4 py-3.5">
         <div class="flex items-end gap-3 max-w-3xl mx-auto">
           <textarea
             v-model="input"
@@ -469,7 +469,7 @@ watch(cfg, saveCfg, { deep: true })
             @input="$event.target.style.height = 'auto'; $event.target.style.height = $event.target.scrollHeight + 'px'"
           />
           <button
-            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm transition-all hover:bg-blue-700 hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand text-white shadow-sm transition-all hover:bg-brand-light hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
             :disabled="!input.trim() || streaming"
             @click="send"
           >
@@ -478,7 +478,7 @@ watch(cfg, saveCfg, { deep: true })
             </svg>
           </button>
         </div>
-        <div class="text-center mt-1.5 text-[0.65rem] text-slate-300">
+        <div class="text-center mt-1.5 text-[0.65rem] text-ink-faint">
           {{ t('chat_storage_hint') }}
         </div>
       </div>
@@ -490,8 +490,8 @@ watch(cfg, saveCfg, { deep: true })
 @reference "../../style.css";
 
 .chat-input {
-  @apply w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 outline-none transition-all;
-  @apply focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100;
+  @apply w-full rounded-xl border border-border bg-white/[0.04] px-3 py-2 text-sm text-ink outline-none transition-all;
+  @apply focus:border-blue-400 focus:bg-surface-card focus:ring-2 focus:ring-blue-100;
 }
 
 /* Markdown content */

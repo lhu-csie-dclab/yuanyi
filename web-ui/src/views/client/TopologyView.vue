@@ -7,13 +7,22 @@ import { useI18n } from '../../composables/useI18n.js'
 import PageHeader from '../../components/PageHeader.vue'
 import StatCard from '../../components/StatCard.vue'
 import Pagination from '../../components/Pagination.vue'
-import TelemetryBadges from '../../components/TelemetryBadges.vue'
+import PeerCard from '../../components/PeerCard.vue'
+import PeerListRow from '../../components/PeerListRow.vue'
 
 const nodeInfo = useNodeInfo()
 const { t } = useI18n()
 const stats = ref({ total_nodes: 0, total_active_requests: 0, total_gen_speed: 0, avg_ttft: 0 })
 const peers = ref([])
 const local = ref({ total_tokens: 0, in_tokens: 0, out_tokens: 0, total_requests: 0, success_count: 0, uptime_seconds: 0 })
+
+// Card grid vs. dense table -- persisted per-browser so it doesn't reset every visit.
+const VIEW_MODE_KEY = 'topology_view_mode'
+const viewMode = ref(localStorage.getItem(VIEW_MODE_KEY) || 'grid')
+function setViewMode(mode) {
+  viewMode.value = mode
+  localStorage.setItem(VIEW_MODE_KEY, mode)
+}
 
 // Pagination (25 items per page)
 const PAGE_SIZE = 25
@@ -25,6 +34,11 @@ const paginatedPeers = computed(() => {
   const start = (currentPage.value - 1) * PAGE_SIZE
   return peers.value.slice(start, start + PAGE_SIZE)
 })
+
+// Top pill-badge counts by category, shown above the peer grid/table.
+const gpuCount = computed(() => peers.value.filter(p => !!parseGpuInfo(p).summary).length)
+const relayCount = computed(() => peers.value.length - gpuCount.value)
+const busyCount = computed(() => peers.value.filter(p => (parseGpuInfo(p).status || 'idle') !== 'idle').length)
 
 async function refresh() {
   try {
@@ -45,53 +59,53 @@ usePolling(refresh, 2000)
   <div class="p-5 space-y-5 max-w-full min-w-0">
 
     <!-- ① Cluster Quick Summary Row -->
-    <div class="rounded-2xl bg-white border border-slate-200/80 shadow-sm overflow-hidden">
-      <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/50">
+    <div class="rounded-2xl bg-surface-card border border-border shadow-sm overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-3 border-b border-white/5 bg-white/[0.03]">
         <div class="flex items-center gap-2">
           <span class="text-base">🌐</span>
-          <span class="text-xs font-bold uppercase tracking-widest text-slate-700">{{ t('section_cluster') || 'Cluster Summary' }}</span>
+          <span class="text-xs font-bold uppercase tracking-widest text-ink-muted">{{ t('section_cluster') || 'Cluster Summary' }}</span>
         </div>
         <span class="pill pill-green"><span class="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block mr-1"/>{{ t('status_online') }}</span>
       </div>
-      <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 divide-x divide-slate-100">
+      <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 divide-x divide-white/5">
         <div class="px-4 py-3 flex flex-col">
-          <span class="text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{{ t('stat_nodes') }}</span>
-          <span class="text-lg font-bold text-blue-600 tabular-nums">{{ stats.total_nodes || 0 }}</span>
+          <span class="text-[0.65rem] font-bold uppercase tracking-wider text-ink-faint">{{ t('stat_nodes') }}</span>
+          <span class="text-lg font-bold text-brand-light tabular-nums">{{ stats.total_nodes || 0 }}</span>
         </div>
         <div class="px-4 py-3 flex flex-col">
-          <span class="text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{{ t('stat_requests') }}</span>
-          <span class="text-lg font-bold text-violet-600 tabular-nums">{{ stats.total_active_requests || 0 }}</span>
+          <span class="text-[0.65rem] font-bold uppercase tracking-wider text-ink-faint">{{ t('stat_requests') }}</span>
+          <span class="text-lg font-bold text-violet-400 tabular-nums">{{ stats.total_active_requests || 0 }}</span>
         </div>
         <div class="px-4 py-3 flex flex-col">
-          <span class="text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{{ t('stat_throughput') }}</span>
-          <span class="text-lg font-bold text-emerald-600 tabular-nums">{{ (stats.total_gen_speed || 0).toFixed(1) }}</span>
+          <span class="text-[0.65rem] font-bold uppercase tracking-wider text-ink-faint">{{ t('stat_throughput') }}</span>
+          <span class="text-lg font-bold text-emerald-400 tabular-nums">{{ (stats.total_gen_speed || 0).toFixed(1) }}</span>
         </div>
         <div class="px-4 py-3 flex flex-col">
-          <span class="text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{{ t('stat_ttft') }}</span>
-          <span class="text-lg font-bold text-amber-600 tabular-nums">{{ (stats.avg_ttft || 0).toFixed(2) }}s</span>
+          <span class="text-[0.65rem] font-bold uppercase tracking-wider text-ink-faint">{{ t('stat_ttft') }}</span>
+          <span class="text-lg font-bold text-amber-400 tabular-nums">{{ (stats.avg_ttft || 0).toFixed(2) }}s</span>
         </div>
         <div class="px-4 py-3 flex flex-col col-span-2 sm:col-span-2 lg:col-span-2">
-          <span class="text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{{ t('stat_total_tokens') }}</span>
-          <span class="text-lg font-bold text-slate-800 tabular-nums">{{ fmtNum(local.total_tokens) }}</span>
+          <span class="text-[0.65rem] font-bold uppercase tracking-wider text-ink-faint">{{ t('stat_total_tokens') }}</span>
+          <span class="text-lg font-bold text-ink tabular-nums">{{ fmtNum(local.total_tokens) }}</span>
         </div>
         <div class="px-4 py-3 flex flex-col">
-          <span class="text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{{ t('stat_input') }}</span>
-          <span class="text-lg font-bold text-slate-600 tabular-nums">{{ fmtNum(local.in_tokens) }}</span>
+          <span class="text-[0.65rem] font-bold uppercase tracking-wider text-ink-faint">{{ t('stat_input') }}</span>
+          <span class="text-lg font-bold text-ink-muted tabular-nums">{{ fmtNum(local.in_tokens) }}</span>
         </div>
         <div class="px-4 py-3 flex flex-col">
-          <span class="text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{{ t('stat_output') }}</span>
-          <span class="text-lg font-bold text-slate-600 tabular-nums">{{ fmtNum(local.out_tokens) }}</span>
+          <span class="text-[0.65rem] font-bold uppercase tracking-wider text-ink-faint">{{ t('stat_output') }}</span>
+          <span class="text-lg font-bold text-ink-muted tabular-nums">{{ fmtNum(local.out_tokens) }}</span>
         </div>
       </div>
     </div>
 
     <!-- ② Local Contribution -->
-    <div class="rounded-2xl border border-blue-200/60 bg-gradient-to-r from-blue-50 to-indigo-50/40 p-5">
+    <div class="rounded-2xl border border-brand/25 bg-gradient-to-r from-brand/10 to-cyan/5 p-5">
       <div class="flex items-center justify-between mb-4">
-        <span class="text-xs font-bold uppercase tracking-widest text-blue-600">{{ t('section_local') }}</span>
+        <span class="text-xs font-bold uppercase tracking-widest text-brand-light">{{ t('section_local') }}</span>
         <span class="pill pill-blue">{{ t('status_online') }} {{ fmtUptime(local.uptime_seconds) }}</span>
       </div>
-      <div class="grid grid-cols-3 gap-4 sm:grid-cols-6 divide-x divide-blue-100">
+      <div class="grid grid-cols-3 gap-4 sm:grid-cols-6 divide-x divide-white/10">
         <StatCard bare :label="t('stat_total_tokens')" :value="fmtNum(local.total_tokens)"    accent />
         <StatCard bare :label="t('stat_input')"        :value="fmtNum(local.in_tokens)"       class="pl-4" />
         <StatCard bare :label="t('stat_output')"       :value="fmtNum(local.out_tokens)"      class="pl-4" />
@@ -102,61 +116,60 @@ usePolling(refresh, 2000)
     </div>
 
     <!-- ③ P2P Node List (Paginated by 25) -->
-    <div class="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
-      <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
+    <div class="rounded-2xl border border-border bg-surface-card shadow-sm overflow-hidden">
+      <div class="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5 border-b border-white/5 bg-white/[0.03]">
         <div class="flex items-center gap-2">
           <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span class="font-semibold text-sm text-slate-800">{{ t('section_peers') }}</span>
+          <span class="font-semibold text-sm text-ink">{{ t('section_peers') }}</span>
         </div>
-        <span class="text-xs text-slate-400">{{ t('peer_count', peers.length) }}</span>
+        <div class="flex items-center gap-2 min-w-0 max-w-full overflow-x-auto flex-nowrap sm:flex-wrap sm:overflow-visible">
+          <span class="pill pill-cyan shrink-0">{{ t('gpu_nodes_count', gpuCount) }}</span>
+          <span v-if="relayCount" class="pill pill-blue shrink-0">{{ t('relay_nodes_count', relayCount) }}</span>
+          <span v-if="busyCount" class="pill pill-amber shrink-0">{{ t('busy_now_count', busyCount) }}</span>
+          <span class="text-xs text-ink-faint shrink-0">{{ t('peer_count', peers.length) }}</span>
+          <!-- Grid/list toggle -->
+          <div class="flex items-center rounded-lg border border-border bg-white/[0.03] p-0.5 shrink-0">
+            <button
+              class="rounded-md px-2 py-1 text-xs font-semibold transition-colors"
+              :class="viewMode === 'grid' ? 'bg-brand/20 text-brand-light' : 'text-ink-faint hover:text-ink'"
+              :title="t('view_grid')"
+              @click="setViewMode('grid')"
+            >▦</button>
+            <button
+              class="rounded-md px-2 py-1 text-xs font-semibold transition-colors"
+              :class="viewMode === 'list' ? 'bg-brand/20 text-brand-light' : 'text-ink-faint hover:text-ink'"
+              :title="t('view_list')"
+              @click="setViewMode('list')"
+            >☰</button>
+          </div>
+        </div>
       </div>
-      <div class="overflow-x-auto w-full">
-        <table class="w-full min-w-[560px] border-collapse text-left">
-          <thead>
-            <tr>
-              <th class="th-cell w-12">{{ t('col_rank') }}</th>
-              <th class="th-cell">{{ t('col_node_id') }}</th>
-              <th class="th-cell">{{ t('col_ip') }}</th>
-              <th class="th-cell">{{ t('col_gpu') }}</th>
-              <th class="th-cell">{{ t('col_telemetry') }}</th>
-              <th class="th-cell">{{ t('col_engine') }}</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-if="!paginatedPeers.length">
-              <td class="td-cell py-12 text-center text-slate-400" colspan="6">{{ t('loading_nodes') }}</td>
-            </tr>
-            <tr
-              v-for="(p, i) in paginatedPeers"
-              :key="p.peer_id || p.node_id || i"
-              class="hover:bg-slate-50/70 transition-colors"
-            >
-              <td class="td-cell text-slate-400 font-semibold">
-                {{ (currentPage - 1) * PAGE_SIZE + i + 1 }}
-              </td>
-              <td class="td-cell">
-                <div class="flex items-center gap-2">
-                  <div class="h-7 w-7 shrink-0 rounded-lg bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
-                    {{ (p.peer_id || p.node_id || 'ND').substring(0, 2).toUpperCase() }}
-                  </div>
-                  <div>
-                    <div class="font-mono text-xs font-semibold text-blue-600">
-                      {{ (p.peer_id || p.node_id || '-').substring(0, 12) }}…
-                    </div>
-                    <div v-if="(p.peer_id || p.node_id) === nodeInfo.localNodeId" class="pill pill-blue text-[0.6rem] mt-0.5">{{ t('local_badge') }}</div>
-                  </div>
-                </div>
-              </td>
-              <td class="td-cell font-mono text-xs text-slate-500">{{ p.ip_address || p.addr || '-' }}</td>
-              <td class="td-cell font-semibold text-slate-800 text-xs">
-                <span v-if="!parseGpuInfo(p).summary" class="pill pill-red">{{ t('no_gpu') }}</span>
-                <span v-else>{{ parseGpuInfo(p).summary }}</span>
-              </td>
-              <td class="td-cell"><TelemetryBadges :info="parseGpuInfo(p)" /></td>
-              <td class="td-cell font-mono text-xs text-slate-400">{{ p.engine_id || parseGpuInfo(p).engine_id || '-' }}</td>
-            </tr>
-          </tbody>
-        </table>
+
+      <!-- Empty state (shared by both view modes) -->
+      <div v-if="!paginatedPeers.length" class="py-12 text-center text-ink-faint text-sm">{{ t('loading_nodes') }}</div>
+
+      <!-- Card grid. min-w-0 + max-w-full + box-border on the grid itself so it can never be
+           the thing forcing horizontal overflow; each PeerCard repeats the same guards. -->
+      <div v-else-if="viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-4 w-full max-w-full min-w-0 box-border">
+        <PeerCard
+          v-for="(p, i) in paginatedPeers"
+          :key="p.peer_id || p.node_id || i"
+          :peer="p"
+          :is-local="(p.peer_id || p.node_id) === nodeInfo.localNodeId"
+        />
+      </div>
+
+      <!-- List: two-tier rows (identity row + wrapping telemetry sub-row), not a <table> --
+           a table forced the IP/multiaddr and telemetry columns to blow the row width out
+           (see PeerListRow.vue for the full explanation). -->
+      <div v-else class="w-full max-w-full overflow-x-auto box-border">
+        <PeerListRow
+          v-for="(p, i) in paginatedPeers"
+          :key="p.peer_id || p.node_id || i"
+          :peer="p"
+          :is-local="(p.peer_id || p.node_id) === nodeInfo.localNodeId"
+          :rank="(currentPage - 1) * PAGE_SIZE + i + 1"
+        />
       </div>
 
       <!-- Pagination when > 25 -->

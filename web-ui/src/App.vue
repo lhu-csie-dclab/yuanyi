@@ -98,7 +98,7 @@ const shortId = computed(() =>
         </button>
         <!-- Node info -->
         <div class="flex items-center gap-3">
-          <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+          <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-slate-950">
             {{ avatarText }}
           </div>
           <div class="min-w-0 flex-1">
@@ -122,21 +122,21 @@ const shortId = computed(() =>
     ════════════════════════════════════════════ -->
     <div class="flex flex-1 flex-col min-w-0 lg:pl-60">
       <!-- Mobile topbar -->
-      <header class="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur-md lg:hidden">
+      <header class="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-slate-950/85 px-4 backdrop-blur-md lg:hidden">
         <button
-          class="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+          class="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-ink-muted hover:bg-white/5"
           @click="mobileMenuOpen = true"
         >
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <span class="font-bold text-slate-900 flex items-center gap-2"><span>🌙</span> Mooncake</span>
-        <button class="text-xs text-slate-500 hover:text-slate-800 border border-slate-200 rounded-lg px-2 py-1" @click="toggleLang">{{ langLabel }}</button>
+        <span class="font-bold text-ink flex items-center gap-2"><span>🌙</span> Mooncake</span>
+        <button class="text-xs text-ink-faint hover:text-ink border border-border rounded-lg px-2 py-1" @click="toggleLang">{{ langLabel }}</button>
       </header>
 
       <!-- Page content -->
-      <main class="flex-1 min-w-0 max-w-full overflow-x-hidden bg-[#f0f4f9]">
+      <main class="flex-1 min-w-0 max-w-full overflow-x-hidden bg-transparent">
         <router-view />
       </main>
     </div>

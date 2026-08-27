@@ -59,6 +59,13 @@ const messages = {
     local_badge:      'Local',
     relay_badge:      'Relay-only',
     loading_nodes:    'Searching nodes…',
+    view_grid:        'Grid',
+    view_list:        'List',
+    gpu_nodes_count:  (n) => `${n} GPU`,
+    relay_nodes_count:(n) => `${n} relay`,
+    busy_now_count:   (n) => `${n} busy`,
+    copy_id:          'Copy ID',
+    copied:           'Copied',
 
     // ── Hub Topology ─────────────────────────────────────────────────
     page_hub_topology:   'Cluster Topology',
@@ -179,6 +186,13 @@ const messages = {
     local_badge:      '本機',
     relay_badge:      '純中繼',
     loading_nodes:    '搜尋節點中…',
+    view_grid:        '卡片',
+    view_list:        '列表',
+    gpu_nodes_count:  (n) => `${n} 個 GPU`,
+    relay_nodes_count:(n) => `${n} 個中繼`,
+    busy_now_count:   (n) => `${n} 忙碌中`,
+    copy_id:          '複製 ID',
+    copied:           '已複製',
 
     // ── Hub Topology ─────────────────────────────────────────────────
     page_hub_topology:   '叢集拓撲',

@@ -2,9 +2,9 @@
 defineProps({ info: { type: Object, required: true } })
 
 function tempClass(t) {
-  if (t >= 85) return 'text-rose-600'
-  if (t >= 75) return 'text-amber-500'
-  return 'text-slate-500'
+  if (t >= 85) return 'text-rose-400'
+  if (t >= 75) return 'text-amber-400'
+  return 'text-ink-faint'
 }
 </script>
 
