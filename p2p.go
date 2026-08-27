@@ -70,6 +70,13 @@ type GPUInfo struct {
 	Summary       string `json:"summary"`
 	BootstrapAddr string `json:"bootstrap_addr,omitempty"`
 	EngineID      string `json:"engine_id,omitempty"`
+	// VLLMPort is the port THIS node's own local vLLM listens on. Peers dispatching
+	// a request here must tunnel to this value, not their own vllm.port -- those two
+	// only happened to match by convention (both defaulting to 8100) until a node
+	// configured a non-default port (e.g. to run alongside another instance),
+	// at which point dispatch to it was rejected by the receiving allowlist check
+	// in setupStreams. Zero (peers on a pre-fix build) means "unknown, assume 8100".
+	VLLMPort int `json:"vllm_port,omitempty"`
 
 	KVCacheUsage   float64 `json:"kv_cache_usage"`
 	ActiveRequests int     `json:"active_requests"`
@@ -550,6 +557,7 @@ func (n *NetworkNode) gossipPublisher(ctx context.Context, topic *pubsub.Topic) 
 				Summary:       summary,
 				BootstrapAddr: fmt.Sprintf("http://127.0.0.1:%d/mooncake_kv/%s/%d", n.app.Config.ProxyPort, n.host.ID().String(), n.app.Config.VLLM.MooncakeBootstrapPort),
 				EngineID:      n.host.ID().String(),
+				VLLMPort:      n.app.Config.VLLM.Port,
 
 				KVCacheUsage:   vm.KVCacheUsage,
 				ActiveRequests: vm.ActiveRequests,

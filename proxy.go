@@ -148,6 +148,20 @@ func (d *LocalDispatcher) syncTopologyLoop() {
 	}
 }
 
+// peerVLLMPort 回傳目標節點自己廣播的 vLLM 埠。過去這裡一律誤用「本機自己」的
+// config.VLLM.Port 當成隧道目標埠，兩者只是碰巧預設值都是 8100 才長期沒被發現——
+// 一旦某節點的 vllm.port 被改成非預設值（例如 relay-only 節點為了避免埠衝突而
+// 自訂），接收端 setupStreams 的白名單檢查（只允許自己本機設定的埠）就會直接拒絕，
+// 回傳 403 "target port is not allowed"，導致該節點永遠無法把請求轉發給任何一個
+// vllm.port 與自己不同的對象。改為查詢該節點透過 GossipSub 廣播的 VLLMPort；
+// 尚未升級到含此欄位版本的舊節點回傳 0，退回官方文件慣用的預設埠 8100。
+func (d *LocalDispatcher) peerVLLMPort(peerIDStr string) int {
+	if info, ok := d.app.TUI.GetPeers()[peerIDStr]; ok && info.VLLMPort > 0 {
+		return info.VLLMPort
+	}
+	return 8100
+}
+
 // streamToPeer 透過 libp2p ProxyProtocol 串流將 HTTP 請求轉發給指定的遠端 P2P 節點。
 // 【邏輯說明】
 // 1. 解碼 PeerID 字串為 peer.ID。
@@ -167,10 +181,7 @@ func (d *LocalDispatcher) streamToPeer(ctx context.Context, peerIDStr string, pa
 	}
 	defer stream.Close()
 
-	vllmPort := d.app.Config.VLLM.Port
-	if vllmPort <= 0 {
-		vllmPort = 8100
-	}
+	vllmPort := d.peerVLLMPort(peerIDStr)
 
 	// 前置寫入 2 個位元組的目標連線埠
 	if err := binary.Write(stream, binary.BigEndian, uint16(vllmPort)); err != nil {
@@ -225,10 +236,7 @@ func (d *LocalDispatcher) streamToPeerDirect(ctx context.Context, w http.Respons
 	}
 	defer stream.Close()
 
-	vllmPort := d.app.Config.VLLM.Port
-	if vllmPort <= 0 {
-		vllmPort = 8100
-	}
+	vllmPort := d.peerVLLMPort(peerIDStr)
 
 	if err := binary.Write(stream, binary.BigEndian, uint16(vllmPort)); err != nil {
 		d.app.TUI.AddLog("[WARN]", fmt.Sprintf("P2P 遠端節點 %s.. 寫入目標埠失敗: %v", peerIDStr[:8], err))
