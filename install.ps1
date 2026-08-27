@@ -167,23 +167,79 @@ function Setup-SwarmKey {
 # prerequisites
 # ---------------------------------------------------------------------------
 
+# Refreshes $env:Path in this process from the registry (Machine + User). Needed after
+# winget/uv install a tool: those write PATH to the registry, but this already-running
+# PowerShell process doesn't pick it up automatically, so without this the rest of the
+# script would still fail to find the tool it just installed.
+function Sync-PathFromRegistry {
+    $machine = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+    $user = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    $env:Path = "$machine;$user"
+}
+
+# Recommended package for each missing command, installed via winget where possible (git,
+# go, npm/Node.js) or via the tool's own official installer (uv has no winget package).
+$RecommendedPackages = @{
+    git = @{ Kind = "winget"; Id = "Git.Git" }
+    go  = @{ Kind = "winget"; Id = "GoLang.Go" }
+    npm = @{ Kind = "winget"; Id = "OpenJS.NodeJS.LTS" }
+    uv  = @{ Kind = "uv-installer" }
+}
+
+function Install-Prereq {
+    param($Name)
+    $pkg = $RecommendedPackages[$Name]
+    if ($pkg.Kind -eq "winget") {
+        Write-Info "Installing $Name ($($pkg.Id)) via winget..."
+        winget install --id $pkg.Id -e --accept-package-agreements --accept-source-agreements --silent
+    } elseif ($pkg.Kind -eq "uv-installer") {
+        Write-Info "Installing uv via its official installer..."
+        Invoke-Expression (Invoke-RestMethod https://astral.sh/uv/install.ps1)
+    }
+}
+
 function Check-Prereqs {
     param($RelayOnly)
-    $missing = @()
-    foreach ($c in @("git", "go", "npm")) {
-        if (-not (Test-Command $c)) { $missing += $c }
-    }
-    if (-not $RelayOnly -and -not (Test-Command "uv")) { $missing += "uv" }
+    $required = @("git", "go", "npm")
+    if (-not $RelayOnly) { $required += "uv" }
 
-    if ($missing.Count -gt 0) {
-        Write-Err "Missing required commands: $($missing -join ', ')"
-        Write-Host "  git  : https://git-scm.com/"
-        Write-Host "  go   : https://go.dev/dl/  (1.26+)"
-        Write-Host "  npm  : https://nodejs.org/ (22+, needed to build the dashboard)"
-        Write-Host "  uv   : powershell -ExecutionPolicy ByPass -c `"irm https://astral.sh/uv/install.ps1 | iex`""
+    $missing = @($required | Where-Object { -not (Test-Command $_) })
+    if ($missing.Count -eq 0) {
+        if (Test-Command "nvidia-smi") {
+            $gpu = (nvidia-smi --query-gpu=name,driver_version --format=csv,noheader 2>$null | Select-Object -First 1)
+            if ($gpu) { Write-Ok "GPU: $gpu" }
+        } elseif (-not $RelayOnly) {
+            Write-Warn "nvidia-smi not found. Without a GPU, choose relay-only mode instead."
+        }
+        return $true
+    }
+
+    Write-Warn "Missing required commands: $($missing -join ', ')"
+    Write-Host "  Recommended versions:"
+    Write-Host "    git : https://git-scm.com/ (via winget: Git.Git)"
+    Write-Host "    go  : https://go.dev/dl/  1.26+ (via winget: GoLang.Go)"
+    Write-Host "    npm : https://nodejs.org/ 22+ LTS, needed to build the dashboard (via winget: OpenJS.NodeJS.LTS)"
+    Write-Host "    uv  : https://docs.astral.sh/uv/ (official installer script)"
+
+    if (-not (Test-Command "winget")) {
+        Write-Err "winget isn't available on this machine, so these can't be installed automatically. Install the above manually, then re-run."
         return $false
     }
 
+    if (-not (Confirm-Action "Install the recommended versions above automatically now?")) {
+        return $false
+    }
+
+    foreach ($m in $missing) { Install-Prereq $m }
+    Sync-PathFromRegistry
+
+    $stillMissing = @($missing | Where-Object { -not (Test-Command $_) })
+    if ($stillMissing.Count -gt 0) {
+        Write-Err "Still missing after install: $($stillMissing -join ', '). This can happen if PATH needs a fresh terminal to pick up -- close this window, reopen PowerShell, and re-run install.ps1."
+        return $false
+    }
+
+    Write-Ok "All prerequisites installed."
     if (Test-Command "nvidia-smi") {
         $gpu = (nvidia-smi --query-gpu=name,driver_version --format=csv,noheader 2>$null | Select-Object -First 1)
         if ($gpu) { Write-Ok "GPU: $gpu" }
