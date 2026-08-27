@@ -1,6 +1,6 @@
-# Mooncake 2.0 Client - 壓測與效能測試結果報告 (繁體中文)
+# Yuanyi Client - 壓測與效能測試結果報告 (繁體中文)
 
-本文件呈現使用 **[NVIDIA AIPerf Benchmark Suite](https://github.com/ai-dynamo/aiperf)** 於 Mooncake 2.0 Client 進行 10,000 次請求壓測的官方數據。
+本文件呈現使用 **[NVIDIA AIPerf Benchmark Suite](https://github.com/ai-dynamo/aiperf)** 於 Yuanyi Client 進行 10,000 次請求壓測的官方數據。
 
 ---
 

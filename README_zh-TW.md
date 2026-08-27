@@ -1,6 +1,6 @@
 [English](README.md) | [繁體中文](README_zh-TW.md) | [简体中文](README_zh-CN.md)
 
-# Mooncake 2.0 P2P LLM 推理用戶端 Agent
+# Yuanyi P2P LLM 推理用戶端 Agent
 
 [![Go Build](https://github.com/lhu-csie-dclab/yuanyi/actions/workflows/go.yml/badge.svg)](https://github.com/lhu-csie-dclab/yuanyi/actions)
 [![Docker Build](https://github.com/lhu-csie-dclab/yuanyi/actions/workflows/docker.yml/badge.svg)](https://github.com/lhu-csie-dclab/yuanyi/actions)
@@ -18,11 +18,11 @@
 
 ---
 
-## 為什麼選擇 Mooncake 2.0？
+## 為什麼選擇 Yuanyi？
 
 **在任何地方跑 LLM，由世界各地的 GPU 驅動。**
 
-傳統的 LLM 部署把你鎖在一台機器或一個雲端服務商上。Mooncake 2.0 把每一張參與的 GPU 變成全球推理網路的一個節點：
+傳統的 LLM 部署把你鎖在一台機器或一個雲端服務商上。Yuanyi 把每一張參與的 GPU 變成全球推理網路的一個節點：
 
 - **Prefill/Decode (P/D) 分離** — 推理流程拆分到不同節點：一台機器負責高運算量的 prefill 階段，另一台處理 token 生成。底層使用 [vLLM](https://github.com/vllm-project/vllm) 原生 P/D 分離搭配 [Mooncake KV-cache 傳輸](https://github.com/kvcache-ai/Mooncake)，KV cache 在 GPU 之間直接透過網路傳送，無需重新計算。
 
@@ -108,7 +108,7 @@ flowchart TB
         end
     end
     
-    subgraph Swarm["Mooncake 2.0 P2P Swarm 叢集"]
+    subgraph Swarm["Yuanyi P2P Swarm 叢集"]
         HubNode["Hub 節點群 (50004/50007 #/hub、50008)\n- 任何開啟 server_mode.enabled 的節點\n- 拓撲同步、NAT 中繼、排行榜"]
         RemotePeer["遠端 P2P Peer 節點"]
     end
@@ -143,7 +143,7 @@ flowchart TB
 - **🎨 Vue 3 + Vite + Tailwind Web 儀表板**：
   Web 主控台（`web-ui/`）是用 Vue 3、Vite、Tailwind CSS v4 打造的 hash 路由單頁應用，編譯後透過 `embed.FS` 直接打進 Go 執行檔——執行期依然不需要外部前端檔案。Dockerfile 有獨立的 Node 建置階段，跑在 Go build 之前。
 - **🌐 P2P Swarm 與 Mooncake KV Cache 傳輸**：
-  透過 libp2p 連接 Mooncake 2.0 P2P Swarm，參與 Prefill/Decode (P/D) 分離推理拓撲，經由 `8998` 埠進行跨節點 KV Cache 傳輸。
+  透過 libp2p 連接 Yuanyi P2P Swarm，參與 Prefill/Decode (P/D) 分離推理拓撲，經由 `8998` 埠進行跨節點 KV Cache 傳輸。
 - **🛰️ 選用 Hub 模式（合併中央伺服器能力）**：
   任何節點都可以開啟 `server_mode.enabled`，額外兼任原本獨立中央伺服器的角色：本機 SQLite 節點/排行榜資料庫、GPU 算分、中央 P/D 派發器、Hub 專屬儀表板。可以同時有多個 Hub 運作——每個 Hub 各自透過既有的 GossipSub 廣播收斂出相同視圖，沒有單點故障。詳見 [`docs/HUB_MODE.md`](docs/HUB_MODE.md)（英文）或 [`docs/zh_tw/HUB_MODE.md`](docs/zh_tw/HUB_MODE.md)（繁中）。
 
@@ -199,7 +199,7 @@ bash install.sh
 
 | 詢問項目 | 預設值 |
 | :--- | :--- |
-| 安裝目錄 | root 身分為 `/opt/mooncake-client`，否則 `~/mooncake-client` |
+| 安裝目錄 | root 身分為 `/opt/yuanyi-client`，否則 `~/yuanyi-client` |
 | 節點角色 | 推論節點，或**純中繼站**（不需要顯卡） |
 | `swarm.key` | 貼上既有金鑰以加入現有 Swarm，或**留空自動產生新的** |
 | 模型 | 任何 Hugging Face repo id，例如 `Qwen/Qwen3-4B-AWQ` |
@@ -472,7 +472,7 @@ uv pip install "transformers>=4.51.0,<5.0.0"
 
 ## 🙏 開源致謝與引用 (Acknowledgements)
 
-Mooncake 2.0 Client Agent 基於以下卓越的開源專案建構而成：
+Yuanyi Client Agent 基於以下卓越的開源專案建構而成：
 
 - **[vLLM](https://github.com/vllm-project/vllm)** - 高吞吐量與記憶體高效的 LLM 推理服務引擎。
 - **[vllm-windows](https://github.com/SystemPanic/vllm-windows)** (SystemPanic/vllm-windows) - 提供 Windows 平台專用的高效能 vLLM 編譯構建與環境相容性支援。

@@ -1,6 +1,6 @@
-# Mooncake 2.0 Client Agent - Layered Architecture & Module Specification
+# Yuanyi Client Agent - Layered Architecture & Module Specification
 
-This document provides an exhaustive, multi-layered architectural specification for the Mooncake 2.0 Client Agent. It preserves the complete structural and algorithmic documentation originally embedded across the Go source files, organized into functional system layers.
+This document provides an exhaustive, multi-layered architectural specification for the Yuanyi Client Agent. It preserves the complete structural and algorithmic documentation originally embedded across the Go source files, organized into functional system layers.
 
 ---
 

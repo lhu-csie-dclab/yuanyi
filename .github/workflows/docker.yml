@@ -25,4 +25,4 @@ jobs:
         context: .
         file: ./Dockerfile
         push: false
-        tags: mooncake-client:latest
+        tags: yuanyi-client:latest

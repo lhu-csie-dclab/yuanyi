@@ -62,11 +62,11 @@ ENTRYPOINT ["/app/client"]
 version: '3.8'
 
 services:
-  mooncake-client:
+  yuanyi-client:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: mooncake_client_node
+    container_name: yuanyi_client_node
     network_mode: "host"
     ipc: "host"
     shm_size: "16gb"

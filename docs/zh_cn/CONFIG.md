@@ -1,6 +1,6 @@
 # 配置管理与参数技术手册 (简体中文)
 
-本文档为 Mooncake 2.0 Client Agent 的配置管理提供详细说明，涵盖 [`config.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/config.go)、[`config.json`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/config.json) 与 [`mooncake.json`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/mooncake.json)。
+本文档为 Yuanyi Client Agent 的配置管理提供详细说明，涵盖 [`config.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/config.go)、[`config.json`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/config.json) 与 [`mooncake.json`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/mooncake.json)。
 
 ---
 

@@ -469,8 +469,8 @@ func modelsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"object": "list",
 		"data": []map[string]interface{}{
-			{"id": "Qwen3-4B-AWQ", "object": "model", "created": time.Now().Unix(), "owned_by": "mooncake"},
-			{"id": "mooncake-default", "object": "model", "created": time.Now().Unix(), "owned_by": "mooncake"},
+			{"id": "Qwen3-4B-AWQ", "object": "model", "created": time.Now().Unix(), "owned_by": "yuanyi"},
+			{"id": "yuanyi-default", "object": "model", "created": time.Now().Unix(), "owned_by": "yuanyi"},
 		},
 	})
 }

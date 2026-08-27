@@ -598,7 +598,7 @@ func (d *LocalDispatcher) handleProxyRequest(w http.ResponseWriter, r *http.Requ
 	if m, ok := reqData["model"].(string); ok {
 		modelName = m
 	} else {
-		modelName = "mooncake-default"
+		modelName = "yuanyi-default"
 	}
 
 	d.mu.RLock()
@@ -835,8 +835,8 @@ func StartLocalDispatcher(app *App, h host.Host) {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"object": "list",
 			"data": []map[string]interface{}{
-				{"id": "Qwen3-4B-AWQ", "object": "model", "created": time.Now().Unix(), "owned_by": "mooncake"},
-				{"id": "mooncake-default", "object": "model", "created": time.Now().Unix(), "owned_by": "mooncake"},
+				{"id": "Qwen3-4B-AWQ", "object": "model", "created": time.Now().Unix(), "owned_by": "yuanyi"},
+				{"id": "yuanyi-default", "object": "model", "created": time.Now().Unix(), "owned_by": "yuanyi"},
 			},
 		})
 	}

@@ -1,6 +1,6 @@
 # 🧪 Experimental Research Stage & Untested Parameters Manual
 
-This document details the experimental scope, benchmarked baseline configurations, untested parameters, and production disclaimers for the Mooncake 2.0 Client Agent.
+This document details the experimental scope, benchmarked baseline configurations, untested parameters, and production disclaimers for the Yuanyi Client Agent.
 
 ---
 

@@ -1,7 +1,7 @@
 # Hub Mode Guide (Optional Central Server Merge)
 
 This document specifies **hub mode**, an optional capability added to the client agent that
-merges the responsibilities of the standalone Mooncake 2.0 Central Server into this binary.
+merges the responsibilities of the standalone Yuanyi Central Server into this binary.
 It is implemented across [`server_db.go`](../server_db.go), [`server_rank.go`](../server_rank.go),
 [`server_p2p.go`](../server_p2p.go), [`server_proxy.go`](../server_proxy.go),
 [`server_web.go`](../server_web.go), [`logger.go`](../logger.go), and

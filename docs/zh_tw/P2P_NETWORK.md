@@ -6,7 +6,7 @@
 
 ## 🔑 Swarm Key (`swarm.key`) 生成教學
 
-Mooncake 2.0 採用 libp2p 私有網路 (PSK)，要求參與 Swarm 叢集節點必須持有相符的 `swarm.key`。
+Yuanyi 採用 libp2p 私有網路 (PSK)，要求參與 Swarm 叢集節點必須持有相符的 `swarm.key`。
 
 ### 方法 1: 透過 OpenSSL / Linux Shell 生成（推薦）
 

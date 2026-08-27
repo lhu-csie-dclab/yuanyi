@@ -1,6 +1,6 @@
-# Mooncake 2.0 Client - Benchmark & Stress Test Results
+# Yuanyi Client - Benchmark & Stress Test Results
 
-This document presents the official benchmark performance metrics for Mooncake 2.0 Client Swarm, evaluated using **[NVIDIA AIPerf Benchmark Suite](https://github.com/ai-dynamo/aiperf)** (`https://github.com/ai-dynamo/aiperf`).
+This document presents the official benchmark performance metrics for Yuanyi Client Swarm, evaluated using **[NVIDIA AIPerf Benchmark Suite](https://github.com/ai-dynamo/aiperf)** (`https://github.com/ai-dynamo/aiperf`).
 
 ---
 

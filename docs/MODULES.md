@@ -1,6 +1,6 @@
-# Mooncake 2.0 Client Agent - Module Reference Guide
+# Yuanyi Client Agent - Module Reference Guide
 
-This document indexes all source code files in the **Mooncake 2.0 Client Agent**, detailing their module roles, contained data structures, and primary functions.
+This document indexes all source code files in the **Yuanyi Client Agent**, detailing their module roles, contained data structures, and primary functions.
 
 ---
 

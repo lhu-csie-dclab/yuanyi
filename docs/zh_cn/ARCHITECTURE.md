@@ -1,6 +1,6 @@
-# Mooncake 2.0 Client Agent - 多层次架构与模块规格说明书 (简体中文)
+# Yuanyi Client Agent - 多层次架构与模块规格说明书 (简体中文)
 
-本文档为 Mooncake 2.0 Client Agent 提供完整的 7 大层级架构说明。
+本文档为 Yuanyi Client Agent 提供完整的 7 大层级架构说明。
 
 > [!NOTE]
 > 可选的第 8 层"Hub 模式"（合并原本独立中央服务器的能力）请参阅

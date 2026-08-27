@@ -40,7 +40,7 @@ const shortId = computed(() =>
           🌙
         </div>
         <div>
-          <div class="text-sm font-bold text-white leading-tight">Mooncake</div>
+          <div class="text-sm font-bold text-white leading-tight">Yuanyi</div>
           <div class="text-[0.68rem] text-slate-500">P2P Node Gateway</div>
         </div>
         <button class="ml-auto text-slate-500 hover:text-white lg:hidden" @click="mobileMenuOpen = false">✕</button>
@@ -131,7 +131,7 @@ const shortId = computed(() =>
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <span class="font-bold text-ink flex items-center gap-2"><span>🌙</span> Mooncake</span>
+        <span class="font-bold text-ink flex items-center gap-2"><span>🌙</span> Yuanyi</span>
         <button class="text-xs text-ink-faint hover:text-ink border border-border rounded-lg px-2 py-1" @click="toggleLang">{{ langLabel }}</button>
       </header>
 

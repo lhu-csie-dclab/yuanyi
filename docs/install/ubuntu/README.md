@@ -1,6 +1,6 @@
 # 🐧 Ubuntu Installation Guide
 
-Deploy the Mooncake 2.0 Client Agent on Ubuntu. This is the **primary, production-tested
+Deploy the Yuanyi Client Agent on Ubuntu. This is the **primary, production-tested
 platform** — the benchmark and multi-node results in [`docs/test/`](../../test/) were all
 produced on this path.
 
@@ -277,7 +277,7 @@ Dashboard: `http://<host>:50007`
 | `docker: Error response ... could not select device driver` | NVIDIA Container Toolkit missing or Docker not restarted after `nvidia-ctk runtime configure`. Re-run §4 and verify with `docker run --rm --gpus all ubuntu:24.04 nvidia-smi`. |
 | vLLM exits during load / CUDA OOM | `vllm.gpu_memory_utilization` is a fraction of *total* VRAM, not free VRAM. Lower it, or free the GPU. |
 | `go build` fails on `embed web-ui/dist` | Path B only: `npm run build` was skipped. `web-ui/dist` must exist before `go build`. |
-| Container starts but GPU is idle | Confirm `deploy.resources.reservations.devices` survived any local `docker-compose.yml` edits, and that `nvidia-smi` works inside: `docker compose exec mooncake-client nvidia-smi`. |
+| Container starts but GPU is idle | Confirm `deploy.resources.reservations.devices` survived any local `docker-compose.yml` edits, and that `nvidia-smi` works inside: `docker compose exec yuanyi-client nvidia-smi`. |
 | Peers never appear | Check `SERVER_ADDRESS` is reachable and the `swarm.key` matches. A node with no peers still serves inference locally — see §5 of the Windows test doc for that behaviour. |
 
 ---

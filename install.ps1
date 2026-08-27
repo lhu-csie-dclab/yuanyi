@@ -1,7 +1,7 @@
 # Copyright 2026 LHU CSIE DCLAB (yuanyi) Authors.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Mooncake 2.0 Client Agent -- interactive installer and manager for Windows.
+# Yuanyi Client Agent -- interactive installer and manager for Windows.
 #
 # Windows runs the agent natively (Go binary + a local Python/vLLM environment),
 # not under Docker, so this is the counterpart to install.sh rather than a port of it.
@@ -26,8 +26,8 @@ $VerifiedTorchIdx  = "https://download.pytorch.org/whl/cu124"
 
 $DefaultModel        = "Qwen/Qwen3-4B-AWQ"
 $DefaultBootstrap    = "/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh"
-$DefaultInstallDir   = Join-Path $HOME "mooncake-client"
-$DefaultModelDir     = Join-Path $HOME "mooncake-models"
+$DefaultInstallDir   = Join-Path $HOME "yuanyi-client"
+$DefaultModelDir     = Join-Path $HOME "yuanyi-models"
 $DefaultWebPort      = 50007
 $DefaultProxyPort    = 50006
 $DefaultVllmPort     = 8100
@@ -35,7 +35,7 @@ $DefaultMooncakePort = 8998
 $DefaultHubP2PPort   = 50004
 $DefaultHubProxyPort = 50008
 
-$StateFile = Join-Path $env:APPDATA "mooncake-client\install.json"
+$StateFile = Join-Path $env:APPDATA "yuanyi-client\install.json"
 
 function Write-Info { param($m) Write-Host "[*] $m" -ForegroundColor Cyan }
 function Write-Ok   { param($m) Write-Host "[+] $m" -ForegroundColor Green }
@@ -577,7 +577,7 @@ CLIENT_WEB_PORT=$($Cfg.WebPort)
 }
 
 function Do-Install {
-    Write-Heading "Install Mooncake 2.0 Client Agent (Windows native)"
+    Write-Heading "Install Yuanyi Client Agent (Windows native)"
 
     Write-Host ""
     Write-Host "How should this node contribute?"
@@ -844,7 +844,7 @@ function Do-Status {
 
 function Show-Usage {
     @"
-Mooncake 2.0 Client Agent -- Windows installer and manager
+Yuanyi Client Agent -- Windows installer and manager
 
   install.ps1              interactive menu
   install.ps1 install      install / update
@@ -865,7 +865,7 @@ defaults, so pressing Enter accepts them.
 
 function Main-Menu {
     while ($true) {
-        Write-Heading "Mooncake 2.0 Client Agent (Windows)"
+        Write-Heading "Yuanyi Client Agent (Windows)"
         $s = Get-State
         if ($s -and $s.InstallDir -and (Test-Path (Join-Path $s.InstallDir "go.mod"))) {
             Write-Host "  Installed at $($s.InstallDir)"

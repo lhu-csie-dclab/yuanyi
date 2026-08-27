@@ -454,7 +454,7 @@ func (r *Runner) startVLLMWindows(ctx context.Context) {
 		// weights *and* the default model_name would log a substitution warning that
 		// never happened and advertise an alias for a model it is not serving.
 		modelName = localModelPath
-	case modelName == "" || modelName == "Qwen3-4B-AWQ" || modelName == "mooncake-default":
+	case modelName == "" || modelName == "Qwen3-4B-AWQ" || modelName == "yuanyi-default":
 		// These are the Linux/Docker-mode defaults and there are no local weights to fall
 		// back on, so use a Windows-verified Hugging Face model rather than failing to
 		// start. Recording it lets --served-model-name below reflect what is actually

@@ -1,6 +1,6 @@
 # Configuration Management & Settings Guide
 
-This document provides a detailed reference for configuration handling in Mooncake 2.0 Client Agent, covering [`config.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/config.go), [`config.json`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/config.json), [`.env.example`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/.env.example), and [`mooncake.json`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/mooncake.json).
+This document provides a detailed reference for configuration handling in the Yuanyi Client Agent, covering [`config.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/config.go), [`config.json`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/config.json), [`.env.example`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/.env.example), and [`mooncake.json`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/mooncake.json).
 
 ---
 

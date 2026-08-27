@@ -1,6 +1,6 @@
 [English](README.md) | [繁體中文](README_zh-TW.md) | [简体中文](README_zh-CN.md)
 
-# Mooncake 2.0 P2P LLM Inference Client Agent
+# Yuanyi P2P LLM Inference Client Agent
 
 [![Go Build](https://github.com/lhu-csie-dclab/yuanyi/actions/workflows/go.yml/badge.svg)](https://github.com/lhu-csie-dclab/yuanyi/actions)
 [![Docker Build](https://github.com/lhu-csie-dclab/yuanyi/actions/workflows/docker.yml/badge.svg)](https://github.com/lhu-csie-dclab/yuanyi/actions)
@@ -18,11 +18,11 @@ One binary, one shared key file, and you're part of a global GPU mesh. No centra
 
 ---
 
-## Why Mooncake 2.0?
+## Why Yuanyi?
 
 **Run LLMs anywhere, powered by GPUs everywhere.**
 
-Traditional LLM deployment locks you into a single machine or a cloud provider. Mooncake 2.0 turns every participating GPU into a node in a global inference network:
+Traditional LLM deployment locks you into a single machine or a cloud provider. Yuanyi turns every participating GPU into a node in a global inference network:
 
 - **Prefill/Decode (P/D) Disaggregation** — The inference pipeline is split across nodes: one machine handles the compute-heavy prefill stage, another handles token generation. This is powered by [vLLM](https://github.com/vllm-project/vllm)'s native P/D separation with [Mooncake KV-cache transfer](https://github.com/kvcache-ai/Mooncake), moving KV caches directly between GPUs over the network instead of recomputing them.
 
@@ -108,7 +108,7 @@ flowchart TB
         end
     end
     
-    subgraph Swarm["Mooncake 2.0 P2P Swarm"]
+    subgraph Swarm["Yuanyi P2P Swarm"]
         HubNode["Hub Node(s) (50004/50007 #/hub, 50008)\n- Any peer with server_mode.enabled\n- Topology Sync, NAT Relay, Leaderboard"]
         RemotePeer["Remote P2P Peer Nodes"]
     end
@@ -147,7 +147,7 @@ flowchart TB
   The web console (`web-ui/`) is a hash-routed single-page app built with Vue 3, Vite, and Tailwind CSS v4, compiled to static assets and embedded straight into the Go binary via `embed.FS` — the running server still needs no external frontend files. The Dockerfile builds it in its own Node stage before the Go build.
 
 - **🌐 P2P Swarm & Mooncake KV Cache Transfer**:
-  Connects to the Mooncake 2.0 swarm over libp2p. Participates in disaggregated Prefill/Decode (P/D) inference topologies, exchanging KV Caches across GPU nodes via `MooncakeConnector` on port `8998`.
+  Connects to the Yuanyi swarm over libp2p. Participates in disaggregated Prefill/Decode (P/D) inference topologies, exchanging KV Caches across GPU nodes via `MooncakeConnector` on port `8998`.
 
 - **🛰️ Optional Hub Mode (Merged Central Server)**:
   Any node can opt into `server_mode.enabled` to additionally take on the standalone Central Server's role: a local SQLite peers/leaderboard database, GPU-based scoring, a central P/D dispatcher, and a hub-only dashboard. Multiple hubs can run at once — each independently converges to the same view over the existing GossipSub topic, so there is no single point of failure. See [`docs/HUB_MODE.md`](docs/HUB_MODE.md).
@@ -206,7 +206,7 @@ It prompts for everything with sensible defaults (press Enter to accept):
 
 | Prompt | Default |
 | :--- | :--- |
-| Install directory | `/opt/mooncake-client` as root, else `~/mooncake-client` |
+| Install directory | `/opt/yuanyi-client` as root, else `~/yuanyi-client` |
 | Node role | Inference node, or **relay-only** (no GPU required) |
 | `swarm.key` | Paste an existing key to join a swarm, or leave blank to **generate a new one** |
 | Model | Any Hugging Face repo id, e.g. `Qwen/Qwen3-4B-AWQ` |
@@ -481,7 +481,7 @@ Mooncake transport settings in `mooncake.json` (`"protocol": "tcp"`):
 
 ## 🙏 Acknowledgements & Credits
 
-Mooncake 2.0 Client Agent is built upon and integrates with the following outstanding open-source projects and platforms:
+Yuanyi Client Agent is built upon and integrates with the following outstanding open-source projects and platforms:
 
 - **[vLLM](https://github.com/vllm-project/vllm)** - A high-throughput and memory-efficient inference and serving engine for LLMs.
 - **[vllm-windows](https://github.com/SystemPanic/vllm-windows)** (SystemPanic/vllm-windows) - High-performance precompiled vLLM Windows runtime builds and environment compatibility support.

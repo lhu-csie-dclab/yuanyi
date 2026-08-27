@@ -1,6 +1,6 @@
 # 🪟 Windows Native Installation Guide
 
-Run the Mooncake 2.0 Client Agent **natively on Windows 10/11 — no Docker, no WSL**. The Go
+Run the Yuanyi Client Agent **natively on Windows 10/11 — no Docker, no WSL**. The Go
 agent detects Windows at startup (`runtime.GOOS == "windows"`), reads your GPU via
 `nvidia-smi`, locates a local Python virtual environment, and launches vLLM as a native
 subprocess.

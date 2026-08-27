@@ -2,13 +2,13 @@ version: '3.8'
 
 services:
   # =========================================================
-  # Mooncake Client All-in-One (Agent + OpenAI Gateway + Ray + vLLM)
+  # Yuanyi Client All-in-One (Agent + OpenAI Gateway + Ray + vLLM)
   # =========================================================
-  mooncake-client:
+  yuanyi-client:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: mooncake_client_allinone
+    container_name: yuanyi_client_allinone
     restart: unless-stopped
     tty: true
     stdin_open: true

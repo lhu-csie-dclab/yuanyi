@@ -10,7 +10,7 @@ The Terminal User Interface (TUI) is built using `tview` and `tcell`. It provide
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Mooncake 2.0 P2P Client Agent                                              │
+│ Yuanyi P2P Client Agent                                                     │
 │ [1] Dashboard  │  [2] System Logs  │  [3] vLLM Console  │  [4] Docker Logs │
 ├───────────────────────────────┬─────────────────────────────────────────────┤
 │ Node Statistics               │ Connected Peers (P2P Swarm Table)           │

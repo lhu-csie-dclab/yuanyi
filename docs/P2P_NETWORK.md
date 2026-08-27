@@ -6,7 +6,7 @@ This document provides a comprehensive specification of the P2P networking layer
 
 ## 🔑 Swarm Key (`swarm.key`) Generation Guide
 
-Mooncake 2.0 uses a libp2p Private Network (PSK) to ensure that only authorized nodes possessing a valid `swarm.key` can discover and communicate within the P2P inference mesh.
+Yuanyi uses a libp2p Private Network (PSK) to ensure that only authorized nodes possessing a valid `swarm.key` can discover and communicate within the P2P inference mesh.
 
 ### `swarm.key` File Format
 

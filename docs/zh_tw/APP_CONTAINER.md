@@ -6,7 +6,7 @@
 
 ## 🏛 系統定位與架構角色
 
-在 Mooncake 2.0 Client 架構中，`app.go` 扮演**主控制引擎容器 (Master Control Container / Dependency Injection Root)**。
+在 Yuanyi Client 架構中，`app.go` 扮演**主控制引擎容器 (Master Control Container / Dependency Injection Root)**。
 
 `App` 結構體封裝了所有核心子系統的指標（Pointers），並管理嚴格的初始化、順序啟動、併發 Goroutines 與關機清理流程。
 

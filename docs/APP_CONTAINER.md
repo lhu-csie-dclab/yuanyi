@@ -1,12 +1,12 @@
 # `app.go` - Master Application Container & Subsystem Orchestrator
 
-This document provides a comprehensive technical breakdown of **[`app.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/app.go)**, which defines the central master control container (`App`) for the Mooncake 2.0 Client Agent.
+This document provides a comprehensive technical breakdown of **[`app.go`](file:///c:/Users/chich/Documents/vllm/mooncake2.0-client%20-%2020260818/app.go)**, which defines the central master control container (`App`) for the Yuanyi Client Agent.
 
 ---
 
 ## 🏛 System Positioning & Architectural Role
 
-In the Mooncake 2.0 Client architecture, `app.go` acts as the **Central Master Application Container** (Master Engine / Dependency Injection Root Container). 
+In the Yuanyi Client architecture, `app.go` acts as the **Central Master Application Container** (Master Engine / Dependency Injection Root Container). 
 
 Rather than allowing subsystems to initialize global variables or communicate through uncoordinated background tasks, `App` encapsulates pointers to all core system modules and manages their strict initialization, startup sequence, concurrent goroutines, and graceful teardown.
 

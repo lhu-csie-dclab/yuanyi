@@ -2,7 +2,7 @@
 # Copyright 2026 LHU CSIE DCLAB (yuanyi) Authors.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Mooncake 2.0 Client Agent -- interactive installer and manager for Linux.
+# Yuanyi Client Agent -- interactive installer and manager for Linux.
 #
 # Handles install, uninstall, and model management (download / switch / delete)
 # from a single menu. Run with no arguments for the menu, or --help for flags.
@@ -27,16 +27,16 @@ DEFAULT_HUB_PROXY_PORT=50008
 # Install under /opt when run as root, otherwise under the user's home, so the
 # script never needs sudo just to pick a location.
 if [ "$(id -u)" -eq 0 ]; then
-  DEFAULT_INSTALL_DIR="/opt/mooncake-client"
-  DEFAULT_MODEL_DIR="/opt/mooncake-models"
+  DEFAULT_INSTALL_DIR="/opt/yuanyi-client"
+  DEFAULT_MODEL_DIR="/opt/yuanyi-models"
 else
-  DEFAULT_INSTALL_DIR="$HOME/mooncake-client"
-  DEFAULT_MODEL_DIR="$HOME/mooncake-models"
+  DEFAULT_INSTALL_DIR="$HOME/yuanyi-client"
+  DEFAULT_MODEL_DIR="$HOME/yuanyi-models"
 fi
 
 # State file lets uninstall and model management find a previous install without
 # asking the user to retype the path every time.
-STATE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/mooncake-client/install.conf"
+STATE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/yuanyi-client/install.conf"
 
 C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
 C_RED=$'\033[31m'; C_GREEN=$'\033[32m'; C_YELLOW=$'\033[33m'; C_CYAN=$'\033[36m'
@@ -392,7 +392,7 @@ delete_model() {
 
 container_running() {
   [ -n "${INSTALL_DIR:-}" ] && [ -f "$INSTALL_DIR/docker-compose.yml" ] || return 1
-  ( cd "$INSTALL_DIR" && compose ps --status running 2>/dev/null | grep -q mooncake )
+  ( cd "$INSTALL_DIR" && compose ps --status running 2>/dev/null | grep -q yuanyi )
 }
 
 restart_stack() {
@@ -414,7 +414,7 @@ write_relay_override() {
 # has no GPU, so the base file's GPU reservation must be dropped or the container will not
 # start. Delete this file if you later add a GPU and switch to an inference node.
 services:
-  mooncake-client:
+  yuanyi-client:
     deploy: !reset null
 EOF
   if ( cd "$INSTALL_DIR" && compose config 2>/dev/null | grep -q "driver: nvidia" ); then
@@ -529,7 +529,7 @@ preflight_container_name() {
 }
 
 do_install() {
-  heading "Install Mooncake 2.0 Client Agent"
+  heading "Install Yuanyi Client Agent"
   check_prereqs || return 1
 
   load_state
@@ -734,7 +734,7 @@ models_menu() {
 
 usage() {
   cat <<EOF
-Mooncake 2.0 Client Agent -- installer and manager
+Yuanyi Client Agent -- installer and manager
 
   bash $0             interactive menu
   bash $0 install     install / update
@@ -751,7 +751,7 @@ EOF
 
 main_menu() {
   while true; do
-    heading "Mooncake 2.0 Client Agent"
+    heading "Yuanyi Client Agent"
     load_state
     if [ -n "${INSTALL_DIR:-}" ] && [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
       echo "  Installed at $INSTALL_DIR"

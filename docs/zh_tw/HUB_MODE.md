@@ -1,6 +1,6 @@
 # Hub 模式手冊（選用的中央伺服器合併能力）
 
-本文件說明**Hub 模式**——一項選用能力，把原本獨立的 Mooncake 2.0 Central Server 職責合併進
+本文件說明**Hub 模式**——一項選用能力，把原本獨立的 Yuanyi Central Server 職責合併進
 這個 client 執行檔本身。實作分散在
 [`server_db.go`](../../server_db.go)、[`server_rank.go`](../../server_rank.go)、
 [`server_p2p.go`](../../server_p2p.go)、[`server_proxy.go`](../../server_proxy.go)、

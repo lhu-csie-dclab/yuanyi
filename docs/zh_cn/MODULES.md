@@ -1,6 +1,6 @@
-# Mooncake 2.0 Client Agent - 模块对照与调用矩阵 (简体中文)
+# Yuanyi Client Agent - 模块对照与调用矩阵 (简体中文)
 
-本文档索引所有 **Mooncake 2.0 Client Agent** 的 Go 源代码文件、模块角色与技术手册对照。
+本文档索引所有 **Yuanyi Client Agent** 的 Go 源代码文件、模块角色与技术手册对照。
 
 ---
 

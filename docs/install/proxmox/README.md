@@ -1,6 +1,6 @@
 # 🖥️ Proxmox VE + LXC GPU Passthrough Guide
 
-Run the Mooncake 2.0 Client Agent inside a **Proxmox VE LXC container** with a passed-through
+Run the Yuanyi Client Agent inside a **Proxmox VE LXC container** with a passed-through
 NVIDIA GPU. This is how the 10-node cluster behind
 [`docs/test/MULTI_NODE_CLONE_TEST.md`](../../test/MULTI_NODE_CLONE_TEST.md) is deployed: one
 LXC per GPU, Docker nested inside each container.
@@ -54,7 +54,7 @@ Proxmox VE host (kernel + NVIDIA kernel module)
 └── LXC container (unprivileged, nesting=1)
     ├── NVIDIA userspace driver  ← installed with --no-kernel-module
     ├── Docker Engine + NVIDIA Container Toolkit  ← no-cgroups = true
-    └── mooncake client container  ← --gpus all
+    └── yuanyi client container  ← --gpus all
 ```
 
 Three separate layers must each be told about the GPU. Missing any one produces a different,
@@ -148,7 +148,7 @@ cluster) hardcode **234**. Read your own values.
 
 ```bash
 pct create 200 local:vztmpl/ubuntu-26.04-standard_26.04-1_amd64.tar.zst \
-  --hostname mooncake-node \
+  --hostname yuanyi-node \
   --cores 8 --memory 16384 --swap 512 \
   --rootfs nvme:100 \
   --net0 name=eth0,bridge=vmbr1,ip=10.0.2.200/24,gw=10.0.2.1,type=veth \
