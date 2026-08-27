@@ -52,7 +52,15 @@ func StartClientWebDashboard(app *App) {
 
 	// 步驟 2: API 端點 - 取得已發現的 P2P 鄰居節點清單 (GET /api/peers)
 	mux.HandleFunc("/api/peers", func(w http.ResponseWriter, r *http.Request) {
-		peers := app.TUI.GetPeers() // 至 tui.go 取得線上鄰居節點清單
+		peerMap := app.TUI.GetPeers() // 至 tui.go 取得線上鄰居節點清單 (map[nodeID]GPUInfo)
+		// The web-ui's TopologyView treats this response as an array (.length, .slice() for
+		// pagination) -- encoding the map directly serializes it as a JSON object instead,
+		// which silently breaks both: peers.length is undefined and .slice() throws on every
+		// poll tick, so the peer table never renders even when peers are actually known.
+		peers := make([]GPUInfo, 0, len(peerMap))
+		for _, info := range peerMap {
+			peers = append(peers, info)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(peers)
 	})
