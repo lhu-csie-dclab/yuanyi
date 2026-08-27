@@ -261,10 +261,19 @@ func (n *NetworkNode) Start(ctx context.Context) error {
 		res.BufferSize = 1073741824
 		res.Limit = nil
 
+		// ForceReachabilityPublic() used to be set here unconditionally for every
+		// server_mode.enabled node. That's wrong for a hub sitting on a private LAN
+		// (e.g. a NAT'd GPU box that only *also* happens to run hub services): forcing
+		// "public" tells the AutoRelay subsystem this node believes it's already
+		// dialable and doesn't need a relay reservation, so it never asks the static
+		// relay from EnableAutoRelay above for one. Peers that can't route to its
+		// private IP directly then have no path to it at all -- direct dial times out
+		// AND the circuit relay attempt fails with NO_RESERVATION, because no
+		// reservation was ever requested. Removing the override lets libp2p's own
+		// AutoNAT reachability detection decide honestly instead of us asserting it.
 		opts = append(opts,
 			libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", listenPort)),
 			libp2p.EnableRelayService(relay.WithResources(res)),
-			libp2p.ForceReachabilityPublic(),
 		)
 	} else {
 		opts = append(opts, libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
