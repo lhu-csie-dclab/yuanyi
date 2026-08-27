@@ -352,7 +352,13 @@ func (t *TUI) buildPeersText() string {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "[::b]%-12s %-8s %-12s %s[::-]\n", "NodeID", "狀態", "最後回報", "GPU")
+	// Column labels and the "ago" suffix must stay ASCII: Go's %-Ns pads by rune count, not
+	// terminal display width, but CJK characters render double-width on a real console. Mixing
+	// them in a fixed-width column meant the header ("狀態", "最後回報") came out visually wider
+	// than the padding accounted for while data rows (with a different CJK suffix, "前") drifted
+	// by a different amount -- the two never lined up, so columns overlapped/garbled on-screen,
+	// worst on legacy Windows consoles (conhost.exe) that don't reflow-correct mid-frame.
+	fmt.Fprintf(&b, "[::b]%-12s %-8s %-12s %s[::-]\n", "NodeID", "Status", "LastSeen", "GPU")
 	for _, rec := range records {
 		shortID := rec.Info.NodeID
 		if len(shortID) > 10 {
@@ -363,7 +369,7 @@ func (t *TUI) buildPeersText() string {
 		if rec.Info.Status != "idle" {
 			statusColor = "[yellow]"
 		}
-		fmt.Fprintf(&b, "%-12s %s%-8s[-] %-12s %s\n", shortID, statusColor, rec.Info.Status, ago.String()+"前", rec.Info.Summary)
+		fmt.Fprintf(&b, "%-12s %s%-8s[-] %-12s %s\n", shortID, statusColor, rec.Info.Status, ago.String()+" ago", rec.Info.Summary)
 	}
 	return b.String()
 }
