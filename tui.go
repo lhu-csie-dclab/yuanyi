@@ -392,10 +392,18 @@ func (t *TUI) Run() error {
 	t.tviewApp = tviewApp
 
 	// 建立統計與鄰居 View
-	t.statsView = tview.NewTextView().SetDynamicColors(true)
+	// SetWrap(false): both panels render fixed-width columns via %-Ns padding, which assumes
+	// each formatted line stays on one row. These panels get whatever width the dashFlex 50/50
+	// split leaves them, which can be narrower than a full formatted line -- with wrap left on,
+	// tview breaks the line mid-column and stacks the remainder as a new visual row, so the next
+	// source line's fields end up interleaved with the wrapped remainder of the previous one
+	// (reported by a user as garbled/overlapping text, e.g. "Uptime" fields fused with "GPU"
+	// fields). Disabling wrap makes an overly long line truncate at the panel edge instead,
+	// which is legible; wrapping it was actively misleading.
+	t.statsView = tview.NewTextView().SetDynamicColors(true).SetWrap(false)
 	t.statsView.SetBorder(true).SetTitle(" Node Statistics ")
 
-	t.peersView = tview.NewTextView().SetDynamicColors(true)
+	t.peersView = tview.NewTextView().SetDynamicColors(true).SetWrap(false)
 	t.peersView.SetBorder(true).SetTitle(" Connected Peers ")
 
 	dashFlex := tview.NewFlex().
@@ -423,21 +431,30 @@ func (t *TUI) Run() error {
 	currentTab := 0
 
 	// 建立頂端快捷頁籤條
-	tabBar := tview.NewTextView().SetDynamicColors(true)
+	// SetWrap(false): this is a fixed single-height bar (see AddItem(tabBar, 1, 0, false)
+	// below) -- with wrap left on, tview computing wrapped line counts against whatever
+	// (possibly narrower-than-expected) width it's given can desync the single row it's
+	// allotted, bleeding characters into neighboring content.
+	tabBar := tview.NewTextView().SetDynamicColors(true).SetWrap(false)
 	updateTabBar := func() {
 		var items []string
 		for i, name := range tabs {
+			// Plain "(N) Name" / "(A)" / "(Q)" -- NOT "[N] Name" etc. SetDynamicColors(true)
+			// makes tview parse any "[...]" as a color/style tag, so literal square brackets
+			// in this hint text (as opposed to the genuine "[black:white:b]"/"[-:-:-]" tags
+			// below) get silently swallowed/misparsed instead of displayed, which is what
+			// produced the garbled tab bar ("SystemtLogsi|s", "-/[1-4]") reported by a user.
 			if i == currentTab {
-				items = append(items, fmt.Sprintf("[black:white:b] [%d] %s [-:-:-]", i+1, name))
+				items = append(items, fmt.Sprintf("[black:white:b] (%d) %s [-:-:-]", i+1, name))
 			} else {
-				items = append(items, fmt.Sprintf(" [%d] %s ", i+1, name))
+				items = append(items, fmt.Sprintf(" (%d) %s ", i+1, name))
 			}
 		}
-		status := " [A] AutoScroll: ON"
+		status := " (A) AutoScroll: ON"
 		if !t.autoUpdate {
-			status = " [A] AutoScroll: OFF"
+			status = " (A) AutoScroll: OFF"
 		}
-		tabBar.SetText(strings.Join(items, " | ") + "  " + status + "  (Press [Q] to Quit, [Tab]/[1-4] to Switch)")
+		tabBar.SetText(strings.Join(items, " | ") + "  " + status + "  (Press Q to quit, Tab/1-4 to switch)")
 	}
 	updateTabBar()
 
