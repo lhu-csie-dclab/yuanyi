@@ -5,13 +5,14 @@ go 1.26.0
 toolchain go1.26.6
 
 require (
-	github.com/gdamore/tcell/v2 v2.13.10
+	github.com/charmbracelet/bubbles v1.0.0
+	github.com/charmbracelet/bubbletea v1.3.10
+	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/ipfs/go-ds-badger v0.3.4
 	github.com/libp2p/go-libp2p v0.48.0
 	github.com/libp2p/go-libp2p-kad-dht v0.41.0
 	github.com/libp2p/go-libp2p-pubsub v0.16.0
 	github.com/multiformats/go-multiaddr v0.16.1
-	github.com/rivo/tview v0.42.0
 	github.com/shirou/gopsutil/v3 v3.24.5
 	golang.org/x/sys v0.47.0
 	modernc.org/sqlite v1.53.0
@@ -21,19 +22,28 @@ require (
 	filippo.io/bigmod v0.1.1-0.20260103110540-f8a47775ebe5 // indirect
 	filippo.io/keygen v1.0.0 // indirect
 	github.com/AndreasBriese/bbloom v0.0.0-20190825152654-46b345b51c96 // indirect
+	github.com/atotto/clipboard v0.1.4 // indirect
+	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/charmbracelet/colorprofile v0.4.1 // indirect
+	github.com/charmbracelet/x/ansi v0.11.6 // indirect
+	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
+	github.com/charmbracelet/x/term v0.2.2 // indirect
+	github.com/clipperhouse/displaywidth v0.9.0 // indirect
+	github.com/clipperhouse/stringish v0.1.1 // indirect
+	github.com/clipperhouse/uax29/v2 v2.5.0 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1 // indirect
 	github.com/dgraph-io/badger v1.6.2 // indirect
 	github.com/dgraph-io/ristretto v0.0.2 // indirect
 	github.com/dunglas/httpsfv v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/filecoin-project/go-clock v0.1.0 // indirect
 	github.com/flynn/noise v1.1.0 // indirect
-	github.com/gdamore/encoding v1.0.1 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
@@ -71,11 +81,16 @@ require (
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/marten-seemann/tcp v0.0.0-20210406111302-dfbc87cc63fd // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
+	github.com/mattn/go-localereader v0.0.1 // indirect
+	github.com/mattn/go-runewidth v0.0.19 // indirect
 	github.com/miekg/dns v1.1.72 // indirect
 	github.com/mikioh/tcpinfo v0.0.0-20190314235526-30a79bb1804b // indirect
 	github.com/mikioh/tcpopt v0.0.0-20190314235656-172688c1accc // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/mr-tron/base58 v1.3.0 // indirect
+	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
+	github.com/muesli/cancelreader v0.2.2 // indirect
+	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/multiformats/go-base32 v0.1.0 // indirect
 	github.com/multiformats/go-base36 v0.2.0 // indirect
 	github.com/multiformats/go-multiaddr-dns v0.6.0 // indirect
@@ -116,12 +131,14 @@ require (
 	github.com/quic-go/webtransport-go v0.10.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/sahilm/fuzzy v0.1.1 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
+	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel v1.45.0 // indirect
@@ -138,7 +155,6 @@ require (
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260820143203-7221e139e8d6 // indirect
-	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect

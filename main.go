@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -27,6 +28,11 @@ func main() {
 	}
 
 	app := NewApp(cfg)
+
+	// Route slog (used by hub-mode code: server_proxy.go, p2p.go, server_db.go, ...) into
+	// the TUI's own System Logs buffer instead of its default raw write to os.Stderr, which
+	// bypasses the TUI's alt-screen entirely and bleeds directly onto the console under it.
+	slog.SetDefault(slog.New(newTUISlogHandler(app.TUI)))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	sig := make(chan os.Signal, 1)
