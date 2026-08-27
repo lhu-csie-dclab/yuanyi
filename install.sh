@@ -628,6 +628,16 @@ do_install() {
   write_config
   save_state
 
+  # docker-compose bind-mounts identity.key/stats.json/peers.db as files that the app
+  # creates itself on first run (loadOrGenerateIdentity, etc.) -- but if the host path
+  # doesn't exist yet when the container is first created, Docker silently creates a
+  # DIRECTORY there instead of a file. The app can then never write a real file at that
+  # path, so identity.key in particular never persists: every container restart gets a
+  # fresh random PeerID, breaking bootstrap/relay reservations that other peers hold for
+  # the old identity. Pre-touch them as empty regular files so the bind mount attaches
+  # to something the app can actually open for writing.
+  touch "$INSTALL_DIR/identity.key" "$INSTALL_DIR/stats.json" "$INSTALL_DIR/peers.db"
+
   echo
   info "Building and starting (first build pulls several GB)"
   ( cd "$INSTALL_DIR" && compose up -d --build ) || die "Build/start failed. Check 'docker compose logs' in $INSTALL_DIR"
