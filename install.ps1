@@ -755,6 +755,48 @@ function Do-Uninstall {
     Write-Ok "Uninstalled."
 }
 
+function Get-RunningClientProcess {
+    param($InstallDir)
+    return Get-Process -Name "client" -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -like (Join-Path $InstallDir "*") }
+}
+
+# Force-stops this install's client.exe and any vLLM (python/pythonw) child processes it
+# spawned. Separate from Do-Uninstall's kill step so the operator can bounce a stuck node
+# without going through the full (destructive) uninstall flow.
+function Do-Stop {
+    Write-Heading "Stop"
+    $s = Require-Install
+
+    $proc = Get-RunningClientProcess $s.InstallDir
+    $vllm = Get-Process -Name "python", "pythonw" -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -like (Join-Path $s.InstallDir "*") }
+
+    if (-not $proc -and -not $vllm) { Write-Info "Not running."; return }
+
+    $proc | ForEach-Object { Write-Info "Stopping client.exe (PID $($_.Id))"; Stop-Process -Id $_.Id -Force }
+    $vllm | ForEach-Object { Write-Info "Stopping vLLM (PID $($_.Id))"; Stop-Process -Id $_.Id -Force }
+    Write-Ok "Stopped."
+}
+
+function Do-Start {
+    Write-Heading "Start"
+    $s = Require-Install
+
+    $existing = Get-RunningClientProcess $s.InstallDir
+    if ($existing) { Write-Warn "Already running (PID $($existing.Id))."; return }
+
+    Start-Process -FilePath (Join-Path $s.InstallDir "client.exe") -WorkingDirectory $s.InstallDir
+    Write-Ok "Started."
+}
+
+function Do-Restart {
+    Write-Heading "Restart"
+    Do-Stop
+    Start-Sleep -Seconds 2
+    Do-Start
+}
+
 function Do-Status {
     Write-Heading "Status"
     $s = Get-State
@@ -809,6 +851,9 @@ Mooncake 2.0 Client Agent -- Windows installer and manager
   install.ps1 uninstall    remove this installation
   install.ps1 models       manage models
   install.ps1 status       show current state
+  install.ps1 start        start client.exe
+  install.ps1 stop         force-stop client.exe (and any vLLM child processes)
+  install.ps1 restart      force-stop, then start
   install.ps1 -Command help
 
 Windows runs the agent natively (Go binary + local Python/vLLM), not under Docker.
@@ -829,13 +874,19 @@ function Main-Menu {
         Write-Host "  1) Install / update"
         Write-Host "  2) Manage models (download / switch / delete)"
         Write-Host "  3) Status"
-        Write-Host "  4) Uninstall"
-        Write-Host "  5) Exit"
-        switch (Ask "Choice" "5") {
+        Write-Host "  4) Start"
+        Write-Host "  5) Stop (force)"
+        Write-Host "  6) Restart (force)"
+        Write-Host "  7) Uninstall"
+        Write-Host "  8) Exit"
+        switch (Ask "Choice" "8") {
             "1" { Do-Install }
             "2" { Models-Menu }
             "3" { Do-Status }
-            "4" { Do-Uninstall }
+            "4" { Do-Start }
+            "5" { Do-Stop }
+            "6" { Do-Restart }
+            "7" { Do-Uninstall }
             default { return }
         }
     }
@@ -846,6 +897,9 @@ switch ($Command.ToLower()) {
     "uninstall" { Do-Uninstall }
     "models"    { Models-Menu }
     "status"    { Do-Status }
+    "start"     { Do-Start }
+    "stop"      { Do-Stop }
+    "restart"   { Do-Restart }
     "help"      { Show-Usage }
     "-h"        { Show-Usage }
     "--help"    { Show-Usage }
