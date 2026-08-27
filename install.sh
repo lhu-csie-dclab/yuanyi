@@ -637,6 +637,13 @@ do_install() {
   # the old identity. Pre-touch them as empty regular files so the bind mount attaches
   # to something the app can actually open for writing.
   touch "$INSTALL_DIR/identity.key" "$INSTALL_DIR/stats.json" "$INSTALL_DIR/peers.db"
+  # The container runs as a non-root uid (dynamo, uid 1000) that does not own these
+  # host-created files, so without group/other write bits the app's own write attempt
+  # fails with a permission error -- silently, since loadOrGenerateIdentity() and the
+  # stats/db writers don't check os.WriteFile's return value. World-writable is fine
+  # here: these are per-install runtime state, not secrets shared across installs
+  # (unlike swarm.key, which stays :ro and is never written by the app).
+  chmod 666 "$INSTALL_DIR/identity.key" "$INSTALL_DIR/stats.json" "$INSTALL_DIR/peers.db"
 
   echo
   info "Building and starting (first build pulls several GB)"
