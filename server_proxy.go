@@ -101,9 +101,17 @@ func (p *ProxyServer) reloadBackendsFromDB() {
 	// Relay-only peers run no vLLM, so they must never become inference backends --
 	// dispatching to them would always fail. Filter before the prefill/decode split so
 	// the P/D counts describe usable capacity rather than being padded with relays.
+	// Also check the persisted GPUInfo.Summary: it's been a required (non-omitempty)
+	// field since before Role existed, so a peer broadcasting from a pre-Role build
+	// (never sends "role":"relay" at all) still gets caught here by its "No GPU
+	// Detected" summary -- see the matching check in proxy.go's PD-Together path.
 	var usable []PeerData
 	for _, p := range peers {
 		if p.Role == RoleRelay {
+			continue
+		}
+		var info GPUInfo
+		if err := json.Unmarshal([]byte(p.GPUInfo), &info); err == nil && info.Summary == "No GPU Detected" {
 			continue
 		}
 		usable = append(usable, p)

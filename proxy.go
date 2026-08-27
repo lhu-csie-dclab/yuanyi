@@ -624,7 +624,13 @@ func (d *LocalDispatcher) handleProxyRequest(w http.ResponseWriter, r *http.Requ
 			// Relay-only peers contribute network capacity, not GPU capacity -- they run
 			// no vLLM, so dispatching inference to them would always fail. Any other value
 			// (including empty, sent by older builds) means the peer does serve inference.
-			if p.Role == RoleRelay {
+			// Also check Summary: it's been a required (non-omitempty) field since before
+			// Role existed, so a peer running a pre-Role build that never sends "role":
+			// "relay" at all still gets caught here by its "No GPU Detected" summary --
+			// without this, every receiver (regardless of its own build freshness) treats
+			// that peer's empty Role as "usable" and repeatedly dispatches to it, always
+			// failing (observed as NewStream failures / dial backoff loops in the field).
+			if p.Role == RoleRelay || p.Summary == "No GPU Detected" {
 				continue
 			}
 			peerIDs = append(peerIDs, p.NodeID)
