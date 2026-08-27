@@ -633,7 +633,13 @@ function Do-Install {
     Write-Host "  Manage : powershell -ExecutionPolicy Bypass -File install.ps1"
     Write-Host ""
 
-    if (Confirm-Action "Start the node now?") {
+    # Relay-only nodes have no model to load and no GPU engine to warm up -- there is
+    # nothing to lose by starting immediately, so skip the confirmation prompt that
+    # inference nodes still get (starting those kicks off a multi-minute model load).
+    if ($relayOnly) {
+        Start-Process -FilePath (Join-Path $installDir "client.exe") -WorkingDirectory $installDir
+        Write-Ok "Started (relay-only)."
+    } elseif (Confirm-Action "Start the node now?") {
         Start-Process -FilePath (Join-Path $installDir "client.exe") -WorkingDirectory $installDir
         Write-Ok "Started. Model load takes 1-2 minutes before the gateway answers."
     }
