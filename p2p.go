@@ -32,6 +32,7 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoreds"
+	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	"github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 	"github.com/multiformats/go-multiaddr"
 )
@@ -464,6 +465,7 @@ func (n *NetworkNode) keepAlive(seedAddrs []peer.AddrInfo) {
 	for range ticker.C {
 		for _, addrInfo := range seedAddrs {
 			if n.host.Network().Connectedness(addrInfo.ID) != network.Connected {
+				n.clearDialBackoff(addrInfo.ID)
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				if err := n.host.Connect(ctx, addrInfo); err != nil {
 					n.app.TUI.AddLog("[WARN]", fmt.Sprintf("Reconnecting to Bootstrap node %s failed: %v", addrInfo.ID, err))
@@ -482,6 +484,7 @@ func (n *NetworkNode) keepAlive(seedAddrs []peer.AddrInfo) {
 			if n.host.Network().Connectedness(pid) == network.Connected {
 				continue
 			}
+			n.clearDialBackoff(pid)
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			err = n.host.Connect(ctx, peer.AddrInfo{ID: pid})
 			cancel()
@@ -489,6 +492,33 @@ func (n *NetworkNode) keepAlive(seedAddrs []peer.AddrInfo) {
 				n.app.TUI.AddLog("[INFO]", fmt.Sprintf("Reconnected to peer %s (%s)", id[:8], info.Summary))
 			}
 		}
+	}
+}
+
+// clearDialBackoff drops libp2p's dial-backoff record for one peer, so the reconnect
+// attempt that follows actually dials instead of being refused offline.
+//
+// libp2p backs a peer off after its addresses all fail, for BackoffBase + tries^2 seconds
+// (quadratic, capped at 5 minutes), and only clears that record on a *successful* dial.
+// While it's in effect, Connect() returns "dial backoff" immediately without touching the
+// network -- so a peer that hit a rough patch stays locked out for minutes after the
+// network itself has recovered, and the retry loop above cannot heal it, because every
+// attempt is refused before it reaches the wire. That is exactly why restarting a node
+// "fixed" connectivity during debugging: a restart builds a fresh Swarm whose backoff
+// table is empty. This does the same thing without the restart.
+//
+// Deliberately bounded rather than blanket-disabling backoff: it only runs from the 15s
+// keepAlive loop, only for peers that are currently disconnected, and (for the ordinary-peer
+// case) only for peers that broadcast gossip within the last 90s -- i.e. peers with recent
+// positive proof of life, which are precisely the ones a dial-failure backoff is a false
+// positive for. A genuinely dead peer stops gossiping and ages out of that set, so it
+// returns to being backed off normally instead of being redialed forever.
+func (n *NetworkNode) clearDialBackoff(pid peer.ID) {
+	// Network() is a *swarm.Swarm for any host libp2p.New builds, but that isn't part of
+	// the network.Network interface contract -- fail soft rather than panicking a node if a
+	// future libp2p version returns something else.
+	if sw, ok := n.host.Network().(*swarm.Swarm); ok {
+		sw.Backoff().Clear(pid)
 	}
 }
 
