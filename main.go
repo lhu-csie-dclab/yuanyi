@@ -7,7 +7,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -45,6 +44,15 @@ func main() {
 	}()
 
 	if err := app.Start(ctx); err != nil {
-		log.Fatalf("Client exited with error: %v", err)
+		// Deliberately os.Stderr directly, NOT log.Fatalf and NOT slog: slog.SetDefault
+		// above also redirects the standard log package (Go 1.21+ routes log.Print/Fatalf
+		// through the default slog handler), so a fatal startup error would be written into
+		// the TUI's in-memory ring buffer -- which is never displayed, because reaching this
+		// line means startup failed before the TUI ever ran -- and then lost on exit. That
+		// turned every startup failure into a silent exit(1) with no message anywhere, in
+		// the logs or on screen. Startup errors must survive the one path where the TUI
+		// cannot show them.
+		fmt.Fprintf(os.Stderr, "Client exited with error: %v\n", err)
+		os.Exit(1)
 	}
 }

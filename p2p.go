@@ -235,6 +235,29 @@ func (n *NetworkNode) Start(ctx context.Context) error {
 	// clients too.
 	identity := loadOrGenerateIdentity("identity.key")
 
+	// An operator-declared announce address overrides self-discovery: see
+	// P2PConfig.AnnounceAddr for why a containerized/port-forwarded node cannot work this
+	// out for itself. It is folded into the single address factory below rather than added
+	// as a second libp2p.AddrsFactory option -- libp2p permits only one and errors with
+	// "cannot specify multiple address factories" if given two.
+	var announce multiaddr.Multiaddr
+	if raw := strings.TrimSpace(n.app.Config.P2P.AnnounceAddr); raw != "" {
+		a, err := multiaddr.NewMultiaddr(raw)
+		if err != nil {
+			return fmt.Errorf("invalid p2p.announce_addr %q: %v", raw, err)
+		}
+		announce = a
+	}
+
+	addrsFactory := filterAdvertisedAddrs
+	if announce != nil {
+		addrsFactory = func(addrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
+			// Keep the discovered addresses too: they remain valid for same-LAN peers,
+			// and the announced one is only known-better for peers coming from outside.
+			return append([]multiaddr.Multiaddr{announce}, filterAdvertisedAddrs(addrs)...)
+		}
+	}
+
 	opts := []libp2p.Option{
 		libp2p.Peerstore(pstore),
 		libp2p.PrivateNetwork(psk),
@@ -251,8 +274,17 @@ func (n *NetworkNode) Start(ctx context.Context) error {
 		// failed) to dial. selectBestAddr's fix to our own gossip payload only cleaned up
 		// a cosmetic display field; THIS is what actually governs dialability. See
 		// filterAdvertisedAddrs for the filtering logic (shared with selectBestAddr).
-		libp2p.AddrsFactory(filterAdvertisedAddrs),
+		libp2p.AddrsFactory(addrsFactory),
 	}
+
+	if announce != nil {
+		// Asserting reachability is what actually lets a relay behind Docker start its
+		// Circuit Relay service at all -- libp2p keeps that service switched off while it
+		// believes it is private, which a containerized relay always concludes on its own.
+		opts = append(opts, libp2p.ForceReachabilityPublic())
+		n.app.TUI.AddLog("[INFO]", fmt.Sprintf("Announcing self as %s (reachability asserted public)", announce))
+	}
+
 	if len(seedAddrs) > 0 {
 		opts = append(opts, libp2p.EnableAutoRelay(autorelay.WithStaticRelays(seedAddrs)))
 	}

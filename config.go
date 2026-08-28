@@ -50,6 +50,26 @@ type P2PConfig struct {
 	// reachable seed is enough to join the mesh and discover the rest via the DHT, so this
 	// list is an entry point rather than a runtime single point of failure.
 	ServerAddresses []string `json:"server_addresses,omitempty"`
+	// AnnounceAddr is the address other nodes should use to reach THIS node, e.g.
+	// "/dns4/relay.example.com/tcp/50004" or "/ip4/203.0.113.7/tcp/50004". Set it when this
+	// node is reachable at an address it cannot discover for itself -- the common case is a
+	// public relay behind Docker port-mapping or NAT port-forwarding, where every address
+	// the process can actually see belongs to a container/private network (172.17.x, 10.x)
+	// and is useless to anyone outside it.
+	//
+	// Setting this asserts "I am genuinely reachable here", which has a second, essential
+	// effect: libp2p only runs its Circuit Relay *service* while it believes it is publicly
+	// reachable (see relaysvc.RelayManager.reachabilityChanged), and a containerized relay's
+	// own AutoNAT probes fail precisely because it advertises those unreachable private
+	// addresses -- so it concludes "private" and silently never offers the relay service that
+	// NAT'd peers depend on, reporting "protocols not supported: .../circuit/relay/0.2.0/hop"
+	// to anyone trying to use it. Declaring the real address here fixes both halves: it is
+	// advertised to peers, and reachability is asserted so the relay service actually starts.
+	//
+	// Leave blank on an ordinary node: libp2p's own detection is correct when a node can see
+	// its own addresses, and wrongly forcing "public" on a NAT'd node stops it from
+	// requesting the relay reservations it needs.
+	AnnounceAddr string `json:"announce_addr,omitempty"`
 }
 
 // ServerModeClusterConfig configures the hub's prefill/decode node allocation.
