@@ -277,9 +277,23 @@ func (n *NetworkNode) Start(ctx context.Context) error {
 		libp2p.AddrsFactory(addrsFactory),
 	}
 
-	if announce != nil && n.app.Config.P2P.BehindNAT {
+	if announce != nil && n.app.Config.P2P.BehindNAT != nil && *n.app.Config.P2P.BehindNAT {
 		return fmt.Errorf("p2p.announce_addr and p2p.behind_nat are mutually exclusive: " +
 			"announce_addr asserts this node is publicly reachable, behind_nat asserts it is not")
+	}
+
+	// nil means auto-detect, which is the default: see P2PConfig.BehindNAT for why this
+	// should not be something a home contributor has to configure by hand.
+	behindNAT, reason := false, ""
+	switch {
+	case announce != nil:
+		// announce_addr already asserts public reachability below; never also force private.
+	case n.app.Config.P2P.BehindNAT != nil:
+		behindNAT = *n.app.Config.P2P.BehindNAT
+		reason = "set in config"
+	default:
+		behindNAT = hasNoPublicInterfaceAddr()
+		reason = "auto-detected: no public address on any local interface"
 	}
 
 	if announce != nil {
@@ -288,13 +302,13 @@ func (n *NetworkNode) Start(ctx context.Context) error {
 		// believes it is private, which a containerized relay always concludes on its own.
 		opts = append(opts, libp2p.ForceReachabilityPublic())
 		n.app.TUI.AddLog("[INFO]", fmt.Sprintf("Announcing self as %s (reachability asserted public)", announce))
-	} else if n.app.Config.P2P.BehindNAT {
+	} else if behindNAT {
 		// Skips AutoNAT's multi-probe ambient detection, which otherwise leaves this node
 		// unroutable from outside its LAN for minutes after every start (see
 		// P2PConfig.BehindNAT). Forcing reachability emits the reachability event
 		// immediately, so AutoRelay requests its circuit reservation right away.
 		opts = append(opts, libp2p.ForceReachabilityPrivate())
-		n.app.TUI.AddLog("[INFO]", "behind_nat set: requesting a relay reservation immediately instead of waiting for AutoNAT")
+		n.app.TUI.AddLog("[INFO]", fmt.Sprintf("behind NAT (%s): requesting a relay reservation immediately instead of waiting for AutoNAT", reason))
 	}
 
 	if len(seedAddrs) > 0 {
@@ -537,6 +551,47 @@ func (n *NetworkNode) keepAlive(seedAddrs []peer.AddrInfo) {
 			}
 		}
 	}
+}
+
+// hasNoPublicInterfaceAddr reports whether this machine has no public IP address on any
+// local interface, i.e. it cannot be dialed directly from the internet and must go through a
+// relay. That is the ordinary situation for a home or office machine: its interfaces carry
+// only RFC1918 addresses (192.168.x, 10.x, 172.16-31.x) and the router holds the public one.
+//
+// Deliberately reads interfaces rather than host.Addrs(): this has to be decided *before*
+// libp2p.New, because forcing reachability is a construction-time option, and the whole
+// point is to avoid waiting for the host to work it out at runtime.
+//
+// A NAT'd machine with a port-forward is genuinely reachable yet still has no public
+// interface address, so it is detected as NAT'd here. That errs the safe way -- it would use
+// a relay it does not strictly need, which works, just with an extra hop -- and an operator
+// in that position sets announce_addr, which takes precedence over this entirely. Loopback
+// and link-local addresses are ignored; they say nothing about external reachability.
+func hasNoPublicInterfaceAddr() bool {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		// Can't tell. Assume not NAT'd and let libp2p's own detection decide, rather than
+		// forcing a relay path onto a node that may not need one.
+		return false
+	}
+	for _, a := range addrs {
+		var ip net.IP
+		switch v := a.(type) {
+		case *net.IPNet:
+			ip = v.IP
+		case *net.IPAddr:
+			ip = v.IP
+		default:
+			continue
+		}
+		if ip == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+			continue
+		}
+		if !ip.IsPrivate() {
+			return false // a genuinely public address exists
+		}
+	}
+	return true
 }
 
 // clearDialBackoff drops libp2p's dial-backoff record for one peer, so the reconnect

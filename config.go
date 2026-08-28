@@ -87,7 +87,14 @@ type P2PConfig struct {
 	// NAT'd node does not have -- are dropped in favour of relay addresses. Do NOT set it on
 	// a node that really is publicly reachable: it would route through a relay unnecessarily.
 	// Mutually exclusive with AnnounceAddr, which asserts the opposite.
-	BehindNAT bool `json:"behind_nat,omitempty"`
+	//
+	// Leave it out of config.json entirely (nil) to auto-detect, which is the default and the
+	// right choice for almost everyone: a node whose network interfaces carry no public IP
+	// address cannot be dialed directly from outside regardless, so it is treated as NAT'd.
+	// Someone contributing a spare GPU from home should not have to know what NAT is, let
+	// alone hand-edit a flag, to avoid a multi-minute stall after every restart. Set it
+	// explicitly only to override that detection.
+	BehindNAT *bool `json:"behind_nat,omitempty"`
 }
 
 // ServerModeClusterConfig configures the hub's prefill/decode node allocation.
