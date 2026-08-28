@@ -440,10 +440,24 @@ func (n *NetworkNode) bootstrapNode(ctx context.Context, kademlia *dht.IpfsDHT, 
 }
 
 // keepAlive periodically re-dials any configured seed that is not currently connected.
+// keepAlive periodically repairs this node's own connections in the background, so a
+// dropped connection (network blip, a peer or relay restarting, ...) is already fixed by
+// the time a real request needs it, instead of that request being the first thing to
+// discover the problem and fail. Previously this only covered the bootstrap/relay seeds --
+// a connection to an ordinary peer that dropped was never proactively redialed at all, so
+// recovering it required either a fresh gossip broadcast happening to arrive or a live
+// dispatch attempt to trigger a dial (which is the request the operator was already waiting
+// on), and in practice that meant an operator restarting the node by hand to "fix" it.
+//
+// Peers come from TUI.GetPeers(), which already only returns peers seen via gossip in the
+// last 90s -- so a genuinely offline peer naturally ages out of this loop on its own within
+// that window rather than being redialed forever, no separate bookkeeping needed. Connect
+// failures for ordinary peers are deliberately NOT logged (unlike the seed case, this can be
+// many peers every cycle, and most transient failures are routine/expected -- logging all of
+// them would flood the 300-line ring buffer and bury the WARN/PROXY lines that actually need
+// attention, a problem already hit once today with unrelated high-frequency log lines). A
+// successful reconnect IS logged: that's the actionable "self-healing just happened" signal.
 func (n *NetworkNode) keepAlive(seedAddrs []peer.AddrInfo) {
-	if len(seedAddrs) == 0 {
-		return
-	}
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
@@ -457,6 +471,22 @@ func (n *NetworkNode) keepAlive(seedAddrs []peer.AddrInfo) {
 					n.app.TUI.AddLog("[INFO]", fmt.Sprintf("Reconnected to Bootstrap node %s", addrInfo.ID))
 				}
 				cancel()
+			}
+		}
+
+		for id, info := range n.app.TUI.GetPeers() {
+			pid, err := peer.Decode(id)
+			if err != nil || pid == n.host.ID() {
+				continue
+			}
+			if n.host.Network().Connectedness(pid) == network.Connected {
+				continue
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			err = n.host.Connect(ctx, peer.AddrInfo{ID: pid})
+			cancel()
+			if err == nil {
+				n.app.TUI.AddLog("[INFO]", fmt.Sprintf("Reconnected to peer %s (%s)", id[:8], info.Summary))
 			}
 		}
 	}
