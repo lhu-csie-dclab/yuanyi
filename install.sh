@@ -132,14 +132,101 @@ compose() {
   fi
 }
 
+# Detects the distribution's package manager. Only families this script actually knows how
+# to drive are reported; anything else falls back to printing manual instructions rather
+# than guessing at a package name and failing halfway through an install.
+detect_pkg_mgr() {
+  if have apt-get; then echo "apt"
+  elif have dnf; then echo "dnf"
+  elif have yum; then echo "yum"
+  elif have pacman; then echo "pacman"
+  elif have zypper; then echo "zypper"
+  else echo ""
+  fi
+}
+
+# Installs git and/or docker via the distribution's package manager. Docker is taken from
+# the distro repos (docker.io / docker / moby-engine) rather than Docker's own convenience
+# script: piping a remote script into a root shell is a much bigger thing to do to someone's
+# machine than installing a signed distro package, and the distro build is sufficient here.
+install_prereqs() {
+  local pkgs=("$@")
+  local mgr; mgr="$(detect_pkg_mgr)"
+  local sudo_cmd=""
+  [ "$(id -u)" -ne 0 ] && sudo_cmd="sudo"
+  if [ -n "$sudo_cmd" ] && ! have sudo; then
+    err "Need root to install packages, and sudo is not available. Re-run as root."
+    return 1
+  fi
+
+  local resolved=()
+  local p
+  for p in "${pkgs[@]}"; do
+    case "$p:$mgr" in
+      docker:apt)            resolved+=("docker.io") ;;
+      docker:dnf|docker:yum) resolved+=("docker") ;;
+      docker:pacman)         resolved+=("docker") ;;
+      docker:zypper)         resolved+=("docker") ;;
+      *)                     resolved+=("$p") ;;
+    esac
+  done
+
+  info "Installing: ${resolved[*]}"
+  case "$mgr" in
+    apt)    $sudo_cmd apt-get update -qq && $sudo_cmd apt-get install -y "${resolved[@]}" ;;
+    dnf)    $sudo_cmd dnf install -y "${resolved[@]}" ;;
+    yum)    $sudo_cmd yum install -y "${resolved[@]}" ;;
+    pacman) $sudo_cmd pacman -Sy --noconfirm "${resolved[@]}" ;;
+    zypper) $sudo_cmd zypper install -y "${resolved[@]}" ;;
+    *)      return 1 ;;
+  esac || return 1
+
+  # Docker installs but does not start on most distros, and its socket is root-owned, so a
+  # freshly installed docker is unusable without these two steps.
+  if printf '%s\n' "${pkgs[@]}" | grep -qx docker; then
+    $sudo_cmd systemctl enable --now docker >/dev/null 2>&1 || true
+    if [ -n "$sudo_cmd" ]; then
+      $sudo_cmd usermod -aG docker "$USER" >/dev/null 2>&1 || true
+      warn "Added $USER to the 'docker' group. Group changes only apply to new logins:"
+      warn "  run 'newgrp docker' (or log out and back in), then re-run this script."
+    fi
+  fi
+  return 0
+}
+
 check_prereqs() {
   local missing=()
   have git || missing+=("git")
   have docker || missing+=("docker")
   if [ ${#missing[@]} -gt 0 ]; then
-    err "Missing required commands: ${missing[*]}"
-    echo "  Install them first. See docs/install/ubuntu/README.md"
-    return 1
+    warn "Missing required commands: ${missing[*]}"
+    local mgr; mgr="$(detect_pkg_mgr)"
+    if [ -z "$mgr" ]; then
+      err "No supported package manager found (apt/dnf/yum/pacman/zypper)."
+      echo "  Install them manually first. See docs/install/ubuntu/README.md"
+      return 1
+    fi
+    echo "  Recommended: install them now with $mgr (git, and Docker from your distro repo)."
+    if confirm "Install the missing prerequisites automatically?"; then
+      install_prereqs "${missing[@]}" || {
+        err "Automatic install failed. Install them manually, then re-run."
+        echo "  See docs/install/ubuntu/README.md"
+        return 1
+      }
+      # Re-check rather than assume: the package may have installed while the daemon or
+      # group membership still is not usable in this shell.
+      local still=()
+      have git || still+=("git")
+      have docker || still+=("docker")
+      if [ ${#still[@]} -gt 0 ]; then
+        err "Still missing after install: ${still[*]}"
+        return 1
+      fi
+      ok "Prerequisites installed."
+    else
+      echo "  Install them first. See docs/install/ubuntu/README.md"
+      return 1
+    fi
   fi
   docker compose version >/dev/null 2>&1 || have docker-compose \
     || die "Docker Compose plugin not found. See docs/install/ubuntu/README.md"
@@ -730,6 +817,47 @@ do_status() {
   fi
 }
 
+# Lifecycle controls. Previously the only ways to affect a running node were install
+# (which also starts it) and uninstall (which stops it by deleting everything), so there was
+# no way to simply stop or restart one -- see the equivalent commands in install.ps1.
+require_install() {
+  load_state
+  if [ -z "${INSTALL_DIR:-}" ] || [ ! -f "$INSTALL_DIR/docker-compose.yml" ]; then
+    err "No installation found. Run 'bash $0 install' first."
+    return 1
+  fi
+  return 0
+}
+
+do_start() {
+  heading "Start"
+  require_install || return 1
+  if container_running; then
+    warn "Already running."
+    return 0
+  fi
+  ( cd "$INSTALL_DIR" && compose up -d ) || { err "Failed to start."; return 1; }
+  ok "Started."
+}
+
+do_stop() {
+  heading "Stop"
+  require_install || return 1
+  if ! container_running; then
+    info "Not running."
+    return 0
+  fi
+  ( cd "$INSTALL_DIR" && compose down ) || { err "Failed to stop."; return 1; }
+  ok "Stopped."
+}
+
+do_restart() {
+  heading "Restart"
+  require_install || return 1
+  do_stop || true
+  do_start
+}
+
 models_menu() {
   while true; do
     heading "Models"
@@ -758,6 +886,9 @@ Yuanyi Client Agent -- installer and manager
   bash $0 uninstall   remove this installation
   bash $0 models      manage models
   bash $0 status      show current state
+  bash $0 start       start the node
+  bash $0 stop        stop the node
+  bash $0 restart     stop, then start
   bash $0 --help      this message
 
 Defaults: install ${DEFAULT_INSTALL_DIR}, models ${DEFAULT_MODEL_DIR},
@@ -779,13 +910,19 @@ main_menu() {
     echo "  1) Install / update"
     echo "  2) Manage models (download / switch / delete)"
     echo "  3) Status"
-    echo "  4) Uninstall"
-    echo "  5) Exit"
-    case "$(ask "Choice" "5")" in
+    echo "  4) Start"
+    echo "  5) Stop"
+    echo "  6) Restart"
+    echo "  7) Uninstall"
+    echo "  8) Exit"
+    case "$(ask "Choice" "8")" in
       1) do_install   || true ;;
       2) models_menu  || true ;;
       3) do_status    || true ;;
-      4) do_uninstall || true ;;
+      4) do_start     || true ;;
+      5) do_stop      || true ;;
+      6) do_restart   || true ;;
+      7) do_uninstall || true ;;
       *) exit 0 ;;
     esac
   done
@@ -796,6 +933,9 @@ case "${1:-}" in
   uninstall)        do_uninstall ;;
   models)           models_menu ;;
   status)           do_status ;;
+  start)            do_start ;;
+  stop)             do_stop ;;
+  restart)          do_restart ;;
   -h|--help|help)   usage ;;
   "")               main_menu ;;
   *)                err "Unknown command: $1"; echo; usage; exit 1 ;;
