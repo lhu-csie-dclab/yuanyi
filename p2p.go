@@ -240,6 +240,15 @@ func (n *NetworkNode) Start(ctx context.Context) error {
 		libp2p.EnableHolePunching(),
 		libp2p.NATPortMap(),
 		libp2p.ResourceManager(&network.NullResourceManager{}),
+		// Without this, libp2p's identify protocol advertises the raw, unfiltered
+		// host.Addrs() list to every peer that connects to us -- on a machine with virtual
+		// adapters (Docker bridges, VPN tunnels, ...) that list can and did include
+		// loopback and Docker-bridge-gateway addresses, which is what every peer's
+		// Peerstore().Addrs() then held for us, and what NewStream() then tried (and
+		// failed) to dial. selectBestAddr's fix to our own gossip payload only cleaned up
+		// a cosmetic display field; THIS is what actually governs dialability. See
+		// filterAdvertisedAddrs for the filtering logic (shared with selectBestAddr).
+		libp2p.AddrsFactory(filterAdvertisedAddrs),
 	}
 	if len(seedAddrs) > 0 {
 		opts = append(opts, libp2p.EnableAutoRelay(autorelay.WithStaticRelays(seedAddrs)))
@@ -500,6 +509,67 @@ func (n *NetworkNode) startLocalProxyForPeer(targetPeerID string) (string, error
 	return vip, nil
 }
 
+// filterAdvertisedAddrs decides which of this host's addresses are worth telling anyone
+// about -- used both as the libp2p.AddrsFactory (governs what the identify protocol
+// advertises to every connecting peer, and what host.Addrs() itself returns) and by
+// selectBestAddr (picks one for our own gossip payload's display field). host.Addrs()
+// enumerates every address libp2p believes it's listening on, in whatever order its
+// internal interface enumeration happens to produce -- on a machine with virtual adapters
+// (Docker bridges, VPN tunnels, Hyper-V/VirtualBox switches, ...) that order has no relation
+// to which address is actually useful to a remote peer, and blindly trusting it was observed
+// advertising loopback (127.0.0.1) and Docker bridge gateways (172.17.0.1, 172.18.0.2) --
+// each meaningless outside the machine/container that owns it, and exactly the "virtual IP"
+// a peer dialing us would fail against.
+//
+// Loopback/link-local/unspecified addresses are never useful to a remote peer and are
+// dropped outright. Everything else is kept (a private-range address is still genuinely
+// useful to a same-LAN peer, so it isn't discarded, only deprioritized) with public
+// addresses sorted first, since those are the ones most likely to work for a peer outside
+// our own network. If filtering would leave nothing at all (e.g. a machine that is
+// legitimately loopback-only), the original list is returned unfiltered rather than
+// advertising no address at all.
+func filterAdvertisedAddrs(addrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
+	var public, private []multiaddr.Multiaddr
+	for _, a := range addrs {
+		ipStr, err := a.ValueForProtocol(multiaddr.P_IP4)
+		if err != nil {
+			ipStr, err = a.ValueForProtocol(multiaddr.P_IP6)
+		}
+		if err != nil {
+			// Not an IP-based address at all (e.g. /p2p-circuit) -- keep it as-is,
+			// sorted after direct addresses; it's not a virtual-IP candidate.
+			private = append(private, a)
+			continue
+		}
+		ip := net.ParseIP(ipStr)
+		if ip == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+			continue
+		}
+		if ip.IsPrivate() {
+			private = append(private, a)
+		} else {
+			public = append(public, a)
+		}
+	}
+	filtered := append(public, private...)
+	if len(filtered) == 0 {
+		return addrs
+	}
+	return filtered
+}
+
+// selectBestAddr picks the single multiaddr this node advertises to the swarm as its own
+// contact address in our own gossip payload (GPUInfo.Addr) -- a cosmetic display field
+// separate from (but filtered the same way as) what libp2p's identify protocol actually
+// advertises for dialing; see filterAdvertisedAddrs.
+func selectBestAddr(addrs []multiaddr.Multiaddr) multiaddr.Multiaddr {
+	filtered := filterAdvertisedAddrs(addrs)
+	if len(filtered) == 0 {
+		return nil
+	}
+	return filtered[0]
+}
+
 func (n *NetworkNode) gossipPublisher(ctx context.Context, topic *pubsub.Topic) {
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
@@ -510,9 +580,8 @@ func (n *NetworkNode) gossipPublisher(ctx context.Context, topic *pubsub.Topic) 
 			return
 		case <-ticker.C:
 			var addr string
-			addrs := n.host.Addrs()
-			if len(addrs) > 0 {
-				addr = fmt.Sprintf("%s/p2p/%s", addrs[0].String(), n.host.ID().String())
+			if best := selectBestAddr(n.host.Addrs()); best != nil {
+				addr = fmt.Sprintf("%s/p2p/%s", best.String(), n.host.ID().String())
 			}
 
 			summary := "No GPU Detected"

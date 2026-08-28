@@ -111,6 +111,7 @@ func NewDBManager(dbPath string) (*DBManager, error) {
 		"ALTER TABLE peers ADD COLUMN out_tokens INTEGER DEFAULT 0;",
 		"ALTER TABLE peers ADD COLUMN contribution_score REAL DEFAULT 0.0;",
 		"ALTER TABLE peers ADD COLUMN role TEXT DEFAULT '';",
+		"ALTER TABLE peers ADD COLUMN ip_verified INTEGER DEFAULT 0;",
 	} {
 		db.Exec(stmt)
 	}
@@ -140,12 +141,25 @@ func (m *DBManager) Close() error {
 
 // UpsertPeer inserts or refreshes the dynamic state of a peer node. role carries
 // GPUInfo.Role so the hub dispatcher can exclude relay-only peers from inference backends.
+// UpsertPeer persists a gossip broadcast. ip_address is deliberately NOT always taken from
+// this call's own argument: it's the peer's own self-report of its address (GPUInfo.Addr,
+// built from libp2p's local interface enumeration on that peer's machine), which on a
+// multi-homed or containerized host can be a loopback, Docker bridge, or other address
+// that's meaningless to anyone but the machine that owns it. UpsertPeerConnection, called
+// whenever this peer actually connects to us, records the address libp2p observed the
+// connection arrive FROM instead -- categorically more trustworthy, since it's the address
+// that just worked. Once we have that verified address on file, a self-report must not be
+// allowed to clobber it (that was the actual bug: gossip arrives every ~3s per peer and was
+// overwriting a good connection-observed address almost immediately after it was set). The
+// self-report is still accepted as a fallback for peers reached only via multi-hop gossip
+// relay, where we may have no direct connection -- and therefore no verified address -- at
+// all.
 func (m *DBManager) UpsertPeer(peerID, ipAddress, gpuInfo, bootstrapAddr, engineID, role string) error {
 	_, err := m.db.Exec(`
-		INSERT INTO peers (peer_id, ip_address, last_ping, gpu_info, bootstrap_addr, engine_id, role)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO peers (peer_id, ip_address, last_ping, gpu_info, bootstrap_addr, engine_id, role, ip_verified)
+		VALUES (?, ?, ?, ?, ?, ?, ?, 0)
 		ON CONFLICT(peer_id) DO UPDATE SET
-			ip_address=excluded.ip_address,
+			ip_address=CASE WHEN ip_verified=1 THEN ip_address ELSE excluded.ip_address END,
 			last_ping=excluded.last_ping,
 			gpu_info=excluded.gpu_info,
 			bootstrap_addr=excluded.bootstrap_addr,
@@ -160,13 +174,19 @@ func (m *DBManager) UpsertPeer(peerID, ipAddress, gpuInfo, bootstrapAddr, engine
 // connect event carries no role information, so writing an empty value would demote a
 // known relay-only peer back to "serves inference" until its next broadcast, and the hub
 // would dispatch work to a node with no engine in the meantime.
+//
+// ip_address here comes from the actually-observed connection (see ConnNotifee.Connected in
+// server_p2p.go), not a peer's self-report, so it's marked ip_verified=1 -- see UpsertPeer's
+// comment for why that matters: it protects this address from being overwritten by a later,
+// less trustworthy gossip self-report for the same peer.
 func (m *DBManager) UpsertPeerConnection(peerID, ipAddress string) error {
 	_, err := m.db.Exec(`
-		INSERT INTO peers (peer_id, ip_address, last_ping, gpu_info, role)
-		VALUES (?, ?, ?, '[]', '')
+		INSERT INTO peers (peer_id, ip_address, last_ping, gpu_info, role, ip_verified)
+		VALUES (?, ?, ?, '[]', '', 1)
 		ON CONFLICT(peer_id) DO UPDATE SET
 			ip_address=excluded.ip_address,
-			last_ping=excluded.last_ping;
+			last_ping=excluded.last_ping,
+			ip_verified=1;
 	`, peerID, ipAddress, time.Now().Format(time.RFC3339))
 	return err
 }
