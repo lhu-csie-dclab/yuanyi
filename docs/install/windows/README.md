@@ -30,11 +30,18 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 | `install.ps1 install` | Install or update |
 | `install.ps1 models` | Download / switch / delete Hugging Face models |
 | `install.ps1 status` | Show what is installed and whether it is running |
+| `install.ps1 start` | Start the node |
+| `install.ps1 stop` | Force-stop the node (and any vLLM child processes) |
+| `install.ps1 restart` | Force-stop, then start |
 | `install.ps1 uninstall` | Remove it (offers to back up `swarm.key`, asks about models) |
 
 Every prompt has a default — pressing Enter throughout produces a working node. You can
 override the install directory, node role, `swarm.key` (paste one to join an existing swarm, or
 leave blank to generate), all six ports, and the model.
+
+Missing `git`, `go`, `npm`, or `uv`? The script offers to install them for you via `winget`
+(and `uv`'s official installer), so §1's prerequisites are handled automatically — it also
+refreshes `PATH` in-process so the install continues without reopening the terminal.
 
 > [!TIP]
 > Choosing **relay-only** at the first prompt skips the Python environment and model download

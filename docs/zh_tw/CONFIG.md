@@ -36,6 +36,49 @@
 
 ---
 
+## 📡 對外可達性（`announce_addr` / `behind_nat`）
+
+這兩個選項是用來告訴節點「外界能不能連到我」。**一般節點兩個都不用設**，留空即可自動偵測。
+只有在節點對自己網路環境的判斷會出錯時才需要——在 Docker 裡這是常態。
+
+### 自架中繼節點：`announce_addr` 是必填
+
+> [!IMPORTANT]
+> 跑在 Docker（或經過 port forwarding）的中繼節點，**沒設這個就會安靜地失去中繼功能**，
+> 但其他地方看起來都完全正常，非常難察覺。
+
+libp2p 只有在「認為自己對外可達」時才會啟動 Circuit Relay 服務。容器裡的中繼節點只看得到
+容器內部位址（`172.17.x`、`172.18.x`），自我探測必然失敗，於是判定自己是私有位址而默默不提供
+中繼服務——即使它其實從外網完全連得到。依賴它的節點就會收到：
+
+```
+error opening hop stream to relay: protocols not supported: [/libp2p/circuit/relay/0.2.0/hop]
+```
+
+把 `announce_addr` 設成該節點**實際**可達的位址即可同時解決兩件事：這個位址會被廣播給其他
+節點，而且可達性被明確宣告，中繼服務才會真正啟動：
+
+```json
+"p2p": {
+  "server_address": "/dns4/relay.example.com/tcp/50004/p2p/12D3KooW...",
+  "announce_addr": "/dns4/relay.example.com/tcp/50004"
+}
+```
+
+注意 announce 位址**不帶** `/p2p/<peerID>` 後綴——它是一個位址，不是完整的節點參照。
+
+### `behind_nat`：讓重啟後更快重新加入
+
+這純粹是啟動速度的優化，不改變任何原本做得到或做不到的事。libp2p 必須先確定自己的可達性才會
+去跟中繼要 reservation，而自行判斷需要數分鐘的探測——這段期間重啟過的節點在自己區網外是連不到
+的。事先宣告可以把這段縮短到數秒。
+
+建議留空。自動偵測會檢查本機介面是否有公網 IP；沒有就視為在 NAT 後面，這對幾乎所有家用機器都是
+正確的。只有在要覆寫這個判斷時才明確設定。它與 `announce_addr` 互斥（兩者的主張相反），同時設定
+會在啟動時直接報錯。
+
+---
+
 ## 🍰 `mooncake.json` 傳輸協定設定 (`protocol: "tcp"`)
 
 ```json

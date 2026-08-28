@@ -62,6 +62,10 @@ This document provides a detailed reference for configuration handling in the Yu
 }
 ```
 
+The optional `p2p.announce_addr` and `p2p.behind_nat` keys are omitted above because an
+ordinary node needs neither. If you run the relay other nodes connect to, `announce_addr` is
+required — see [Reachability](#-reachability-announce_addr--behind_nat).
+
 ### Key Parameters
 
 | Key | Default | Type | Description |
@@ -70,11 +74,66 @@ This document provides a detailed reference for configuration handling in the Yu
 | `proxy_port` | `50006` | Integer | HTTP port for OpenAI-compatible API Gateway. |
 | `p2p.server_address` | Multiaddr | String | Single bootstrap seed multiaddress (legacy field, still read as a fallback). |
 | `p2p.server_addresses` | `[]` | String[] | Preferred list of bootstrap/hub seed multiaddresses; any one reachable entry is enough to join the mesh. |
+| `p2p.announce_addr` | *(unset)* | String | The address other nodes should use to reach **this** node, e.g. `/dns4/relay.example.com/tcp/50004`. **Required when running your own relay behind Docker or port-forwarding** — see [Reachability](#-reachability-announce_addr--behind_nat). |
+| `p2p.behind_nat` | *(auto)* | Boolean | Declares this node cannot be dialed from outside its network. Omit it: auto-detection is correct for almost everyone. See [Reachability](#-reachability-announce_addr--behind_nat). |
 | `vllm.port` | `8100` | Integer | Local vLLM engine HTTP endpoint. |
 | `vllm.gpu_memory_utilization` | `0.75` | Float | Maximum VRAM memory allocation ratio reserved for vLLM & KV cache. |
 | `vllm.kv_role` | `"kv_both"` | String | P/D disaggregation role: `"kv_prefill"`, `"kv_decode"`, or `"kv_both"`. |
 | `vllm.mooncake_bootstrap_port` | `8998` | Integer | Mooncake KV Cache transfer control port. |
 | `server_mode.enabled` | `false` | Boolean | Opts this node into hub mode (merged Central Server responsibilities). See [`HUB_MODE.md`](HUB_MODE.md) for the full `server_mode.*` reference. |
+
+---
+
+## 📡 Reachability (`announce_addr` / `behind_nat`)
+
+These two settings tell a node whether the outside world can dial it. **Ordinary nodes need
+neither** — leave both unset and detection handles it. They matter when a node's own view of
+its network is wrong, which is normal inside Docker.
+
+| Situation | Setting |
+| :--- | :--- |
+| Home/office machine contributing a GPU | *(nothing — auto-detected)* |
+| **You are running the relay/bootstrap node others connect to** | `announce_addr` |
+| Auto-detection guessed wrong | `behind_nat: true` / `false` to override |
+
+### Running your own relay: `announce_addr` is required
+
+> [!IMPORTANT]
+> A relay in Docker (or behind port-forwarding) **will silently fail to relay** without this,
+> while appearing completely healthy in every other way.
+
+libp2p only runs its Circuit Relay *service* while it believes it is publicly reachable. A
+containerized relay only ever sees container-internal addresses (`172.17.x`, `172.18.x`), its
+self-probes against those fail, so it concludes it is private and quietly declines to relay —
+even though it is genuinely reachable from the internet. Peers depending on it then get:
+
+```
+error opening hop stream to relay: protocols not supported: [/libp2p/circuit/relay/0.2.0/hop]
+```
+
+Setting `announce_addr` to the address the node is *actually* reachable at fixes both halves —
+it is advertised to peers, and reachability is asserted so the relay service starts:
+
+```json
+"p2p": {
+  "server_address": "/dns4/relay.example.com/tcp/50004/p2p/12D3KooW...",
+  "announce_addr": "/dns4/relay.example.com/tcp/50004"
+}
+```
+
+Note the announce address carries **no** `/p2p/<peerID>` suffix — it is an address, not a
+full peer reference.
+
+### `behind_nat`: faster rejoin after a restart
+
+Purely a startup optimization; it changes nothing about what is possible. libp2p will not
+request a relay reservation until it knows its own reachability, and working that out unaided
+takes minutes of probing — during which a restarted node is unreachable from outside its LAN.
+Declaring it up front makes the reservation happen in seconds instead.
+
+Omit it. Detection asks whether any local interface has a public IP; if none does, the node is
+treated as NAT'd, which is right for essentially every home machine. Set it explicitly only to
+override that. It is rejected alongside `announce_addr`, since the two assert opposites.
 
 ---
 

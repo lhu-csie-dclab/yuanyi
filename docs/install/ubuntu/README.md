@@ -23,12 +23,22 @@ bash install.sh
 | `bash install.sh install` | Install or update |
 | `bash install.sh models` | Download / switch / delete Hugging Face models |
 | `bash install.sh status` | Show what is installed and whether it is running |
+| `bash install.sh start` | Start the node |
+| `bash install.sh stop` | Stop the node |
+| `bash install.sh restart` | Stop, then start |
 | `bash install.sh uninstall` | Remove it (offers to back up `swarm.key`, asks about models) |
 
 Every prompt has a default — pressing Enter throughout produces a working node. You can
 override the install directory, node role (inference or **relay-only**, which needs no GPU),
 `swarm.key` (paste one to join an existing swarm, or leave blank to generate), all six ports,
 and the model.
+
+Missing `git` or `docker`? The script offers to install them for you (via `apt`/`dnf`/`yum`/
+`pacman`/`zypper`), so §1's prerequisites are handled automatically. Docker comes from your
+distribution's repository rather than a piped remote script. Because Docker installs stopped
+and root-owned, the script also enables the service and adds you to the `docker` group — that
+group change only takes effect on a **new login**, so run `newgrp docker` (or log out and back
+in) and re-run the script if it says so.
 
 **The rest of this document is the manual equivalent.** Read it if you want to understand what
 the script does, customise something it does not prompt for, or troubleshoot.
