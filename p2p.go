@@ -13,6 +13,8 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -460,6 +462,12 @@ func (n *NetworkNode) keepAlive(seedAddrs []peer.AddrInfo) {
 	}
 }
 
+// generateVIP derives a deterministic loopback "virtual IP" from a peer ID: every node in
+// the swarm computes the exact same value for the same peer ID (pure function of the ID
+// string, nothing machine-specific), so it works as a swarm-wide symbolic alias -- "dial
+// this address" means the same thing on any node that has also learned about that peer,
+// each running its own local tunnel behind that same address. It is NOT a real network path:
+// see startLocalProxyForPeer for what a connection to it actually does.
 func generateVIP(peerID string) string {
 	hash := sha256.Sum256([]byte(peerID))
 	ip3 := (int(hash[0]) % 254) + 1
@@ -467,6 +475,25 @@ func generateVIP(peerID string) string {
 	return fmt.Sprintf("127.0.0.%d:%d", ip3, 8000+ip4)
 }
 
+// startLocalProxyForPeer gives external, non-libp2p-aware local processes -- concretely,
+// vLLM's own Mooncake KV-transfer connector, configured with kv_role "kv_both" -- a plain
+// dialable host:port for a given remote peer, without needing to know that peer's real
+// network address or speak libp2p themselves. It is NOT an alternate network path: whether
+// the underlying libp2p connection to that peer succeeds still depends on exactly the same
+// reachability/relay conditions as any other stream this node opens. This is purely a local
+// convenience wrapper around calls this codebase already makes directly elsewhere.
+//
+// The listener is a plain net/http reverse proxy onto this node's own OpenAI-gateway
+// /mooncake_kv/ endpoint (handleKVTunnel in proxy.go), which already correctly proxies
+// arbitrary HTTP requests to a peer's local port over a libp2p ProxyProtocolID stream
+// (including HTTP keep-alive, multiple requests per connection, etc. -- net/http/httputil
+// handles that for free). Earlier this tunneled a single connection directly into
+// GPUProtocolID with a raw io.Copy pipe; that handler only exchanges one HTTP request/
+// response per libp2p stream and then closes it (see setupStreams), so a persistent local
+// TCP connection making more than one request over its lifetime -- normal HTTP/Mooncake
+// client behavior -- would break after the first exchange. Routing through the existing
+// /mooncake_kv/ handler via a real reverse proxy avoids reimplementing (and
+// re-mismatching) that request/response framing a second time.
 func (n *NetworkNode) startLocalProxyForPeer(targetPeerID string) (string, error) {
 	vip := generateVIP(targetPeerID)
 	if _, loaded := n.activeProxies.LoadOrStore(targetPeerID, vip); loaded {
@@ -481,28 +508,24 @@ func (n *NetworkNode) startLocalProxyForPeer(targetPeerID string) (string, error
 
 	n.app.TUI.AddLog("[INFO]", fmt.Sprintf("Created local VIP proxy for peer %s -> %s", targetPeerID[:8], vip))
 
-	go func() {
-		defer listener.Close()
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				return
-			}
-			go func(c net.Conn) {
-				defer c.Close()
-				pid, err := peer.Decode(targetPeerID)
-				if err != nil {
-					return
-				}
-				stream, err := n.host.NewStream(context.Background(), pid, GPUProtocolID)
-				if err != nil {
-					return
-				}
-				defer stream.Close()
+	gatewayPort := n.app.Config.ProxyPort
+	mooncakePort := n.app.Config.VLLM.MooncakeBootstrapPort
+	pathPrefix := fmt.Sprintf("/mooncake_kv/%s/%d", targetPeerID, mooncakePort)
 
-				go io.Copy(stream, c)
-				io.Copy(c, stream)
-			}(conn)
+	target := &url.URL{Scheme: "http", Host: fmt.Sprintf("127.0.0.1:%d", gatewayPort)}
+	rp := httputil.NewSingleHostReverseProxy(target)
+	baseDirector := rp.Director
+	rp.Director = func(req *http.Request) {
+		baseDirector(req)
+		req.URL.Path = pathPrefix + req.URL.Path
+		req.Host = target.Host
+	}
+	rp.ErrorLog = nil // avoid stdlib's default os.Stderr logging fighting the TUI's alt-screen
+
+	srv := &http.Server{Handler: rp}
+	go func() {
+		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
+			n.app.TUI.AddLog("[WARN]", fmt.Sprintf("VIP proxy for peer %s stopped: %v", targetPeerID[:8], err))
 		}
 	}()
 
@@ -633,7 +656,15 @@ func (n *NetworkNode) gossipPublisher(ctx context.Context, topic *pubsub.Topic) 
 				Status:        "idle",
 				Timestamp:     time.Now().Unix(),
 				Summary:       summary,
-				BootstrapAddr: fmt.Sprintf("http://127.0.0.1:%d/mooncake_kv/%s/%d", n.app.Config.ProxyPort, n.host.ID().String(), n.app.Config.VLLM.MooncakeBootstrapPort),
+				// A plain, directly-dialable host:port -- not a URL with an embedded path --
+				// because this value is handed straight to vLLM's own Mooncake KV-transfer
+				// connector (as "mooncake_peer" in proxy.go's P/D-separated dispatch), an
+				// external process that dials it as an ordinary socket and knows nothing
+				// about this project's /mooncake_kv/ URL scheme. generateVIP(our own ID) is
+				// deterministic, so every other node that learns about us (via this same
+				// gossip broadcast) independently starts its own local tunnel behind the
+				// identical address -- see startLocalProxyForPeer.
+				BootstrapAddr: fmt.Sprintf("http://%s", generateVIP(n.host.ID().String())),
 				EngineID:      n.host.ID().String(),
 				VLLMPort:      n.app.Config.VLLM.Port,
 
