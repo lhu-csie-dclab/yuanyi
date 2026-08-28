@@ -694,8 +694,18 @@ func (n *NetworkNode) gossipPublisher(ctx context.Context, topic *pubsub.Topic) 
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// An operator-configured announce address wins outright over anything derived
+			// from host.Addrs(). It cannot be selected by ordering alone: libp2p sorts the
+			// address list after applying AddrsFactory (addrsManager.applyAddrsFactory),
+			// so the announce address does not stay at the front where selectBestAddr
+			// would find it. That matters beyond cosmetics -- gossipSubscriber feeds this
+			// exact field into peers' Peerstores for peers they only know via gossip, so
+			// publishing the container-internal address here is what left them holding an
+			// address nothing could dial.
 			var addr string
-			if best := selectBestAddr(n.host.Addrs()); best != nil {
+			if raw := strings.TrimSpace(n.app.Config.P2P.AnnounceAddr); raw != "" {
+				addr = fmt.Sprintf("%s/p2p/%s", raw, n.host.ID().String())
+			} else if best := selectBestAddr(n.host.Addrs()); best != nil {
 				addr = fmt.Sprintf("%s/p2p/%s", best.String(), n.host.ID().String())
 			}
 
