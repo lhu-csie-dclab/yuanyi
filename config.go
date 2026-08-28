@@ -70,6 +70,24 @@ type P2PConfig struct {
 	// its own addresses, and wrongly forcing "public" on a NAT'd node stops it from
 	// requesting the relay reservations it needs.
 	AnnounceAddr string `json:"announce_addr,omitempty"`
+	// BehindNAT declares that this node is behind NAT and can never be dialed directly from
+	// outside its own network -- the normal case for a home machine contributing a GPU.
+	//
+	// It exists to remove a startup delay, not to change what is possible. libp2p only asks
+	// a relay for a circuit reservation once its reachability is known, and working that out
+	// by itself (AutoNAT's ambient mode) needs several dial-back probes from other peers,
+	// which takes minutes. Until that finishes, nothing outside the LAN can route to this
+	// node at all, so a node that restarts is unreachable for that entire window -- measured
+	// at roughly three minutes on a real node. Declaring it up front short-circuits the
+	// probing (autonat.WithReachability emits the reachability event immediately at startup),
+	// so the reservation is requested right away and the node is reachable in seconds.
+	//
+	// Safe for any genuinely NAT'd node: private addresses are still advertised, so peers on
+	// the same LAN keep dialing this node directly, and only public addresses -- which a
+	// NAT'd node does not have -- are dropped in favour of relay addresses. Do NOT set it on
+	// a node that really is publicly reachable: it would route through a relay unnecessarily.
+	// Mutually exclusive with AnnounceAddr, which asserts the opposite.
+	BehindNAT bool `json:"behind_nat,omitempty"`
 }
 
 // ServerModeClusterConfig configures the hub's prefill/decode node allocation.

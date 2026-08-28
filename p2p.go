@@ -277,12 +277,24 @@ func (n *NetworkNode) Start(ctx context.Context) error {
 		libp2p.AddrsFactory(addrsFactory),
 	}
 
+	if announce != nil && n.app.Config.P2P.BehindNAT {
+		return fmt.Errorf("p2p.announce_addr and p2p.behind_nat are mutually exclusive: " +
+			"announce_addr asserts this node is publicly reachable, behind_nat asserts it is not")
+	}
+
 	if announce != nil {
 		// Asserting reachability is what actually lets a relay behind Docker start its
 		// Circuit Relay service at all -- libp2p keeps that service switched off while it
 		// believes it is private, which a containerized relay always concludes on its own.
 		opts = append(opts, libp2p.ForceReachabilityPublic())
 		n.app.TUI.AddLog("[INFO]", fmt.Sprintf("Announcing self as %s (reachability asserted public)", announce))
+	} else if n.app.Config.P2P.BehindNAT {
+		// Skips AutoNAT's multi-probe ambient detection, which otherwise leaves this node
+		// unroutable from outside its LAN for minutes after every start (see
+		// P2PConfig.BehindNAT). Forcing reachability emits the reachability event
+		// immediately, so AutoRelay requests its circuit reservation right away.
+		opts = append(opts, libp2p.ForceReachabilityPrivate())
+		n.app.TUI.AddLog("[INFO]", "behind_nat set: requesting a relay reservation immediately instead of waiting for AutoNAT")
 	}
 
 	if len(seedAddrs) > 0 {
