@@ -21,6 +21,7 @@ type App struct {
 	// it additionally maintains the shared peers/leaderboard database, relays traffic for
 	// peers behind NAT, and serves the cluster topology other nodes poll.
 	DB          *DBManager
+	PeerCache   *PeerCache
 	Rank        *RankManager
 	ServerProxy *ProxyServer
 }
@@ -39,7 +40,13 @@ func NewApp(cfg *ClientConfig) *App {
 			app.TUI.AddLog("[ERROR]", fmt.Sprintf("Hub mode database init failed, hub features disabled: %v", err))
 		} else {
 			app.DB = db
-			app.Rank = NewRankManager(db)
+			app.PeerCache = NewPeerCache()
+			// Warm-start from whatever was already on disk so the cache is never empty on
+			// restart, even before any seed-snapshot fetch or gossip message arrives.
+			if existing, err := db.GetAllPeers(); err == nil {
+				app.PeerCache.LoadSnapshot(existing)
+			}
+			app.Rank = NewRankManager(app.PeerCache)
 			app.ServerProxy = NewProxyServer(app)
 		}
 	}
@@ -51,6 +58,13 @@ func NewApp(cfg *ClientConfig) *App {
 // (if enabled), and TUI in sequence.
 func (a *App) Start(ctx context.Context) error {
 	a.Sys.Start()
+
+	if a.Config.ServerMode.Enabled && a.DB != nil {
+		// Best-effort bulk catch-up from a configured seed hub, before gossip processing
+		// starts, so gossip always layers on top of the best available baseline rather than
+		// racing the fetch.
+		syncPeerCacheFromSeed(a)
+	}
 
 	if err := a.P2P.Start(ctx); err != nil {
 		return fmt.Errorf("P2P start failed: %w", err)
@@ -70,6 +84,7 @@ func (a *App) Start(ctx context.Context) error {
 
 	if a.Config.ServerMode.Enabled && a.DB != nil {
 		go a.Rank.Start()
+		go a.PeerCache.StartFlusher(a.DB, a.Config.ServerMode.FlushIntervalSec)
 		go StartServerDispatch(a, a.P2P.Host())
 	}
 
@@ -85,6 +100,14 @@ func (a *App) Stop() {
 		a.Rank.Stop()
 	}
 	if a.DB != nil {
+		// Final synchronous flush so a graceful shutdown never loses the accepted
+		// "up to flush_interval_sec" window -- that tradeoff only applies to hard crashes.
+		if a.PeerCache != nil {
+			a.PeerCache.StopFlusher()
+			if err := a.PeerCache.Flush(a.DB); err != nil {
+				logInfo("[PeerCache] Final flush on shutdown failed: %v", err)
+			}
+		}
 		a.DB.Close()
 	}
 }

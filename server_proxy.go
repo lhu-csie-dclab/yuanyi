@@ -82,14 +82,11 @@ func NewProxyServer(app *App) *ProxyServer {
 	}
 }
 
-// reloadBackendsFromDB recomputes the prefill/decode backend split from the local peers.db,
-// honoring server_mode.cluster.prefill_nodes and decode_nodes (both zero means PD-Together).
+// reloadBackendsFromDB recomputes the prefill/decode backend split from the in-memory
+// PeerCache (see peer_cache.go), honoring server_mode.cluster.prefill_nodes and decode_nodes
+// (both zero means PD-Together).
 func (p *ProxyServer) reloadBackendsFromDB() {
-	peers, err := p.app.DB.GetAllPeers()
-	if err != nil {
-		logInfo("[ServerDispatch] Failed to reload backends: %v", err)
-		return
-	}
+	peers := p.app.PeerCache.Snapshot()
 	if len(peers) == 0 {
 		return
 	}
@@ -362,9 +359,9 @@ func (p *ProxyServer) dispatchPDTogether(w http.ResponseWriter, r *http.Request,
 		if pIn == 0 && pOut == 0 {
 			pIn, pOut = 20, 30
 		}
-		go p.app.DB.IncrementPeerTokensDetail(backend.PeerID.String(), 1, pIn, pOut)
+		p.app.PeerCache.IncrementTokensDetail(backend.PeerID.String(), 1, pIn, pOut)
 	} else {
-		go p.app.DB.IncrementPeerContribution(backend.PeerID.String(), 1, 50)
+		p.app.PeerCache.IncrementContribution(backend.PeerID.String(), 1, 50)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -451,8 +448,8 @@ func (p *ProxyServer) dispatchPDSplit(w http.ResponseWriter, r *http.Request, re
 		}
 	}
 
-	go p.app.DB.IncrementPeerTokensDetail(prefillBackend.PeerID.String(), 1, pIn, 0)
-	go p.app.DB.IncrementPeerTokensDetail(decodeBackend.PeerID.String(), 1, 0, pOut)
+	p.app.PeerCache.IncrementTokensDetail(prefillBackend.PeerID.String(), 1, pIn, 0)
+	p.app.PeerCache.IncrementTokensDetail(decodeBackend.PeerID.String(), 1, 0, pOut)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

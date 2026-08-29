@@ -34,6 +34,11 @@ type PeerData struct {
 	ContributionScore float64 `json:"contribution_score"`
 	// Role mirrors GPUInfo.Role; "relay" means the peer serves no inference (see p2p.go).
 	Role string `json:"role"`
+	// IPVerified mirrors peers.ip_verified: true when IPAddress came from an observed
+	// connection (trustworthy) rather than a peer's own gossip self-report (see
+	// UpsertPeer's comment). Loaded on GetAllPeers/GetLeaderboard reads so PeerCache's
+	// boot-time warm start (see peer_cache.go) can replicate the precedence rule exactly.
+	IPVerified bool `json:"ip_verified,omitempty"`
 }
 
 // PeerEvent is a single row of the peer_events audit table.
@@ -53,7 +58,7 @@ type PeerEvent struct {
 const peerColumns = `peer_id, gpu_info, ip_address, last_ping, COALESCE(bootstrap_addr, ''), COALESCE(engine_id, ''),
 	COALESCE(fail_count, 0), COALESCE(penalty_points, 0), COALESCE(total_requests, 0), COALESCE(total_tokens, 0),
 	COALESCE(in_tokens, 0), COALESCE(out_tokens, 0), COALESCE(contribution_score, 0.0),
-	COALESCE(role, '')`
+	COALESCE(role, ''), COALESCE(ip_verified, 0)`
 
 // scanPeers materializes a result set produced with peerColumns into PeerData values.
 func scanPeers(rows *sql.Rows) []PeerData {
@@ -62,7 +67,7 @@ func scanPeers(rows *sql.Rows) []PeerData {
 		var p PeerData
 		if err := rows.Scan(&p.PeerID, &p.GPUInfo, &p.IPAddress, &p.LastPing, &p.BootstrapAddr, &p.EngineID,
 			&p.FailCount, &p.PenaltyPoints, &p.TotalRequests, &p.TotalTokens, &p.InTokens, &p.OutTokens,
-			&p.ContributionScore, &p.Role); err == nil {
+			&p.ContributionScore, &p.Role, &p.IPVerified); err == nil {
 			peers = append(peers, p)
 		}
 	}
@@ -349,4 +354,83 @@ func (m *DBManager) GetAllPeers() ([]PeerData, error) {
 	}
 	defer rows.Close()
 	return scanPeers(rows), nil
+}
+
+// BatchFlush persists a PeerCache snapshot in a single transaction: one UPSERT per peer, one
+// INSERT per queued audit event, and one batched DELETE for peers removed since the last
+// flush. Every column is a plain overwrite (excluded.col, no CASE WHEN) because PeerCache is
+// the sole in-process writer of peer state once this is in use -- the ip_verified precedence
+// and SyncPeerStats keep-max rules are already applied in memory before Flush ever calls this,
+// so the SQL layer no longer needs to re-arbitrate them.
+func (m *DBManager) BatchFlush(peers []PeerData, events []PeerEvent, deletes []string) error {
+	if len(peers) == 0 && len(events) == 0 && len(deletes) == 0 {
+		return nil
+	}
+
+	tx, err := m.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if len(deletes) > 0 {
+		placeholders := make([]string, len(deletes))
+		args := make([]interface{}, len(deletes))
+		for i, id := range deletes {
+			placeholders[i] = "?"
+			args[i] = id
+		}
+		if _, err := tx.Exec(fmt.Sprintf("DELETE FROM peers WHERE peer_id IN (%s)", strings.Join(placeholders, ",")), args...); err != nil {
+			return err
+		}
+	}
+
+	if len(peers) > 0 {
+		upsertStmt, err := tx.Prepare(`
+			INSERT INTO peers (peer_id, ip_address, last_ping, gpu_info, bootstrap_addr, engine_id, role,
+				fail_count, penalty_points, total_requests, total_tokens, in_tokens, out_tokens, contribution_score, ip_verified)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(peer_id) DO UPDATE SET
+				ip_address=excluded.ip_address, last_ping=excluded.last_ping, gpu_info=excluded.gpu_info,
+				bootstrap_addr=excluded.bootstrap_addr, engine_id=excluded.engine_id, role=excluded.role,
+				fail_count=excluded.fail_count, penalty_points=excluded.penalty_points,
+				total_requests=excluded.total_requests, total_tokens=excluded.total_tokens,
+				in_tokens=excluded.in_tokens, out_tokens=excluded.out_tokens,
+				contribution_score=excluded.contribution_score, ip_verified=excluded.ip_verified;
+		`)
+		if err != nil {
+			return err
+		}
+		defer upsertStmt.Close()
+
+		for _, p := range peers {
+			ipVerified := 0
+			if p.IPVerified {
+				ipVerified = 1
+			}
+			if _, err := upsertStmt.Exec(p.PeerID, p.IPAddress, p.LastPing, p.GPUInfo, p.BootstrapAddr, p.EngineID, p.Role,
+				p.FailCount, p.PenaltyPoints, p.TotalRequests, p.TotalTokens, p.InTokens, p.OutTokens, p.ContributionScore, ipVerified); err != nil {
+				return err
+			}
+		}
+	}
+
+	if len(events) > 0 {
+		eventStmt, err := tx.Prepare(`
+			INSERT INTO peer_events (peer_id, ip_address, event_type, fail_count, penalty_points, timestamp, detail)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+		`)
+		if err != nil {
+			return err
+		}
+		defer eventStmt.Close()
+
+		for _, e := range events {
+			if _, err := eventStmt.Exec(e.PeerID, e.IPAddress, e.EventType, e.FailCount, e.PenaltyPoints, e.Timestamp, e.Detail); err != nil {
+				return err
+			}
+		}
+	}
+
+	return tx.Commit()
 }

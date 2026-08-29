@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // RegisterHubRoutes mounts the hub's JSON API (leaderboard, peer list, audit events, cluster
@@ -20,11 +21,7 @@ import (
 // StartClientWebDashboard only when server_mode.enabled is true.
 func RegisterHubRoutes(mux *http.ServeMux, app *App) {
 	mux.HandleFunc("/hub/api/peers", func(w http.ResponseWriter, r *http.Request) {
-		peers, err := app.DB.GetAllPeers()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		peers := app.PeerCache.Snapshot()
 		if app.Rank != nil {
 			sort.SliceStable(peers, func(i, j int) bool {
 				scoreI := app.Rank.CalculateScore(peers[i].GPUInfo)
@@ -55,19 +52,33 @@ func RegisterHubRoutes(mux *http.ServeMux, app *App) {
 	})
 
 	mux.HandleFunc("/hub/api/leaderboard", func(w http.ResponseWriter, r *http.Request) {
-		board, err := app.DB.GetLeaderboard()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		board := app.PeerCache.Snapshot()
+		sort.SliceStable(board, func(i, j int) bool {
+			if board[i].ContributionScore == board[j].ContributionScore {
+				return board[i].TotalRequests > board[j].TotalRequests
+			}
+			return board[i].ContributionScore > board[j].ContributionScore
+		})
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(board)
 	})
 
 	mux.HandleFunc("/hub/api/stats", func(w http.ResponseWriter, r *http.Request) {
-		peers, _ := app.DB.GetAllPeers()
+		peers := app.PeerCache.Snapshot()
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(computeClusterStats(peers))
+	})
+
+	// snapshot is the bulk-export endpoint a newly starting/rejoining hub's
+	// syncPeerCacheFromSeed (peer_cache.go) fetches at boot instead of waiting for gossip to
+	// trickle its state back in.
+	mux.HandleFunc("/hub/api/snapshot", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(PeerSnapshot{
+			Version:     1,
+			GeneratedAt: time.Now().Format(time.RFC3339),
+			Peers:       app.PeerCache.Snapshot(),
+		})
 	})
 
 	mux.HandleFunc("/hub/api/debug/force_rank", func(w http.ResponseWriter, r *http.Request) {

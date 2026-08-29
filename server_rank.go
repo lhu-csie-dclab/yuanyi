@@ -219,20 +219,20 @@ func extractVRAMFromID(rawID string) (float64, bool) {
 
 // RankManager periodically scores every known peer by GPU capability and publishes top.json.
 type RankManager struct {
-	db     *DBManager
+	cache  *PeerCache
 	gpuMap map[string]GPUSpec
 	done   chan struct{}
 }
 
 // NewRankManager builds a RankManager, loading the GPU database if it is already cached.
-func NewRankManager(db *DBManager) *RankManager {
+func NewRankManager(cache *PeerCache) *RankManager {
 	gpuMap, err := ReadGPUDatabase(gpuDatabaseFile)
 	if err != nil {
 		gpuMap = make(map[string]GPUSpec)
 	}
 
 	return &RankManager{
-		db:     db,
+		cache:  cache,
 		gpuMap: gpuMap,
 		done:   make(chan struct{}),
 	}
@@ -323,11 +323,7 @@ func (rm *RankManager) CalculateScore(gpuInfoStr string) float64 {
 
 // TriggerUpdate rescores every peer and atomically republishes top.json.
 func (rm *RankManager) TriggerUpdate() {
-	peers, err := rm.db.GetAllPeers()
-	if err != nil {
-		logInfo("[Rank] Failed to read peers: %v", err)
-		return
-	}
+	peers := rm.cache.Snapshot()
 
 	type rankedPeer struct {
 		peer  map[string]string

@@ -127,6 +127,16 @@ type ServerModeConfig struct {
 	MaxFailCount     int                     `json:"max_fail_count"`
 	CheckIntervalSec int                     `json:"check_interval_sec"`
 	Cluster          ServerModeClusterConfig `json:"cluster"`
+	// FlushIntervalSec controls how often PeerCache (peer_cache.go) batches its in-memory
+	// peer state and audit-event queue into one peers.db transaction, instead of one
+	// transaction per gossip message (every peer re-announces every 3s network-wide, so
+	// per-message writes add up to a steady, unnecessary drip of disk I/O on a hub node).
+	FlushIntervalSec int `json:"flush_interval_sec,omitempty"`
+	// SnapshotSeedURLs are /hub/api/snapshot URLs of other already-running hubs this node can
+	// bulk-fetch peer state from at boot, instead of waiting for gossip to trickle it back in.
+	// Tried in order; the first reachable one is enough, mirroring p2p.server_addresses'
+	// resilience story. Leave empty (the default) to skip this and rely on gossip alone.
+	SnapshotSeedURLs []string `json:"snapshot_seed_urls,omitempty"`
 }
 
 // ClientConfig is the top-level configuration structure.
@@ -182,6 +192,8 @@ const defaultClientConfigStr = `{
     "database_path": "./peers.db",
     "max_fail_count": 3,
     "check_interval_sec": 30,
+    "flush_interval_sec": 45,
+    "snapshot_seed_urls": [],
     "cluster": {
       "prefill_nodes": 0,
       "decode_nodes": 0
@@ -288,6 +300,9 @@ func applyServerModeDefaults(cfg *ClientConfig) {
 	}
 	if cfg.ServerMode.DatabasePath == "" {
 		cfg.ServerMode.DatabasePath = "./peers.db"
+	}
+	if cfg.ServerMode.FlushIntervalSec <= 0 {
+		cfg.ServerMode.FlushIntervalSec = 45
 	}
 
 	// Relay-only nodes still need the hub subsystems (peer database, relay listener,

@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
@@ -27,30 +26,22 @@ type ConnNotifee struct {
 	app *App
 }
 
-// Connected upserts the newly connected peer into the local peers.db.
+// Connected upserts the newly connected peer into the in-memory PeerCache (see peer_cache.go).
 func (n *ConnNotifee) Connected(nwt network.Network, c network.Conn) {
 	remotePeer := c.RemotePeer()
 	remoteAddr := c.RemoteMultiaddr().String()
 
-	go func() {
-		if err := n.app.DB.UpsertPeerConnection(remotePeer.String(), remoteAddr); err != nil {
-			logInfo("[Hub] Failed to upsert peer: %v", err)
-			return
-		}
-		if n.app.ServerProxy != nil {
-			n.app.ServerProxy.reloadBackendsFromDB()
-		}
-	}()
+	n.app.PeerCache.UpsertConnection(remotePeer.String(), remoteAddr)
+	if n.app.ServerProxy != nil {
+		n.app.ServerProxy.reloadBackendsFromDB()
+	}
 }
 
-// Disconnected removes the peer from the local peers.db.
+// Disconnected removes the peer from the in-memory PeerCache (see peer_cache.go); the row is
+// deleted from peers.db on the next periodic flush.
 func (n *ConnNotifee) Disconnected(nwt network.Network, c network.Conn) {
 	remotePeer := c.RemotePeer()
-	go func() {
-		if err := n.app.DB.DeletePeer(remotePeer.String()); err != nil {
-			logInfo("[Hub] Failed to delete peer: %v", err)
-		}
-	}()
+	n.app.PeerCache.RemovePeer(remotePeer.String())
 }
 
 func (n *ConnNotifee) OpenedStream(network.Network, network.Stream)     {}
@@ -73,9 +64,11 @@ func loadOrGenerateIdentity(path string) crypto.PrivKey {
 	return priv
 }
 
-// serverProcessGossipMessage persists an already-decoded gossip broadcast into the local
-// peers.db. Because every server-mode node subscribes to the same network-wide gossip
-// topic, each hub converges to the same view independently without any hub-to-hub sync.
+// serverProcessGossipMessage merges an already-decoded gossip broadcast into the in-memory
+// PeerCache (see peer_cache.go). Because every server-mode node subscribes to the same
+// network-wide gossip topic, each hub converges to the same view independently without any
+// hub-to-hub sync; peers.db itself is only touched by PeerCache's periodic batched flush, not
+// on this hot path.
 func serverProcessGossipMessage(info GPUInfo, app *App) {
 	if info.NodeID == "" {
 		return
@@ -87,28 +80,9 @@ func serverProcessGossipMessage(info GPUInfo, app *App) {
 		info.GPUs = gpus
 	}
 
-	existingPeers, _ := app.DB.GetAllPeers()
-	isNew := true
-	for _, ep := range existingPeers {
-		if ep.PeerID == info.NodeID {
-			isNew = false
-			break
-		}
-	}
-
-	gpuData, err := json.Marshal(info)
-	if err != nil {
-		return
-	}
-	if err := app.DB.UpsertPeer(info.NodeID, info.Addr, string(gpuData), info.BootstrapAddr, info.EngineID, info.Role); err != nil {
-		return
-	}
-
-	if info.TotalTokens > 0 || info.TotalRequests > 0 {
-		_ = app.DB.SyncPeerStats(info.NodeID, info.TotalRequests, info.TotalTokens)
-	}
+	isNew := app.PeerCache.UpsertGossip(info)
 	if isNew {
-		app.DB.RecordEvent(info.NodeID, info.Addr, "JOIN", 0, 0, "New node joined via gossip broadcast")
+		app.PeerCache.QueueEvent(info.NodeID, info.Addr, "JOIN", 0, 0, "New node joined via gossip broadcast")
 	}
 	if app.ServerProxy != nil {
 		app.ServerProxy.reloadBackendsFromDB()
@@ -171,8 +145,8 @@ func startServerPingLoop(ctx context.Context, app *App, h host.Host) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			peers, err := app.DB.GetAllPeers()
-			if err != nil || len(peers) == 0 {
+			peers := app.PeerCache.Snapshot()
+			if len(peers) == 0 {
 				continue
 			}
 
@@ -204,11 +178,11 @@ func pingOnePeer(ctx context.Context, app *App, ps *ping.PingService, peerData P
 	}
 
 	if pingErr == nil {
-		app.DB.UpdatePeerPing(peerData.PeerID, "OK")
+		app.PeerCache.SetPing(peerData.PeerID, "OK")
 		if peerData.FailCount > 0 {
 			newPenalty := peerData.PenaltyPoints + 1
-			app.DB.UpdatePeerHealth(peerData.PeerID, 0, newPenalty)
-			app.DB.RecordEvent(peerData.PeerID, peerData.IPAddress, "RECOVERED_PENALTY", 0, newPenalty,
+			app.PeerCache.UpdateHealth(peerData.PeerID, 0, newPenalty)
+			app.PeerCache.QueueEvent(peerData.PeerID, peerData.IPAddress, "RECOVERED_PENALTY", 0, newPenalty,
 				fmt.Sprintf("Node recovered after %d consecutive failures (+1 penalty point)", peerData.FailCount))
 		}
 		return
@@ -221,12 +195,12 @@ func pingOnePeer(ctx context.Context, app *App, ps *ping.PingService, peerData P
 	}
 
 	if newFail >= maxFail {
-		app.DB.RecordEvent(peerData.PeerID, peerData.IPAddress, "WARNING_OFFLINE", newFail, peerData.PenaltyPoints,
+		app.PeerCache.QueueEvent(peerData.PeerID, peerData.IPAddress, "WARNING_OFFLINE", newFail, peerData.PenaltyPoints,
 			fmt.Sprintf("%d/%d consecutive connection failures", newFail, maxFail))
 		return
 	}
 
-	app.DB.UpdatePeerHealth(peerData.PeerID, newFail, peerData.PenaltyPoints)
-	app.DB.RecordEvent(peerData.PeerID, peerData.IPAddress, "FAIL_INCREMENT", newFail, peerData.PenaltyPoints,
+	app.PeerCache.UpdateHealth(peerData.PeerID, newFail, peerData.PenaltyPoints)
+	app.PeerCache.QueueEvent(peerData.PeerID, peerData.IPAddress, "FAIL_INCREMENT", newFail, peerData.PenaltyPoints,
 		fmt.Sprintf("Connection test failed %d/%d times", newFail, maxFail))
 }
