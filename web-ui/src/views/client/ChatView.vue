@@ -1,99 +1,29 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, watch } from 'vue'
 import { useNodeInfo } from '../../composables/useNodeInfo.js'
+import { useChatState } from '../../composables/useChatState.js'
 import { useI18n } from '../../composables/useI18n.js'
-
-// ── Config ──────────────────────────────────────────────────────────────────
-// The endpoint to call. Default = same-origin proxy through yuanyi Go server.
-// User can override to any local vLLM / Ollama / OpenAI-compatible URL.
-const STORAGE_KEY_SESSIONS = 'chat_sessions_v1'
-const STORAGE_KEY_CONFIG   = 'chat_config_v1'
-const STORAGE_KEY_ENDPOINT_OVERRIDDEN = 'chat_endpoint_overridden_v1'
 
 // ── Reactive state ───────────────────────────────────────────────────────────
 const nodeInfo = useNodeInfo()
 const { t }    = useI18n()
 
-const sessions  = ref([])          // [{ id, title, model, messages: [] }]
-const activeId  = ref(null)
-const input     = ref('')
-const streaming = ref(false)
-const error     = ref('')
-const showConfig = ref(false)
-const messagesEl = ref(null)
+// Sessions/streaming/config live in a module-level singleton (useChatState.js) rather than
+// here, so switching to another page and back re-mounts this view against the SAME live
+// state -- including a still-in-progress stream -- instead of losing it. See that file's
+// header comment for the bug this fixes.
+const {
+  sessions, activeId, streaming, error, cfg, activeSession,
+  STORAGE_KEY_ENDPOINT_OVERRIDDEN,
+  newSession, deleteSession, selectSession, renameSession, send: sendMessage, clearSession,
+} = useChatState()
 
-// Config (persisted)
-// Default port 50006 is this project's own documented default gateway/proxy port (see
-// config.go / install.ps1 / install.sh), matching the comment above: go through the Go
-// server's gateway, not vLLM's raw port. The onMounted auto-detect below corrects this to
-// the *actual* configured proxy_port once /api/node_info loads, in case it was customized
-// during install -- this static value is only the fallback shown before that resolves (or
-// if the user has an override flag set from an unrelated earlier session on this browser
-// origin). Pointing this at vLLM's raw port (8100) instead was a real bug: 8100 is the one
-// port a relay-only node never listens on at all (it runs no local vLLM by design), so the
-// chat page failed with "Failed to fetch" for exactly the operators most likely to try it
-// first -- and for an inference node, it also failed during the vLLM warm-up window even
-// though the gateway (50006) would have queued the request correctly the whole time.
-const cfg = ref({
-  endpoint: 'http://localhost:50006/v1/chat/completions',
-  model:    '',
-  systemPrompt: '',
-  temperature: 0.7,
-  maxTokens: 2048,
-  apiKey: '',
-})
+const input       = ref('')
+const showConfig  = ref(false)
+const messagesEl  = ref(null)
 
 // ── Computed ─────────────────────────────────────────────────────────────────
-const activeSession = computed(() =>
-  sessions.value.find(s => s.id === activeId.value) || null
-)
 const messages = computed(() => activeSession.value?.messages || [])
-
-// ── Persistence ──────────────────────────────────────────────────────────────
-function saveSessions() {
-  localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions.value))
-}
-function loadSessions() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_SESSIONS)
-    if (raw) sessions.value = JSON.parse(raw)
-  } catch {}
-  if (!sessions.value.length) newSession()
-  else activeId.value = sessions.value[0].id
-}
-function saveCfg() {
-  localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(cfg.value))
-}
-function loadCfg() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_CONFIG)
-    if (raw) Object.assign(cfg.value, JSON.parse(raw))
-  } catch {}
-}
-
-// ── Session management ────────────────────────────────────────────────────────
-let _sid = Date.now()
-function newSession() {
-  const id = String(++_sid)
-  sessions.value.unshift({ id, title: '新對話', model: cfg.value.model, messages: [] })
-  activeId.value = id
-  saveSessions()
-}
-function deleteSession(id) {
-  sessions.value = sessions.value.filter(s => s.id !== id)
-  if (activeId.value === id) {
-    activeId.value = sessions.value[0]?.id || null
-    if (!sessions.value.length) newSession()
-  }
-  saveSessions()
-}
-function selectSession(id) {
-  activeId.value = id
-}
-function renameSession(id, title) {
-  const s = sessions.value.find(s => s.id === id)
-  if (s) { s.title = title; saveSessions() }
-}
 
 // ── Auto-scroll ───────────────────────────────────────────────────────────────
 async function scrollBottom() {
@@ -122,95 +52,14 @@ function renderMd(text) {
 }
 
 // ── Send message ─────────────────────────────────────────────────────────────
-async function send() {
-  const text = input.value.trim()
-  if (!text || streaming.value || !activeSession.value) return
-  error.value = ''
-
-  // Push user message
-  activeSession.value.messages.push({ role: 'user', content: text })
-  // Auto-title from first message
-  if (activeSession.value.messages.length === 1) {
-    activeSession.value.title = text.substring(0, 28) + (text.length > 28 ? '…' : '')
-  }
+// The actual request/stream logic lives in useChatState.js now (see import above) so it
+// keeps running against shared state even if this view unmounts mid-stream. This wrapper
+// just clears the input box, which is fine to lose on navigation (an unsent draft, not a
+// received reply).
+function send() {
+  const text = input.value
   input.value = ''
-  scrollBottom()
-
-  // Build assistant placeholder
-  const assistantMsg = { role: 'assistant', content: '', loading: true }
-  activeSession.value.messages.push(assistantMsg)
-  scrollBottom()
-  streaming.value = true
-
-  // Build messages array for API (include system prompt if set)
-  const apiMessages = []
-  if (cfg.value.systemPrompt) {
-    apiMessages.push({ role: 'system', content: cfg.value.systemPrompt })
-  }
-  apiMessages.push(...activeSession.value.messages
-    .filter(m => !m.loading)
-    .map(m => ({ role: m.role, content: m.content }))
-  )
-
-  const payload = {
-    model: cfg.value.model || undefined,
-    messages: apiMessages,
-    temperature: cfg.value.temperature,
-    max_tokens: cfg.value.maxTokens,
-    stream: true,
-  }
-
-  try {
-    const res = await fetch(cfg.value.endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(cfg.value.apiKey ? { Authorization: `Bearer ${cfg.value.apiKey}` } : {}),
-      },
-      body: JSON.stringify(payload),
-    })
-
-    if (!res.ok) {
-      const msg = await res.text()
-      throw new Error(`HTTP ${res.status}: ${msg}`)
-    }
-
-    // Stream SSE chunks
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder()
-    let buf = ''
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buf += decoder.decode(value, { stream: true })
-      const lines = buf.split('\n')
-      buf = lines.pop()
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue
-        const data = line.slice(6).trim()
-        if (data === '[DONE]') continue
-        try {
-          const chunk = JSON.parse(data)
-          const delta = chunk.choices?.[0]?.delta?.content
-          if (delta) {
-            assistantMsg.content += delta
-            assistantMsg.loading = false
-            scrollBottom()
-          }
-        } catch {}
-      }
-    }
-  } catch (e) {
-    assistantMsg.content = ''
-    assistantMsg.loading = false
-    error.value = e.message
-  }
-
-  assistantMsg.loading = false
-  streaming.value = false
-  saveSessions()
-  scrollBottom()
+  sendMessage(text)
 }
 
 function handleKey(e) {
@@ -220,42 +69,13 @@ function handleKey(e) {
   }
 }
 
-function clearSession() {
-  if (!activeSession.value) return
-  activeSession.value.messages = []
-  saveSessions()
-}
-
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
-onMounted(() => {
-  loadCfg()
-  loadSessions()
-  scrollBottom()
+// Reactively re-scroll to bottom whenever the active conversation's messages change --
+// covers new messages, streamed content growth, and switching sessions -- regardless of
+// whether the stream driving those changes started before or after this view was mounted.
+watch(messages, scrollBottom, { deep: true })
 
-  // Auto-configure endpoint from config.json via /api/node_info.
-  // We only overwrite the default if the user has NOT previously saved a
-  // custom endpoint (tracked by a separate localStorage flag).
-  const hasOverride = localStorage.getItem(STORAGE_KEY_ENDPOINT_OVERRIDDEN)
-  if (!hasOverride) {
-    // nodeInfo may not be loaded yet — watch until it is
-    const stopWatch = watch(
-      () => nodeInfo.loaded,
-      (loaded) => {
-        if (!loaded) return
-        stopWatch()
-        // Use proxy port (goes through yuanyi load balancer) as primary.
-        // vllm port is direct; proxy is preferred for production.
-        const host = window.location.hostname || '127.0.0.1'
-        const endpoint = `http://${host}:${nodeInfo.proxyPort}/v1/chat/completions`
-        cfg.value.endpoint = endpoint
-        if (nodeInfo.modelName) cfg.value.model = nodeInfo.modelName
-        saveCfg()
-      },
-      { immediate: true }
-    )
-  }
-})
-watch(cfg, saveCfg, { deep: true })
+onMounted(scrollBottom)
 </script>
 
 <template>
@@ -350,7 +170,6 @@ watch(cfg, saveCfg, { deep: true })
                 const host = window.location.hostname || '127.0.0.1'
                 cfg.endpoint = `http://${host}:${nodeInfo.proxyPort}/v1/chat/completions`
                 cfg.model = nodeInfo.modelName || ''
-                saveCfg()
               }"
             >{{ t('cfg_reset') }}</button>
           </div>

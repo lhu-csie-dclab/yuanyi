@@ -63,6 +63,11 @@ export function fmtUptime(s) {
   const m = Math.floor((s % 3600) / 60)
   return h + 'h ' + m + 'm'
 }
+export function fmtMB(mb) {
+  mb = mb || 0
+  if (mb < 1024) return mb.toFixed(1) + 'MB'
+  return (mb / 1024).toFixed(1) + 'GB'
+}
 
 // Parses a peer row's gpu_info JSON string (or falls back to the row itself
 // if the API already returns parsed telemetry inline).

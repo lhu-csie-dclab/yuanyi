@@ -103,6 +103,13 @@ func StartClientWebDashboard(app *App) {
 	mux.HandleFunc("/api/local_stats", func(w http.ResponseWriter, r *http.Request) {
 		stats := app.TUI.GetLocalStats() // 至 tui.go 取得本地統計
 
+		// 本節點自身的 CPU/記憶體用量 -- 純本機資料，來自 sys.go 的快取值，不經過 gossip 廣播。
+		if app.Sys != nil {
+			cpuPct, memRSS := app.Sys.GetProcessStats()
+			stats["cpu_percent"] = cpuPct
+			stats["mem_rss_mb"] = float64(memRSS) / (1024 * 1024)
+		}
+
 		localID := ""
 		if app.P2P != nil && app.P2P.host != nil {
 			localID = app.P2P.host.ID().String()
@@ -183,6 +190,8 @@ func StartClientWebDashboard(app *App) {
 		totalNodes := len(peers)
 		var totalGenSpeed, totalPrefillSpeed, avgTTFT, avgKVCache float64
 		var totalActiveRequests int
+		var totalTokens, inTokens, outTokens, totalRequests int64
+		var totalPowerDraw, totalPowerLimit float64
 		count := 0
 
 		// 遍歷所有線上鄰居累加指標
@@ -195,6 +204,16 @@ func StartClientWebDashboard(app *App) {
 				count++
 			}
 			avgKVCache += info.KVCacheUsage
+			totalTokens += info.TotalTokens
+			inTokens += info.InTokens
+			outTokens += info.OutTokens
+			totalRequests += info.TotalRequests
+			// info.PowerDraw/PowerLimit are already each peer's own multi-GPU max (see
+			// sys.go's GetGPUTelemetry), not that peer's own multi-GPU sum, so a node with
+			// several cards under-contributes here versus its true total draw -- this is a
+			// cluster-wide lower bound, not an exact wattage sum.
+			totalPowerDraw += info.PowerDraw
+			totalPowerLimit += info.PowerLimit
 		}
 
 		// 計算全網平均值
@@ -212,6 +231,17 @@ func StartClientWebDashboard(app *App) {
 			"total_prefill_speed":   totalPrefillSpeed,
 			"avg_ttft":              avgTTFT,
 			"avg_kv_cache":          avgKVCache,
+			// Cluster-wide cumulative totals, summed from each peer's self-reported GPUInfo
+			// (see p2p.go's gossipPublisher) -- distinct from total_active_requests above,
+			// which is a live in-flight count, not a running total.
+			"total_tokens":   totalTokens,
+			"in_tokens":      inTokens,
+			"out_tokens":     outTokens,
+			"total_requests": totalRequests,
+			// See the loop comment above: a lower-bound approximation on multi-GPU nodes,
+			// not an exact sum, since each peer only reports its single highest-draw GPU.
+			"total_power_draw":  totalPowerDraw,
+			"total_power_limit": totalPowerLimit,
 		}
 
 		w.Header().Set("Content-Type", "application/json")

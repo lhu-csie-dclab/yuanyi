@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { getClusterStats, getPeers, getLocalStats, fmtNum, fmtUptime, parseGpuInfo } from '../../api.js'
+import { getClusterStats, getPeers, getLocalStats, fmtNum, fmtUptime, fmtMB, parseGpuInfo } from '../../api.js'
 import { usePolling } from '../../composables/usePolling.js'
 import { useNodeInfo } from '../../composables/useNodeInfo.js'
 import { useI18n } from '../../composables/useI18n.js'
@@ -12,9 +12,9 @@ import PeerListRow from '../../components/PeerListRow.vue'
 
 const nodeInfo = useNodeInfo()
 const { t } = useI18n()
-const stats = ref({ total_nodes: 0, total_active_requests: 0, total_gen_speed: 0, avg_ttft: 0 })
+const stats = ref({ total_nodes: 0, total_active_requests: 0, total_gen_speed: 0, avg_ttft: 0, total_tokens: 0, in_tokens: 0, out_tokens: 0, total_requests: 0, total_power_draw: 0, total_power_limit: 0 })
 const peers = ref([])
-const local = ref({ total_tokens: 0, in_tokens: 0, out_tokens: 0, total_requests: 0, success_count: 0, uptime_seconds: 0 })
+const local = ref({ total_tokens: 0, in_tokens: 0, out_tokens: 0, total_requests: 0, success_count: 0, uptime_seconds: 0, cpu_percent: 0, mem_rss_mb: 0 })
 
 // Card grid vs. dense table -- persisted per-browser so it doesn't reset every visit.
 const VIEW_MODE_KEY = 'topology_view_mode'
@@ -67,7 +67,7 @@ usePolling(refresh, 2000)
         </div>
         <span class="pill pill-green"><span class="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block mr-1"/>{{ t('status_online') }}</span>
       </div>
-      <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 divide-x divide-white/5">
+      <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 divide-x divide-white/5">
         <div class="px-4 py-3 flex flex-col">
           <span class="text-[0.65rem] font-bold uppercase tracking-wider text-ink-faint">{{ t('stat_nodes') }}</span>
           <span class="text-lg font-bold text-brand-light tabular-nums">{{ stats.total_nodes || 0 }}</span>
@@ -86,15 +86,19 @@ usePolling(refresh, 2000)
         </div>
         <div class="px-4 py-3 flex flex-col col-span-2 sm:col-span-2 lg:col-span-2">
           <span class="text-[0.65rem] font-bold uppercase tracking-wider text-ink-faint">{{ t('stat_total_tokens') }}</span>
-          <span class="text-lg font-bold text-ink tabular-nums">{{ fmtNum(local.total_tokens) }}</span>
+          <span class="text-lg font-bold text-ink tabular-nums">{{ fmtNum(stats.total_tokens) }}</span>
         </div>
         <div class="px-4 py-3 flex flex-col">
           <span class="text-[0.65rem] font-bold uppercase tracking-wider text-ink-faint">{{ t('stat_input') }}</span>
-          <span class="text-lg font-bold text-ink-muted tabular-nums">{{ fmtNum(local.in_tokens) }}</span>
+          <span class="text-lg font-bold text-ink-muted tabular-nums">{{ fmtNum(stats.in_tokens) }}</span>
         </div>
         <div class="px-4 py-3 flex flex-col">
           <span class="text-[0.65rem] font-bold uppercase tracking-wider text-ink-faint">{{ t('stat_output') }}</span>
-          <span class="text-lg font-bold text-ink-muted tabular-nums">{{ fmtNum(local.out_tokens) }}</span>
+          <span class="text-lg font-bold text-ink-muted tabular-nums">{{ fmtNum(stats.out_tokens) }}</span>
+        </div>
+        <div class="px-4 py-3 flex flex-col" :title="`${fmtNum(Math.round(stats.total_power_limit || 0))} W rated capacity`">
+          <span class="text-[0.65rem] font-bold uppercase tracking-wider text-ink-faint">{{ t('stat_power') }}</span>
+          <span class="text-lg font-bold text-rose-400 tabular-nums">{{ fmtNum(Math.round(stats.total_power_draw || 0)) }} W</span>
         </div>
       </div>
     </div>
@@ -105,13 +109,15 @@ usePolling(refresh, 2000)
         <span class="text-xs font-bold uppercase tracking-widest text-brand-light">{{ t('section_local') }}</span>
         <span class="pill pill-blue">{{ t('status_online') }} {{ fmtUptime(local.uptime_seconds) }}</span>
       </div>
-      <div class="grid grid-cols-3 gap-4 sm:grid-cols-6 divide-x divide-white/10">
+      <div class="grid grid-cols-4 gap-4 sm:grid-cols-8 divide-x divide-white/10">
         <StatCard bare :label="t('stat_total_tokens')" :value="fmtNum(local.total_tokens)"    accent />
         <StatCard bare :label="t('stat_input')"        :value="fmtNum(local.in_tokens)"       class="pl-4" />
         <StatCard bare :label="t('stat_output')"       :value="fmtNum(local.out_tokens)"      class="pl-4" />
         <StatCard bare :label="t('stat_requests')"     :value="fmtNum(local.total_requests)"  class="pl-4" />
         <StatCard bare label="OK"                      :value="fmtNum(local.success_count)"   class="pl-4" />
         <StatCard bare :label="t('stat_uptime')"       :value="fmtUptime(local.uptime_seconds)" class="pl-4" />
+        <StatCard bare :label="t('stat_cpu')"          :value="`${(local.cpu_percent || 0).toFixed(1)}%`" class="pl-4" />
+        <StatCard bare :label="t('stat_memory')"       :value="fmtMB(local.mem_rss_mb)"       class="pl-4" />
       </div>
     </div>
 

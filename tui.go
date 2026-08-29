@@ -239,6 +239,9 @@ func (t *TUI) GetLocalStats() map[string]interface{} {
 		"total_requests": t.stats.requests,
 		"prefill":        t.stats.prefill,
 		"decode":         t.stats.decode,
+		// Was never populated before, even though the web dashboard's TopologyView.vue has
+		// always read local.uptime_seconds -- it just silently displayed 0s forever.
+		"uptime_seconds": int64(time.Since(t.stats.startTime).Seconds()),
 	}
 }
 

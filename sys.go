@@ -39,6 +39,13 @@ type SysMonitor struct {
 	lastTTFTSum      float64     // 上一次爬取的 TTFT 總延遲時間和
 	lastTTFTCount    float64     // 上一次爬取的 TTFT 總次數
 	currentMetrics   VLLMMetrics // 最新計算好的效能指標快照
+
+	// 本程序自身的 CPU/記憶體快照，由 metricScraper 每 2 秒採樣一次並快取於此，而不是讓每個
+	// 呼叫端各自呼叫 gopsutil -- Percent() 是以「距離上次呼叫該 handle 的時間差」計算用量，多個
+	// 呼叫端各自呼叫會互相干擾彼此的計算基準，導致數字忽大忽小。純本機資料，不透過 gossip 廣播
+	// (GPUInfo 沒有對應欄位)。
+	procCPUPercent  float64
+	procMemRSSBytes uint64
 }
 
 // NewSysMonitor 建構函式：建立 SysMonitor 實例。
@@ -82,6 +89,21 @@ func (s *SysMonitor) metricScraper() {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
+		// 採樣本程序 CPU/記憶體，放在 vLLM /metrics 抓取之前執行，這樣 relay-only 節點(本來就
+		// 沒有本地 vLLM，下面的 http.Get 每次都會 continue)也能持續拿到這兩個數字。
+		if s.procHandle != nil {
+			cpuPct, cpuErr := s.procHandle.Percent(0)
+			mi, memErr := s.procHandle.MemoryInfo()
+			s.metricsMu.Lock()
+			if cpuErr == nil {
+				s.procCPUPercent = cpuPct
+			}
+			if memErr == nil && mi != nil {
+				s.procMemRSSBytes = mi.RSS
+			}
+			s.metricsMu.Unlock()
+		}
+
 		resp, err := http.Get("http://localhost:8100/metrics")
 		if err != nil {
 			continue // 若 vLLM 尚未啟動或端點連不上，無視錯誤等待下次輪詢
@@ -181,33 +203,43 @@ func (s *SysMonitor) metricScraper() {
 	}
 }
 
-// cpuPercentStr 回傳目前程序的 CPU 使用率字串 (格式如 "12.5%")。
+// cpuPercentStr 回傳目前程序的 CPU 使用率字串 (格式如 "12.5%")，讀取 metricScraper 的快取值。
 func (s *SysMonitor) cpuPercentStr() string {
 	if s.procHandle == nil {
 		return "N/A"
 	}
-	pct, err := s.procHandle.Percent(0)
-	if err != nil {
-		return "N/A"
-	}
+	s.metricsMu.Lock()
+	pct := s.procCPUPercent
+	s.metricsMu.Unlock()
 	return fmt.Sprintf("%.1f%%", pct)
 }
 
-// memUsageStr 回傳目前程序的記憶體 RSS 用量字串 (格式如 "256.0MB" 或 "1.2GB")。
+// memUsageStr 回傳目前程序的記憶體 RSS 用量字串 (格式如 "256.0MB" 或 "1.2GB")，讀取快取值。
 func (s *SysMonitor) memUsageStr() string {
 	if s.procHandle == nil {
 		return "N/A"
 	}
-	mi, err := s.procHandle.MemoryInfo()
-	if err != nil || mi == nil {
-		return "N/A"
-	}
-	gb := float64(mi.RSS) / (1024 * 1024 * 1024)
+	s.metricsMu.Lock()
+	rss := s.procMemRSSBytes
+	s.metricsMu.Unlock()
+	gb := float64(rss) / (1024 * 1024 * 1024)
 	if gb < 1 {
-		mb := float64(mi.RSS) / (1024 * 1024)
+		mb := float64(rss) / (1024 * 1024)
 		return fmt.Sprintf("%.1fMB", mb)
 	}
 	return fmt.Sprintf("%.1fGB", gb)
+}
+
+// GetProcessStats 回傳本節點自身的 CPU 使用率(%)與 RSS 記憶體用量(bytes)，供 Web Dashboard
+// API 使用。純本機資料，刻意不放進 GPUInfo/gossip 廣播內容 -- 每個節點只在乎自己的數字，不需要
+// 讓全網都知道彼此的 CPU/記憶體用量。
+func (s *SysMonitor) GetProcessStats() (cpuPercent float64, memRSSBytes uint64) {
+	if s.procHandle == nil {
+		return 0, 0
+	}
+	s.metricsMu.Lock()
+	defer s.metricsMu.Unlock()
+	return s.procCPUPercent, s.procMemRSSBytes
 }
 
 // GetGPUModelSummary 回傳本機 GPU 型號與數量摘要字串切片 (例如 ["NVIDIA RTX 4090(24576MB) x1"])。
