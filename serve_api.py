@@ -65,6 +65,7 @@ if __name__ == "__main__":
         "--quantization", "awq",
         "--gpu-memory-utilization", "0.95",
         "--max-model-len", "16384",
+        "--max-num-seqs", "32",
         "--trust-remote-code",
         "--enforce-eager",
         "--disable-frontend-multiprocessing",

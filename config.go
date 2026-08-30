@@ -31,6 +31,7 @@ type PathsConfig struct {
 type VLLMConfig struct {
 	ModelName                    string  `json:"model_name"`
 	MaxModelLen                  int     `json:"max_model_len"`
+	MaxNumSeqs                   int     `json:"max_num_seqs,omitempty"`
 	GpuMemoryUtilization         float64 `json:"gpu_memory_utilization"`
 	Port                         int     `json:"port"`
 	TensorParallelSize           int     `json:"tensor_parallel_size"`
@@ -174,6 +175,7 @@ const defaultClientConfigStr = `{
   "vllm": {
     "model_name": "Qwen/Qwen3-4B-AWQ",
     "max_model_len": 16384,
+    "max_num_seqs": 32,
     "gpu_memory_utilization": 0.95,
     "port": 8100,
     "tensor_parallel_size": 1,
@@ -282,6 +284,9 @@ func LoadOrCreateConfig(filename string) (*ClientConfig, error) {
 	}
 	if cfg.VLLM.MooncakeBootstrapPort <= 0 || cfg.VLLM.MooncakeBootstrapPort == cfg.ProxyPort {
 		cfg.VLLM.MooncakeBootstrapPort = 8998
+	}
+	if cfg.VLLM.MaxNumSeqs <= 0 {
+		cfg.VLLM.MaxNumSeqs = 32
 	}
 
 	applyServerModeDefaults(&cfg)

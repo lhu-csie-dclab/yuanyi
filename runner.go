@@ -208,6 +208,7 @@ func (r *Runner) startVLLMContainer(ctx context.Context) {
 			"--served-model-name", cfg.VLLM.ModelName,
 			"--dtype", cfg.VLLM.Dtype,
 			"--max-model-len", fmt.Sprintf("%d", cfg.VLLM.MaxModelLen),
+			"--max-num-seqs", fmt.Sprintf("%d", cfg.VLLM.MaxNumSeqs),
 			"--gpu-memory-utilization", fmt.Sprintf("%.2f", cfg.VLLM.GpuMemoryUtilization),
 			"--port", fmt.Sprintf("%d", cfg.VLLM.Port),
 			"--tensor-parallel-size", fmt.Sprintf("%d", cfg.VLLM.TensorParallelSize),
@@ -325,6 +326,7 @@ func (r *Runner) startVLLMDirectly(ctx context.Context) {
 			"--served-model-name", cfg.VLLM.ModelName,
 			"--dtype", cfg.VLLM.Dtype,
 			"--max-model-len", fmt.Sprintf("%d", cfg.VLLM.MaxModelLen),
+			"--max-num-seqs", fmt.Sprintf("%d", cfg.VLLM.MaxNumSeqs),
 			"--gpu-memory-utilization", fmt.Sprintf("%.2f", cfg.VLLM.GpuMemoryUtilization),
 			"--port", fmt.Sprintf("%d", cfg.VLLM.Port),
 			"--tensor-parallel-size", fmt.Sprintf("%d", cfg.VLLM.TensorParallelSize),
@@ -483,6 +485,11 @@ func (r *Runner) startVLLMWindows(ctx context.Context) {
 		maxModelLen = 2048
 	}
 
+	maxNumSeqs := cfg.VLLM.MaxNumSeqs
+	if maxNumSeqs <= 0 {
+		maxNumSeqs = 32
+	}
+
 	r.app.TUI.AddVLLMLog(fmt.Sprintf("[System] 正在啟動 vLLM (模型: %s, 埠號: %d, 顯存佔用率: %.2f)...", modelName, vllmPort, gpuUtil))
 
 	// 步驟 4: 構建 Windows 執行指令與相容性環境變數
@@ -525,6 +532,7 @@ func (r *Runner) startVLLMWindows(ctx context.Context) {
 		"--quantization", "awq",
 		"--gpu-memory-utilization", fmt.Sprintf("%.2f", gpuUtil),
 		"--max-model-len", fmt.Sprintf("%d", maxModelLen),
+		"--max-num-seqs", fmt.Sprintf("%d", maxNumSeqs),
 		"--port", fmt.Sprintf("%d", vllmPort),
 		"--host", "0.0.0.0",
 		"--trust-remote-code",

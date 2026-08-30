@@ -444,6 +444,7 @@ uv pip install "transformers>=4.51.0,<5.0.0"
     "model_name": "Qwen/Qwen3-4B-AWQ",
     "gpu_memory_utilization": 0.95,
     "max_model_len": 16384,
+    "max_num_seqs": 32,
     "kv_role": "kv_both",
     "mooncake_bootstrap_port": 8998
   },
