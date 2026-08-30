@@ -69,6 +69,7 @@ if __name__ == "__main__":
         "--trust-remote-code",
         "--enforce-eager",
         "--enable-auto-tool-choice",
+        "--enable-prompt-tokens-details",
         "--tool-call-parser", "qwen3_coder",
         "--port", "8100",  # matches config.go's VLLM.Port default, not vLLM's own convention --
                             # start_vllm.ps1/status_vllm.ps1/stop_vllm.ps1 assume this port too

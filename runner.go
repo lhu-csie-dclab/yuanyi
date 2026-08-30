@@ -214,6 +214,7 @@ func (r *Runner) startVLLMContainer(ctx context.Context) {
 			"--tensor-parallel-size", fmt.Sprintf("%d", cfg.VLLM.TensorParallelSize),
 			"--kv-transfer-config", kvTransferConfig,
 			"--enable-auto-tool-choice",
+			"--enable-prompt-tokens-details",
 			"--tool-call-parser", "qwen3_coder",
 		)
 
@@ -334,6 +335,7 @@ func (r *Runner) startVLLMDirectly(ctx context.Context) {
 			"--tensor-parallel-size", fmt.Sprintf("%d", cfg.VLLM.TensorParallelSize),
 			"--kv-transfer-config", kvConfigJSON,
 			"--enable-auto-tool-choice",
+			"--enable-prompt-tokens-details",
 			"--tool-call-parser", "qwen3_coder",
 		)
 
@@ -542,6 +544,7 @@ func (r *Runner) startVLLMWindows(ctx context.Context) {
 		"--trust-remote-code",
 		"--enforce-eager",
 		"--enable-auto-tool-choice",
+		"--enable-prompt-tokens-details",
 		"--tool-call-parser", "qwen3_coder",
 	)
 
