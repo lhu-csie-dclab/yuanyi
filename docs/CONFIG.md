@@ -44,9 +44,9 @@ This document provides a detailed reference for configuration handling in the Yu
     "mooncake_path": "/data/mooncake.json"
   },
   "vllm": {
-    "model_name": "Qwen/Qwen2-VL-2B-Instruct-AWQ",
-    "max_model_len": 8192,
-    "gpu_memory_utilization": 0.75,
+    "model_name": "Qwen/Qwen3-4B-AWQ",
+    "max_model_len": 16384,
+    "gpu_memory_utilization": 0.95,
     "port": 8100,
     "tensor_parallel_size": 1,
     "dtype": "float16",
@@ -77,7 +77,7 @@ required — see [Reachability](#-reachability-announce_addr--behind_nat).
 | `p2p.announce_addr` | *(unset)* | String | The address other nodes should use to reach **this** node, e.g. `/dns4/relay.example.com/tcp/50004`. **Required when running your own relay behind Docker or port-forwarding** — see [Reachability](#-reachability-announce_addr--behind_nat). |
 | `p2p.behind_nat` | *(auto)* | Boolean | Declares this node cannot be dialed from outside its network. Omit it: auto-detection is correct for almost everyone. See [Reachability](#-reachability-announce_addr--behind_nat). |
 | `vllm.port` | `8100` | Integer | Local vLLM engine HTTP endpoint. |
-| `vllm.gpu_memory_utilization` | `0.75` | Float | Maximum VRAM memory allocation ratio reserved for vLLM & KV cache. |
+| `vllm.gpu_memory_utilization` | `0.95` | Float | Maximum VRAM memory allocation ratio reserved for vLLM & KV cache. |
 | `vllm.kv_role` | `"kv_both"` | String | P/D disaggregation role: `"kv_prefill"`, `"kv_decode"`, or `"kv_both"`. |
 | `vllm.mooncake_bootstrap_port` | `8998` | Integer | Mooncake KV Cache transfer control port. |
 | `server_mode.enabled` | `false` | Boolean | Opts this node into hub mode (merged Central Server responsibilities). See [`HUB_MODE.md`](HUB_MODE.md) for the full `server_mode.*` reference. |

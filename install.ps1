@@ -24,7 +24,7 @@ $VerifiedVllmWheel = "vllm-0.9.2+cu124-cp312-cp312-win_amd64.whl"
 $VerifiedTorch     = @("torch==2.6.0+cu124", "torchvision==0.21.0+cu124", "torchaudio==2.6.0+cu124")
 $VerifiedTorchIdx  = "https://download.pytorch.org/whl/cu124"
 
-$DefaultModel        = "Qwen/Qwen2-VL-2B-Instruct-AWQ"
+$DefaultModel        = "Qwen/Qwen3-4B-AWQ"
 $DefaultBootstrap    = "/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh"
 $DefaultInstallDir   = Join-Path $HOME "yuanyi-client"
 $DefaultModelDir     = Join-Path $HOME "yuanyi-models"
@@ -552,7 +552,7 @@ CLIENT_WEB_PORT=$($Cfg.WebPort)
   },
   "vllm": {
     "model_name": "$($Cfg.ModelName)",
-    "max_model_len": 8192,
+    "max_model_len": 16384,
     "gpu_memory_utilization": $($Cfg.GpuUtil),
     "port": $($Cfg.VllmPort),
     "tensor_parallel_size": 1,
@@ -663,7 +663,7 @@ function Do-Install {
     if ($s -and $s.ModelDir) { $modelDir = $s.ModelDir }
     $modelPath = ""
     $modelName = "relay"
-    $gpuUtil = "0.75"
+    $gpuUtil = "0.95"
 
     if (-not $relayOnly) {
         Setup-VllmEnv $installDir | Out-Null
@@ -671,7 +671,7 @@ function Do-Install {
         Write-Host ""
         $modelDir = Ask "Model storage directory" $modelDir
         $repo = Ask "Hugging Face model to use" $DefaultModel
-        $gpuUtil = Ask "GPU memory utilization (fraction of TOTAL VRAM)" "0.75"
+        $gpuUtil = Ask "GPU memory utilization (fraction of TOTAL VRAM)" "0.95"
         $modelPath = Download-Model $modelDir $installDir $repo
         if (-not $modelPath) { Fail "No model was installed." }
         $modelName = Split-Path -Leaf $modelPath

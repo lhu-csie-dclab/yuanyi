@@ -54,7 +54,7 @@ Write-Host ""
 if ($Ready) {
     Write-Host "[SUCCESS] vLLM Daemon is running permanently in background!" -ForegroundColor Green
     Write-Host "[API URL] http://localhost:$Port/v1" -ForegroundColor Yellow
-    Write-Host "[MODEL]   Qwen/Qwen2-VL-2B-Instruct-AWQ" -ForegroundColor Yellow
+    Write-Host "[MODEL]   Qwen/Qwen3-4B-AWQ" -ForegroundColor Yellow
     Write-Host "You can close all terminal windows; the service remains active." -ForegroundColor Cyan
 } else {
     Write-Host "[NOTICE] Model is still initializing. Check status anytime with: .\status_vllm.ps1" -ForegroundColor Yellow

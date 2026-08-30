@@ -18,9 +18,9 @@
   "proxy_port": 50006,
   "vllm": {
     "port": 8100,
-    "model_name": "Qwen/Qwen2-VL-2B-Instruct-AWQ",
-    "gpu_memory_utilization": 0.75,
-    "max_model_len": 8192,
+    "model_name": "Qwen/Qwen3-4B-AWQ",
+    "gpu_memory_utilization": 0.95,
+    "max_model_len": 16384,
     "kv_role": "kv_both",
     "mooncake_bootstrap_port": 8998
   },

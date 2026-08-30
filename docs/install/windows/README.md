@@ -221,16 +221,16 @@ node:
 
 - **Model** — `paths.model_path` defaults to the Linux container path `/data/model`, which
   doesn't exist on Windows. When `vllm.model_name` is also left at its default
-  (`Qwen/Qwen2-VL-2B-Instruct-AWQ`), the agent logs a warning and downloads that same
-  model straight from Hugging Face on first start, since there's nothing to substitute it
-  with (the default *is* the fallback here). If you point `vllm.model_name` at something else
-  and Windows has no local weights for it, the agent falls back to
-  `Qwen/Qwen2-VL-2B-Instruct-AWQ` instead and registers **both** names as aliases, so
-  requests using either name resolve. To use your own local weights, point `paths.model_path`
-  at a real Windows directory.
+  (`Qwen/Qwen3-4B-AWQ`), the agent logs a warning and downloads that same model straight from
+  Hugging Face on first start, since there's nothing to substitute it with (the default *is*
+  the fallback here) -- Windows-native compatibility for it is unverified. If you point
+  `vllm.model_name` at something else and Windows has no local weights for it, the agent falls
+  back to `Qwen/Qwen3-4B-AWQ` instead and registers **both** names as aliases, so requests
+  using either name resolve. To use your own local weights, point `paths.model_path` at a real
+  Windows directory.
 - **VRAM** — `vllm.gpu_memory_utilization` is a fraction of **total** VRAM, not free VRAM. On
-  an 8 GB card with a desktop session already using ~2 GB, `0.75` fits; raise it only on a
-  dedicated GPU.
+  an 8 GB card with a desktop session already using ~2 GB, leave headroom below the `0.95`
+  default; raise it only on a dedicated GPU with nothing else drawing VRAM.
 
 ---
 
@@ -252,7 +252,7 @@ curl.exe http://127.0.0.1:8100/health
 # OpenAI-compatible gateway
 curl.exe -X POST http://127.0.0.1:50006/v1/chat/completions `
   -H "Content-Type: application/json" `
-  -d '{\"model\":\"Qwen/Qwen2-VL-2B-Instruct-AWQ\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}],\"max_tokens\":50}'
+  -d '{\"model\":\"Qwen/Qwen3-4B-AWQ\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}],\"max_tokens\":50}'
 ```
 
 Dashboard: <http://localhost:50007>

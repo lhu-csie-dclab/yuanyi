@@ -209,7 +209,7 @@ It prompts for everything with sensible defaults (press Enter to accept):
 | Install directory | `/opt/yuanyi-client` as root, else `~/yuanyi-client` |
 | Node role | Inference node, or **relay-only** (no GPU required) |
 | `swarm.key` | Paste an existing key to join a swarm, or leave blank to **generate a new one** |
-| Model | Any Hugging Face repo id, e.g. `Qwen/Qwen2-VL-2B-Instruct-AWQ` |
+| Model | Any Hugging Face repo id, e.g. `Qwen/Qwen3-4B-AWQ` |
 | Ports | `50007` web, `50006` gateway, `8100` vLLM — or set your own |
 
 Model management is available any time from the same script:
@@ -302,8 +302,8 @@ The system has been fully benchmarked and verified under the following LXC conta
 | **CUDA Toolkit Version** | `13.2` |
 | **GPU Compute Capability** | **`7.5`** (Turing Architecture) |
 
-### 5. Download Demonstration Model (`Qwen/Qwen2-VL-2B-Instruct-AWQ`)
-The default model is **[Qwen/Qwen2-VL-2B-Instruct-AWQ](https://huggingface.co/Qwen/Qwen2-VL-2B-Instruct-AWQ)** from Hugging Face — vision-capable, so the Chat page's image attachment works out of the box:
+### 5. Download Demonstration Model (`Qwen/Qwen3-4B-AWQ`)
+The default model is **[Qwen/Qwen3-4B-AWQ](https://huggingface.co/Qwen/Qwen3-4B-AWQ)** from Hugging Face — this is also the benchmarked baseline (see [BENCHMARK_RESULTS.md](docs/test/BENCHMARK_RESULTS.md)). It's text-only; the Chat page's image attachment needs a vision-capable model (e.g. a Qwen-VL variant) to actually work:
 
 ```bash
 # Install Git LFS
@@ -312,7 +312,7 @@ git lfs install
 # Download the model to a local directory
 mkdir -p /home/user/models
 cd /home/user/models
-git clone https://huggingface.co/Qwen/Qwen2-VL-2B-Instruct-AWQ
+git clone https://huggingface.co/Qwen/Qwen3-4B-AWQ
 ```
 
 ---
@@ -327,11 +327,11 @@ Copy the environment template file:
 cp .env.example .env
 ```
 
-Configure `.env` to point `ABS_MODEL_PATH` to your local `Qwen2-VL-2B-Instruct-AWQ` model path:
+Configure `.env` to point `ABS_MODEL_PATH` to your local `Qwen3-4B-AWQ` model path:
 
 ```env
 # Absolute path to local HuggingFace / AWQ model weights
-ABS_MODEL_PATH=/home/user/models/Qwen2-VL-2B-Instruct-AWQ
+ABS_MODEL_PATH=/home/user/models/Qwen3-4B-AWQ
 IFACE=eth0
 CLIENT_WEB_PORT=50007
 ```
@@ -387,13 +387,13 @@ curl http://localhost:50006/v1/models
 
 ### 5. Execute Chat Completion
 
-Send an OpenAI-compatible request using `Qwen/Qwen2-VL-2B-Instruct-AWQ`:
+Send an OpenAI-compatible request using `Qwen/Qwen3-4B-AWQ`:
 
 ```bash
 curl http://localhost:50006/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "Qwen/Qwen2-VL-2B-Instruct-AWQ",
+    "model": "Qwen/Qwen3-4B-AWQ",
     "messages": [{"role": "user", "content": "Hello! Explain quantum computing in 2 sentences."}],
     "temperature": 0.7
   }'
@@ -451,9 +451,9 @@ Default settings in `config.json`:
   "proxy_port": 50006,
   "vllm": {
     "port": 8100,
-    "model_name": "Qwen/Qwen2-VL-2B-Instruct-AWQ",
-    "gpu_memory_utilization": 0.75,
-    "max_model_len": 8192,
+    "model_name": "Qwen/Qwen3-4B-AWQ",
+    "gpu_memory_utilization": 0.95,
+    "max_model_len": 16384,
     "kv_role": "kv_both",
     "mooncake_bootstrap_port": 8998
   },

@@ -454,16 +454,16 @@ func (r *Runner) startVLLMWindows(ctx context.Context) {
 		// weights *and* the default model_name would log a substitution warning that
 		// never happened and advertise an alias for a model it is not serving.
 		modelName = localModelPath
-	case modelName == "" || modelName == "Qwen3-4B-AWQ" || modelName == "Qwen/Qwen2-VL-2B-Instruct-AWQ" || modelName == "yuanyi-default":
+	case modelName == "" || modelName == "Qwen3-4B-AWQ" || modelName == "Qwen/Qwen3-4B-AWQ" || modelName == "yuanyi-default":
 		// These are the Linux/Docker-mode defaults and there are no local weights to fall
 		// back on, so download straight from Hugging Face rather than failing to start.
 		// Recording it lets --served-model-name below reflect what is actually loaded
 		// instead of silently claiming to serve the originally configured model. This is
-		// currently the SAME model as the project-wide default (cyankiwi/Qwen3-VL-4B-
-		// Instruct-AWQ-4bit), unlike the old Qwen2.5-3B text-only fallback it replaced --
-		// vision support on Windows depends entirely on whether SystemPanic/vllm-windows'
-		// community wheel handles the VL architecture; unverified as of this change.
-		modelName = "Qwen/Qwen2-VL-2B-Instruct-AWQ"
+		// currently the SAME model as the project-wide default (Qwen/Qwen3-4B-AWQ) --
+		// Windows-native compatibility for it is unverified as of this change (unlike the
+		// Qwen2.5-3B-Instruct-AWQ fallback this replaced, which was specifically chosen
+		// because it was Windows-verified).
+		modelName = "Qwen/Qwen3-4B-AWQ"
 		substitutedTo = modelName
 		r.app.TUI.AddVLLMLog(fmt.Sprintf("[Warning] 設定檔指定的模型 \"%s\" 在 Windows 原生模式下不可用，已改用 %s 代替", cfg.VLLM.ModelName, modelName))
 	}

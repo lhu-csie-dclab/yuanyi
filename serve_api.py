@@ -61,10 +61,10 @@ if __name__ == "__main__":
     from vllm.entrypoints.openai.api_server import run_server, cli_env_setup
 
     default_args = [
-        "--model", "Qwen/Qwen2-VL-2B-Instruct-AWQ",
+        "--model", "Qwen/Qwen3-4B-AWQ",
         "--quantization", "awq",
-        "--gpu-memory-utilization", "0.65",
-        "--max-model-len", "2048",
+        "--gpu-memory-utilization", "0.95",
+        "--max-model-len", "16384",
         "--trust-remote-code",
         "--enforce-eager",
         "--disable-frontend-multiprocessing",

@@ -15,7 +15,7 @@ set -euo pipefail
 REPO_URL="https://github.com/lhu-csie-dclab/yuanyi.git"
 
 # Defaults. Every one of these can be overridden interactively during install.
-DEFAULT_MODEL="Qwen/Qwen2-VL-2B-Instruct-AWQ"
+DEFAULT_MODEL="Qwen/Qwen3-4B-AWQ"
 DEFAULT_BOOTSTRAP="/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh"
 DEFAULT_WEB_PORT=50007
 DEFAULT_PROXY_PORT=50006
@@ -555,7 +555,7 @@ write_config() {
   },
   "vllm": {
     "model_name": "$MODEL_NAME",
-    "max_model_len": 8192,
+    "max_model_len": 16384,
     "gpu_memory_utilization": $GPU_UTIL,
     "port": $VLLM_PORT,
     "tensor_parallel_size": 1,
@@ -694,7 +694,7 @@ do_install() {
   MODEL_DIR="${MODEL_DIR:-$DEFAULT_MODEL_DIR}"
   MODEL_NAME="$DEFAULT_MODEL"
   MODEL_PATH="$MODEL_DIR/$(model_dirname "$DEFAULT_MODEL")"
-  GPU_UTIL="0.75"
+  GPU_UTIL="0.95"
 
   if [ "$RELAY_ONLY" = "true" ]; then
     mkdir -p "$MODEL_PATH"   # keeps the compose bind mount valid without weights
@@ -709,7 +709,7 @@ do_install() {
     repo="$(ask "Hugging Face model to use" "$DEFAULT_MODEL")"
     MODEL_NAME="$(model_dirname "$repo")"
     MODEL_PATH="$MODEL_DIR/$MODEL_NAME"
-    GPU_UTIL="$(ask "GPU memory utilization (fraction of TOTAL VRAM)" "0.75")"
+    GPU_UTIL="$(ask "GPU memory utilization (fraction of TOTAL VRAM)" "0.95")"
 
     if [ -d "$MODEL_PATH" ] && [ -n "$(ls -A "$MODEL_PATH" 2>/dev/null)" ]; then
       ok "Model already present: $MODEL_PATH"

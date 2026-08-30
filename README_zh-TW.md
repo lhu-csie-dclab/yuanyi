@@ -202,7 +202,7 @@ bash install.sh
 | 安裝目錄 | root 身分為 `/opt/yuanyi-client`，否則 `~/yuanyi-client` |
 | 節點角色 | 推論節點，或**純中繼站**（不需要顯卡） |
 | `swarm.key` | 貼上既有金鑰以加入現有 Swarm，或**留空自動產生新的** |
-| 模型 | 任何 Hugging Face repo id，例如 `Qwen/Qwen2-VL-2B-Instruct-AWQ` |
+| 模型 | 任何 Hugging Face repo id，例如 `Qwen/Qwen3-4B-AWQ` |
 | 連接埠 | `50007` 網頁、`50006` 閘道、`8100` vLLM —— 也可自訂 |
 
 模型管理隨時都能從同一支腳本進入：
@@ -293,8 +293,8 @@ docker --version
 | **CUDA Toolkit 版本** | `13.2` |
 | **GPU 計算能力 (Compute Capability)** | **`7.5`** (Turing 繪圖架構) |
 
-### 5. 下載演示模型 (`Qwen/Qwen2-VL-2B-Instruct-AWQ`)
-目前預設模型為 **[Qwen/Qwen2-VL-2B-Instruct-AWQ](https://huggingface.co/Qwen/Qwen2-VL-2B-Instruct-AWQ)**——支援圖像辨識，Chat 頁面的圖片附加功能開箱即用：
+### 5. 下載演示模型 (`Qwen/Qwen3-4B-AWQ`)
+目前預設模型為 **[Qwen/Qwen3-4B-AWQ](https://huggingface.co/Qwen/Qwen3-4B-AWQ)**——同時也是 benchmark 實測用的模型(見 [BENCHMARK_RESULTS.md](docs/test/BENCHMARK_RESULTS.md))。這是純文字模型,Chat 頁面的圖片附加功能需要換成支援視覺辨識的模型(例如 Qwen-VL 系列)才能實際使用：
 
 ```bash
 # 安裝 Git LFS
@@ -303,7 +303,7 @@ git lfs install
 # 下載模型至本機資料夾
 mkdir -p /home/user/models
 cd /home/user/models
-git clone https://huggingface.co/Qwen/Qwen2-VL-2B-Instruct-AWQ
+git clone https://huggingface.co/Qwen/Qwen3-4B-AWQ
 ```
 
 ---
@@ -322,7 +322,7 @@ cp .env.example .env
 
 ```env
 # 本機 HuggingFace / AWQ 模型權重絕對路徑
-ABS_MODEL_PATH=/home/user/models/Qwen2-VL-2B-Instruct-AWQ
+ABS_MODEL_PATH=/home/user/models/Qwen3-4B-AWQ
 IFACE=eth0
 CLIENT_WEB_PORT=50007
 ```
@@ -383,7 +383,7 @@ curl http://localhost:50006/v1/models
 curl http://localhost:50006/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "Qwen/Qwen2-VL-2B-Instruct-AWQ",
+    "model": "Qwen/Qwen3-4B-AWQ",
     "messages": [{"role": "user", "content": "你好！請用兩句話解釋量子電腦。"}],
     "temperature": 0.7
   }'
@@ -441,9 +441,9 @@ uv pip install "transformers>=4.51.0,<5.0.0"
   "proxy_port": 50006,
   "vllm": {
     "port": 8100,
-    "model_name": "Qwen/Qwen2-VL-2B-Instruct-AWQ",
-    "gpu_memory_utilization": 0.75,
-    "max_model_len": 8192,
+    "model_name": "Qwen/Qwen3-4B-AWQ",
+    "gpu_memory_utilization": 0.95,
+    "max_model_len": 16384,
     "kv_role": "kv_both",
     "mooncake_bootstrap_port": 8998
   },

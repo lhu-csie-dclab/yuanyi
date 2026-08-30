@@ -161,14 +161,15 @@ If that prints your GPU table, the hard part is done.
 ```bash
 git lfs install
 mkdir -p ~/models && cd ~/models
-git clone https://huggingface.co/Qwen/Qwen2-VL-2B-Instruct-AWQ
+git clone https://huggingface.co/Qwen/Qwen3-4B-AWQ
 cd -
 ```
 
-`Qwen/Qwen2-VL-2B-Instruct-AWQ` is this project's current default (a vision-capable model, so the
-Chat page's image attachment works out of the box). Note its **absolute** path — you need it
-next. The `Qwen3-4B-AWQ` benchmark figures in [BENCHMARK_RESULTS.md](../../test/BENCHMARK_RESULTS.md)
-were measured against the older text-only default and have not been re-run against this model.
+`Qwen/Qwen3-4B-AWQ` is this project's current default and the benchmarked baseline (see
+[BENCHMARK_RESULTS.md](../../test/BENCHMARK_RESULTS.md)). Note its **absolute** path — you need
+it next. It's text-only -- the Chat page's image attachment (see [README.md](../../../README.md))
+needs a vision-capable model (e.g. a Qwen-VL variant) to actually work; requests with an image
+attached against this model will fail with a "not a multimodal model" error from vLLM.
 
 ---
 
@@ -210,7 +211,7 @@ cp .env.example .env
 Set the absolute model path and your network interface:
 
 ```env
-ABS_MODEL_PATH=/home/youruser/models/Qwen2-VL-2B-Instruct-AWQ
+ABS_MODEL_PATH=/home/youruser/models/Qwen3-4B-AWQ
 SERVER_ADDRESS=/dns4/your-bootstrap-host/tcp/50004/p2p/12D3KooW...
 IFACE=eth0
 CLIENT_WEB_PORT=50007
@@ -271,7 +272,7 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8100/health
 # OpenAI-compatible gateway
 curl -s http://127.0.0.1:50006/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"model":"Qwen/Qwen2-VL-2B-Instruct-AWQ","messages":[{"role":"user","content":"Hello"}],"max_tokens":50}'
+  -d '{"model":"Qwen/Qwen3-4B-AWQ","messages":[{"role":"user","content":"Hello"}],"max_tokens":50}'
 
 # Peers discovered on the mesh
 curl -s http://127.0.0.1:50007/api/peers
