@@ -291,6 +291,17 @@ func (rm *RankManager) CalculateScore(gpuInfoStr string) float64 {
 		return fallback
 	}
 
+	// A relay-only node, or one that explicitly reported no GPU, has a known answer --
+	// zero hardware -- not missing data. The generic "can't resolve capacity" fallback
+	// above/below exists for payloads that genuinely couldn't be parsed; crediting a
+	// GPU-less relay with a phantom defaultVRAMGB score (the same weight as a real card)
+	// defeats the point of a hardware-tier ranking, letting pure traffic-relay nodes
+	// outrank actual GPU contributors purely because their summary failed to parse into
+	// any GPU entries.
+	if info.Role == RoleRelay || info.Summary == "No GPU Detected" {
+		return 0
+	}
+
 	gpus := info.GPUs
 	if len(gpus) == 0 && info.Summary != "" {
 		gpus = parseSummaryGPUs(info.Summary)

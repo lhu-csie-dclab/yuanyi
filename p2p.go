@@ -835,6 +835,21 @@ func (n *NetworkNode) gossipPublisher(ctx context.Context, topic *pubsub.Topic) 
 				DriverVersion: tele.DriverVersion,
 			}
 
+			// gossipSubscriber deliberately skips messages ReceivedFrom == our own ID (self-
+			// echo suppression is correct at the network layer -- there's no reason to
+			// receive our own packet back), but that had the side effect of this node never
+			// appearing in its own /api/peers, /hub/api/peers, /hub/api/leaderboard, etc. --
+			// every list only ever showed OTHER peers, never "me". We already built the exact
+			// same GPUInfo the subscriber would process had this arrived from the network, so
+			// just feed it through the same two paths directly instead of round-tripping
+			// through gossip to see ourselves.
+			if n.app != nil && n.app.TUI != nil {
+				n.app.TUI.RecordPeerInfo(info)
+			}
+			if n.app.Config.ServerMode.Enabled && n.app.DB != nil {
+				serverProcessGossipMessage(info, n.app)
+			}
+
 			data, err := json.Marshal(info)
 			if err != nil {
 				continue

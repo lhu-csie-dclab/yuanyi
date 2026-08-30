@@ -109,13 +109,12 @@ usePolling(refresh, 2000)
         <span class="text-xs font-bold uppercase tracking-widest text-brand-light">{{ t('section_local') }}</span>
         <span class="pill pill-blue">{{ t('status_online') }} {{ fmtUptime(local.uptime_seconds) }}</span>
       </div>
-      <div class="grid grid-cols-4 gap-4 sm:grid-cols-8 divide-x divide-white/10">
+      <div class="grid grid-cols-4 gap-4 sm:grid-cols-7 divide-x divide-white/10">
         <StatCard bare :label="t('stat_total_tokens')" :value="fmtNum(local.total_tokens)"    accent />
         <StatCard bare :label="t('stat_input')"        :value="fmtNum(local.in_tokens)"       class="pl-4" />
         <StatCard bare :label="t('stat_output')"       :value="fmtNum(local.out_tokens)"      class="pl-4" />
         <StatCard bare :label="t('stat_requests')"     :value="fmtNum(local.total_requests)"  class="pl-4" />
         <StatCard bare label="OK"                      :value="fmtNum(local.success_count)"   class="pl-4" />
-        <StatCard bare :label="t('stat_uptime')"       :value="fmtUptime(local.uptime_seconds)" class="pl-4" />
         <StatCard bare :label="t('stat_cpu')"          :value="`${(local.cpu_percent || 0).toFixed(1)}%`" class="pl-4" />
         <StatCard bare :label="t('stat_memory')"       :value="fmtMB(local.mem_rss_mb)"       class="pl-4" />
       </div>

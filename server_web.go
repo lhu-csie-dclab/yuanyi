@@ -12,6 +12,13 @@ import (
 	"time"
 )
 
+// leaderboardEntry is /hub/api/leaderboard's response shape: a PeerData row plus its
+// hardware-tier score, computed on the fly (see the handler below) rather than stored.
+type leaderboardEntry struct {
+	PeerData
+	GpuScore float64 `json:"gpu_score"`
+}
+
 // RegisterHubRoutes mounts the hub's JSON API (leaderboard, peer list, audit events, cluster
 // topology) under /hub/api/*. The hub dashboard UI itself has no static assets of its own to
 // serve any more -- it is the same Vue SPA bundle web.go already embeds at "/", with the
@@ -52,12 +59,28 @@ func RegisterHubRoutes(mux *http.ServeMux, app *App) {
 	})
 
 	mux.HandleFunc("/hub/api/leaderboard", func(w http.ResponseWriter, r *http.Request) {
-		board := app.PeerCache.Snapshot()
-		sort.SliceStable(board, func(i, j int) bool {
-			if board[i].ContributionScore == board[j].ContributionScore {
-				return board[i].TotalRequests > board[j].TotalRequests
+		peers := app.PeerCache.Snapshot()
+		// Ranked by hardware tier (VRAM_GB * 300 * count, see RankManager.CalculateScore),
+		// not contribution_score (requests*10 + tokens/10): a relay node with no GPU that
+		// happens to have forwarded the most traffic is not "the best node" by the metric
+		// this leaderboard is supposed to answer, and neither is whichever node's gen_speed
+		// happened to be nonzero at the last poll -- both are usage/liveness signals, not a
+		// hardware ranking. gpu_score is intentionally a response-only field, not persisted
+		// on PeerData, since it's cheap to recompute and every other consumer of PeerData
+		// has no use for it.
+		board := make([]leaderboardEntry, len(peers))
+		for i, p := range peers {
+			score := 0.0
+			if app.Rank != nil {
+				score = app.Rank.CalculateScore(p.GPUInfo)
 			}
-			return board[i].ContributionScore > board[j].ContributionScore
+			board[i] = leaderboardEntry{PeerData: p, GpuScore: score}
+		}
+		sort.SliceStable(board, func(i, j int) bool {
+			if board[i].GpuScore == board[j].GpuScore {
+				return board[i].PeerID < board[j].PeerID
+			}
+			return board[i].GpuScore > board[j].GpuScore
 		})
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(board)

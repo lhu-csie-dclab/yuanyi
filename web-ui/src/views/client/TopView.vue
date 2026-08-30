@@ -28,14 +28,18 @@ function setViewMode(mode) {
 const PAGE_SIZE = 25
 const currentPage = ref(1)
 
-// All peers sorted by throughput (gen_speed) descending
+// All peers sorted by hardware tier (total VRAM across this node's GPU(s), already summed by
+// sys.go's GetGPUTelemetry -- see vram_total). Previously sorted by gen_speed, a live/momentary
+// value that's 0 whenever a node isn't mid-generation, so idle top-tier cards fell to the
+// bottom and the ranking visibly reshuffled every poll as work moved between nodes. VRAM is a
+// fixed hardware property, not affected by traffic or uptime, matching this page's intent.
 const sortedPeers = computed(() => {
   return [...peers.value]
     .map(p => ({ ...p, _gpu: parseGpuInfo(p) }))
     .sort((a, b) => {
-      const speedA = a._gpu?.gen_speed || 0
-      const speedB = b._gpu?.gen_speed || 0
-      return speedB - speedA
+      const vramA = a._gpu?.vram_total || 0
+      const vramB = b._gpu?.vram_total || 0
+      return vramB - vramA
     })
 })
 

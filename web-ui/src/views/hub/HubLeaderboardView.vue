@@ -82,7 +82,7 @@ usePolling(refresh, 3000)
             <span class="pill pill-blue">{{ t('col_in_tokens') }} {{ fmtNum(p.in_tokens) }}</span>
             <span class="pill pill-blue">{{ t('col_out_tokens') }} {{ fmtNum(p.out_tokens) }}</span>
             <span class="pill pill-cyan">{{ t('col_total_tokens') }} {{ fmtNum(p.total_tokens) }}</span>
-            <span class="pill pill-green">{{ t('col_score') }} {{ (p.contribution_score || 0).toFixed(1) }}</span>
+            <span class="pill pill-green" :title="t('col_score_hint')">{{ t('col_score') }} {{ (p.gpu_score || 0).toFixed(0) }}</span>
           </div>
         </div>
       </div>

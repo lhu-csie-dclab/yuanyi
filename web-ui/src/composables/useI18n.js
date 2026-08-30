@@ -49,7 +49,7 @@ const messages = {
     section_peers:    'P2P Peers',
     peer_count:       (n) => `${n} Nodes`,
     top_nodes:        'Top Nodes',
-    by_throughput:    'by throughput',
+    by_throughput:    'by GPU tier (VRAM)',
     col_rank:         '#',
     col_node_id:      'Node ID',
     col_ip:           'IP',
@@ -92,6 +92,7 @@ const messages = {
     col_out_tokens:    'Output',
     col_total_tokens:  'Total Tokens',
     col_score:         'Score',
+    col_score_hint:    'Hardware tier only (VRAM x 300 x GPU count) -- not affected by traffic or uptime',
     no_records:        'No records',
 
     // ── History ──────────────────────────────────────────────────────
@@ -181,7 +182,7 @@ const messages = {
     section_peers:    'P2P 節點',
     peer_count:       (n) => `${n} 個節點`,
     top_nodes:        '前幾名節點 (TOP 排名)',
-    by_throughput:    '依吞吐量排序',
+    by_throughput:    '依顯卡等級(VRAM)排序',
     col_rank:         '#',
     col_node_id:      '節點 ID',
     col_ip:           'IP',
@@ -224,6 +225,7 @@ const messages = {
     col_out_tokens:    '輸出',
     col_total_tokens:  '總 Tokens',
     col_score:         '得分',
+    col_score_hint:    '純顯卡等級(VRAM × 300 × 顯卡數量)，不受流量或上線時間影響',
     no_records:        '尚無資料',
 
     // ── History ──────────────────────────────────────────────────────
