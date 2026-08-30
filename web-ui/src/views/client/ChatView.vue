@@ -18,12 +18,49 @@ const {
   newSession, deleteSession, selectSession, renameSession, send: sendMessage, clearSession,
 } = useChatState()
 
-const input       = ref('')
-const showConfig  = ref(false)
-const messagesEl  = ref(null)
+const input        = ref('')
+const showConfig   = ref(false)
+const messagesEl   = ref(null)
+const fileInputEl  = ref(null)
+const pendingImages = ref([]) // [{ name, dataUrl }] -- attached, not yet sent
 
 // ── Computed ─────────────────────────────────────────────────────────────────
 const messages = computed(() => activeSession.value?.messages || [])
+
+// ── Message content helpers ─────────────────────────────────────────────────
+// msg.content is a plain string for text-only messages (every message ever stored before
+// this feature, and any without an attachment), or an OpenAI vision content array
+// ([{type:'text',...}, {type:'image_url',...}]) once an image is attached -- see
+// useChatState.js's send(). Both shapes need to render correctly.
+function msgText(content) {
+  if (typeof content === 'string') return content
+  if (Array.isArray(content)) return content.find((c) => c.type === 'text')?.text || ''
+  return ''
+}
+function msgImages(content) {
+  if (!Array.isArray(content)) return []
+  return content.filter((c) => c.type === 'image_url').map((c) => c.image_url.url)
+}
+
+// ── Image attach ─────────────────────────────────────────────────────────────
+function pickImages() {
+  fileInputEl.value?.click()
+}
+function onFilesSelected(e) {
+  const files = Array.from(e.target.files || [])
+  e.target.value = '' // allow re-selecting the same file later
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) continue
+    const reader = new FileReader()
+    reader.onload = () => {
+      pendingImages.value.push({ name: file.name, dataUrl: reader.result })
+    }
+    reader.readAsDataURL(file)
+  }
+}
+function removePendingImage(i) {
+  pendingImages.value.splice(i, 1)
+}
 
 // ── Auto-scroll ───────────────────────────────────────────────────────────────
 async function scrollBottom() {
@@ -58,8 +95,10 @@ function renderMd(text) {
 // received reply).
 function send() {
   const text = input.value
+  const images = pendingImages.value
   input.value = ''
-  sendMessage(text)
+  pendingImages.value = []
+  sendMessage(text, images)
 }
 
 function handleKey(e) {
@@ -251,7 +290,17 @@ onMounted(scrollBottom)
               ? 'bg-brand text-white rounded-br-sm'
               : 'bg-surface-card border border-border text-ink rounded-bl-sm shadow-xs'"
           >
-            <div v-if="msg.role === 'user'" class="whitespace-pre-wrap">{{ msg.content }}</div>
+            <div v-if="msg.role === 'user'">
+              <div v-if="msgImages(msg.content).length" class="flex flex-wrap gap-1.5 mb-1.5">
+                <img
+                  v-for="(src, i) in msgImages(msg.content)"
+                  :key="i"
+                  :src="src"
+                  class="h-24 w-24 rounded-lg object-cover border border-white/20"
+                />
+              </div>
+              <div v-if="msgText(msg.content)" class="whitespace-pre-wrap">{{ msgText(msg.content) }}</div>
+            </div>
             <div
               v-else-if="msg.loading"
               class="flex items-center gap-1.5 text-ink-faint"
@@ -277,7 +326,32 @@ onMounted(scrollBottom)
 
       <!-- Input area -->
       <div class="shrink-0 border-t border-border bg-surface-card px-4 py-3.5">
+        <!-- Pending image previews -->
+        <div v-if="pendingImages.length" class="flex flex-wrap gap-2 max-w-3xl mx-auto mb-2">
+          <div v-for="(img, i) in pendingImages" :key="i" class="relative">
+            <img :src="img.dataUrl" class="h-16 w-16 rounded-lg object-cover border border-border" />
+            <button
+              class="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-white text-[0.65rem] font-bold shadow-sm hover:bg-rose-600"
+              :title="t('chat_remove_image')"
+              @click="removePendingImage(i)"
+            >✕</button>
+          </div>
+        </div>
+        <input
+          ref="fileInputEl"
+          type="file"
+          accept="image/*"
+          multiple
+          class="hidden"
+          @change="onFilesSelected"
+        />
         <div class="flex items-end gap-3 max-w-3xl mx-auto">
+          <button
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border text-ink-faint transition-colors hover:bg-white/5 hover:text-ink disabled:opacity-40 disabled:cursor-not-allowed"
+            :disabled="streaming"
+            :title="t('chat_attach_image')"
+            @click="pickImages"
+          >📎</button>
           <textarea
             v-model="input"
             class="chat-input flex-1 resize-none max-h-36 min-h-[2.5rem]"
@@ -289,7 +363,7 @@ onMounted(scrollBottom)
           />
           <button
             class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand text-white shadow-sm transition-all hover:bg-brand-light hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
-            :disabled="!input.trim() || streaming"
+            :disabled="(!input.trim() && !pendingImages.length) || streaming"
             @click="send"
           >
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">

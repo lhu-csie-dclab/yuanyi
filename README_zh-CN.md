@@ -202,7 +202,7 @@ bash install.sh
 | 安装目录 | root 身份为 `/opt/yuanyi-client`，否则 `~/yuanyi-client` |
 | 节点角色 | 推理节点，或**纯中继站**（不需要显卡） |
 | `swarm.key` | 粘贴既有密钥以加入现有 Swarm，或**留空自动生成新的** |
-| 模型 | 任何 Hugging Face repo id，例如 `Qwen/Qwen3-4B-AWQ` |
+| 模型 | 任何 Hugging Face repo id，例如 `cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit` |
 | 端口 | `50007` 网页、`50006` 网关、`8100` vLLM —— 也可自定义 |
 
 模型管理随时都能从同一个脚本进入：
@@ -293,17 +293,17 @@ docker --version
 | **CUDA Toolkit 版本** | `13.2` |
 | **GPU 计算能力 (Compute Capability)** | **`7.5`** (Turing 显卡架构) |
 
-### 5. 下载演示模型 (`Qwen3-4B-AWQ`)
-推荐的测试展示模型为 **[Qwen/Qwen3-4B-AWQ](https://huggingface.co/Qwen/Qwen3-4B-AWQ)**：
+### 5. 下载演示模型 (`cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit`)
+目前默认模型为 **[cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit](https://huggingface.co/cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit)**——支持图像识别，Chat 页面的图片附加功能开箱即用：
 
 ```bash
 # 安装 Git LFS
 git lfs install
 
-# 下载 Qwen3-4B-AWQ 模型至本地文件夹
+# 下载模型至本地文件夹
 mkdir -p /home/user/models
 cd /home/user/models
-git clone https://huggingface.co/Qwen/Qwen3-4B-AWQ
+git clone https://huggingface.co/cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit
 ```
 
 ---
@@ -322,7 +322,7 @@ cp .env.example .env
 
 ```env
 # 本地 HuggingFace / AWQ 模型权重绝对路径
-ABS_MODEL_PATH=/home/user/models/Qwen3-4B-AWQ
+ABS_MODEL_PATH=/home/user/models/Qwen3-VL-4B-Instruct-AWQ-4bit
 IFACE=eth0
 CLIENT_WEB_PORT=50007
 ```
@@ -383,7 +383,7 @@ curl http://localhost:50006/v1/models
 curl http://localhost:50006/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "Qwen3-4B-AWQ",
+    "model": "cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit",
     "messages": [{"role": "user", "content": "你好！请用两句话解释量子计算机。"}],
     "temperature": 0.7
   }'
@@ -441,7 +441,7 @@ uv pip install "transformers>=4.51.0,<5.0.0"
   "proxy_port": 50006,
   "vllm": {
     "port": 8100,
-    "model_name": "Qwen3-4B-AWQ",
+    "model_name": "cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit",
     "gpu_memory_utilization": 0.75,
     "max_model_len": 8192,
     "kv_role": "kv_both",

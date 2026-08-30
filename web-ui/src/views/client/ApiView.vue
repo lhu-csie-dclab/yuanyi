@@ -20,7 +20,7 @@ import PageHeader from '../../components/PageHeader.vue'
         <div class="text-ink-muted">Example:</div>
         <pre class="whitespace-pre-wrap break-all font-mono">curl http://localhost:50006/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"model":"Qwen3-4B-AWQ","messages":[{"role":"user","content":"Hello!"}]}'</pre>
+  -d '{"model":"cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit","messages":[{"role":"user","content":"Hello!"}]}'</pre>
       </div>
     </div>
   </div>

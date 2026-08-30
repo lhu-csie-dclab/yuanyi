@@ -24,7 +24,7 @@ $VerifiedVllmWheel = "vllm-0.9.2+cu124-cp312-cp312-win_amd64.whl"
 $VerifiedTorch     = @("torch==2.6.0+cu124", "torchvision==0.21.0+cu124", "torchaudio==2.6.0+cu124")
 $VerifiedTorchIdx  = "https://download.pytorch.org/whl/cu124"
 
-$DefaultModel        = "Qwen/Qwen3-4B-AWQ"
+$DefaultModel        = "cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit"
 $DefaultBootstrap    = "/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh"
 $DefaultInstallDir   = Join-Path $HOME "yuanyi-client"
 $DefaultModelDir     = Join-Path $HOME "yuanyi-models"
@@ -61,7 +61,11 @@ function Ask {
 }
 
 function Confirm-Action {
-    param($Prompt)
+    param($Prompt, [switch]$DefaultYes)
+    if ($DefaultYes) {
+        $r = Read-Host "$Prompt [Y/n]"
+        return ($r -eq '' -or $r -match '^[Yy]$')
+    }
     $r = Read-Host "$Prompt [y/N]"
     return ($r -match '^[Yy]$')
 }
@@ -595,7 +599,11 @@ function Do-Install {
     if ((Test-Path $installDir) -and (Get-ChildItem $installDir -ErrorAction SilentlyContinue)) {
         if (Test-Path (Join-Path $installDir "go.mod")) {
             Write-Warn "An installation already exists at $installDir"
-            if (-not (Confirm-Action "Update it in place (config and swarm.key are preserved)?")) { return }
+            # swarm.key is genuinely preserved (Setup-SwarmKey checks for an existing valid
+            # key below and leaves it alone) -- config.json is NOT: Write-NodeConfig at the
+            # end of this function always rewrites it. Whether to keep the old wording or
+            # actually overwrite is asked explicitly, later, right before that write happens.
+            if (-not (Confirm-Action "Update it in place (swarm.key is preserved; you'll be asked separately about config.json)?")) { return }
             Push-Location $installDir
             try { & git pull --ff-only } catch { Write-Warn "git pull failed; continuing with the existing checkout." }
             Pop-Location
@@ -669,13 +677,26 @@ function Do-Install {
         $modelName = Split-Path -Leaf $modelPath
     }
 
-    Write-NodeConfig $installDir ([pscustomobject]@{
-        ModelPath = $modelPath; Bootstrap = $bootstrap; Iface = $iface
-        WebPort = $ports.WebPort; ProxyPort = $ports.ProxyPort; VllmPort = $ports.VllmPort
-        MooncakePort = $ports.MooncakePort; HubP2PPort = $ports.HubP2PPort; HubProxyPort = $ports.HubProxyPort
-        ModelName = $modelName; GpuUtil = $gpuUtil
-        HubEnabled = $hubEnabled.ToString().ToLower(); RelayOnly = $relayOnly.ToString().ToLower()
-    })
+    # A fresh install has nothing to overwrite, so just write. An existing config.json/.env
+    # pair only gets replaced if explicitly confirmed -- defaults to yes (matches this
+    # script's previous behavior of always rewriting), but now it's an informed choice
+    # instead of a silent side effect of "update in place" above.
+    $existingConfig = Join-Path $installDir "config.json"
+    $writeConfig = $true
+    if (Test-Path $existingConfig) {
+        $writeConfig = Confirm-Action "Overwrite existing config.json and .env with the values just entered?" -DefaultYes
+    }
+    if ($writeConfig) {
+        Write-NodeConfig $installDir ([pscustomobject]@{
+            ModelPath = $modelPath; Bootstrap = $bootstrap; Iface = $iface
+            WebPort = $ports.WebPort; ProxyPort = $ports.ProxyPort; VllmPort = $ports.VllmPort
+            MooncakePort = $ports.MooncakePort; HubP2PPort = $ports.HubP2PPort; HubProxyPort = $ports.HubProxyPort
+            ModelName = $modelName; GpuUtil = $gpuUtil
+            HubEnabled = $hubEnabled.ToString().ToLower(); RelayOnly = $relayOnly.ToString().ToLower()
+        })
+    } else {
+        Write-Ok "Kept existing config.json and .env."
+    }
     Save-State $installDir $modelDir
 
     Write-Heading "Installed"

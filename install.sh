@@ -15,7 +15,7 @@ set -euo pipefail
 REPO_URL="https://github.com/lhu-csie-dclab/yuanyi.git"
 
 # Defaults. Every one of these can be overridden interactively during install.
-DEFAULT_MODEL="Qwen/Qwen3-4B-AWQ"
+DEFAULT_MODEL="cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit"
 DEFAULT_BOOTSTRAP="/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh"
 DEFAULT_WEB_PORT=50007
 DEFAULT_PROXY_PORT=50006
@@ -72,6 +72,12 @@ confirm() {
   local prompt="$1" reply
   read -r -p "$prompt [y/N]: " reply </dev/tty || reply=""
   [[ "$reply" =~ ^[Yy]$ ]]
+}
+
+confirm_default_yes() {
+  local prompt="$1" reply
+  read -r -p "$prompt [Y/n]: " reply </dev/tty || reply=""
+  [[ -z "$reply" || "$reply" =~ ^[Yy]$ ]]
 }
 
 ask_port() {
@@ -626,7 +632,10 @@ do_install() {
   if [ -e "$INSTALL_DIR" ] && [ -n "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]; then
     if [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
       warn "An installation already exists at $INSTALL_DIR"
-      confirm "Update it in place (config and swarm.key are preserved)?" || return 0
+      # swarm.key is genuinely preserved (setup_swarm_key checks for an existing valid key
+      # and leaves it alone) -- config.json is NOT: write_config below always rewrites it.
+      # Whether to actually overwrite is asked explicitly, later, right before that happens.
+      confirm "Update it in place (swarm.key is preserved; you'll be asked separately about config.json)?" || return 0
       ( cd "$INSTALL_DIR" && git pull --ff-only ) || warn "git pull failed; continuing with the existing checkout."
     else
       die "$INSTALL_DIR exists and is not empty, and is not an installation. Choose another path."
@@ -711,8 +720,24 @@ do_install() {
     fi
   fi
 
-  write_env
-  write_config
+  # A fresh install has nothing to overwrite, so just write. An existing config.json/.env
+  # pair only gets replaced if explicitly confirmed -- defaults to yes (matches this
+  # script's previous behavior of always rewriting), but now it's an informed choice
+  # instead of a silent side effect of "update in place" above.
+  local write_cfg=1
+  if [ -f "$INSTALL_DIR/config.json" ]; then
+    if confirm_default_yes "Overwrite existing config.json and .env with the values just entered?"; then
+      write_cfg=1
+    else
+      write_cfg=0
+    fi
+  fi
+  if [ "$write_cfg" = "1" ]; then
+    write_env
+    write_config
+  else
+    ok "Kept existing config.json and .env."
+  fi
   save_state
 
   # docker-compose bind-mounts identity.key/stats.json/peers.db as files that the app

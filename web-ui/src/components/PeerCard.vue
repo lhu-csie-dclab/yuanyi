@@ -28,9 +28,6 @@ function copyId() {
       <div class="flex items-center gap-2 min-w-0">
         <span v-if="medal" class="text-lg shrink-0">{{ medal }}</span>
         <span v-else-if="rank" class="text-ink-faint text-xs font-semibold shrink-0">#{{ rank }}</span>
-        <div class="h-8 w-8 shrink-0 rounded-lg bg-brand flex items-center justify-center text-slate-950 text-xs font-bold">
-          {{ (peer.peer_id || peer.node_id || 'ND').substring(0, 2).toUpperCase() }}
-        </div>
         <div class="min-w-0">
           <!-- Single-line truncate, not line-clamp: this "title" is a fixed-format hash ID,
                not natural-language text, so wrapping it across lines would just fragment it

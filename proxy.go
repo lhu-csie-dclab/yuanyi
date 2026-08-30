@@ -841,7 +841,7 @@ func StartLocalDispatcher(app *App, h host.Host) {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"object": "list",
 			"data": []map[string]interface{}{
-				{"id": "Qwen3-4B-AWQ", "object": "model", "created": time.Now().Unix(), "owned_by": "yuanyi"},
+				{"id": "cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit", "object": "model", "created": time.Now().Unix(), "owned_by": "yuanyi"},
 				{"id": "yuanyi-default", "object": "model", "created": time.Now().Unix(), "owned_by": "yuanyi"},
 			},
 		})

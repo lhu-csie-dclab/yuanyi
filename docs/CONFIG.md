@@ -44,7 +44,7 @@ This document provides a detailed reference for configuration handling in the Yu
     "mooncake_path": "/data/mooncake.json"
   },
   "vllm": {
-    "model_name": "Qwen3-4B-AWQ",
+    "model_name": "cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit",
     "max_model_len": 8192,
     "gpu_memory_utilization": 0.75,
     "port": 8100,

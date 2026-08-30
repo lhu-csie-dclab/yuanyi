@@ -39,9 +39,6 @@ function copyId() {
         class="h-2 w-2 rounded-full shrink-0"
         :class="(parseGpuInfo(peer).status || 'idle') === 'idle' ? 'bg-emerald-400' : 'bg-amber-400'"
       />
-      <div class="h-7 w-7 shrink-0 rounded-lg bg-brand flex items-center justify-center text-slate-950 text-xs font-bold">
-        {{ (peer.peer_id || peer.node_id || 'ND').substring(0, 2).toUpperCase() }}
-      </div>
 
       <div class="min-w-0 flex-1 flex items-center gap-1.5">
         <span
@@ -52,11 +49,11 @@ function copyId() {
       </div>
 
       <div
-        class="min-w-0 flex-1 font-mono text-xs text-ink-faint truncate"
+        class="hidden sm:block min-w-0 flex-1 font-mono text-xs text-ink-faint truncate"
         :title="peer.ip_address || peer.addr || '-'"
       >{{ peer.ip_address || peer.addr || '-' }}</div>
 
-      <div class="min-w-0 shrink-0 max-w-[40%] text-xs font-semibold text-ink truncate" :title="parseGpuInfo(peer).summary || ''">
+      <div class="min-w-0 shrink-0 max-w-[45%] sm:max-w-[40%] text-xs font-semibold text-ink truncate" :title="parseGpuInfo(peer).summary || ''">
         <span v-if="!parseGpuInfo(peer).summary" class="pill pill-red text-[0.65rem]">{{ t('no_gpu') }}</span>
         <span v-else>{{ parseGpuInfo(peer).summary }}</span>
       </div>

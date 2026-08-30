@@ -20,7 +20,6 @@ import (
 	"sync"
 	"time"
 
-	badger "github.com/ipfs/go-ds-badger"
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -31,7 +30,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/pnet"
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
-	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoreds"
+	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	"github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 	"github.com/multiformats/go-multiaddr"
@@ -121,7 +120,6 @@ func (d *discoveryNotifee) HandlePeerFound(pi peer.AddrInfo) {
 type NetworkNode struct {
 	app           *App
 	host          host.Host
-	ds            *badger.Datastore
 	activeProxies sync.Map
 	cancel        context.CancelFunc
 	seedAddrs     []peer.AddrInfo // bootstrap/hub seeds; also usable as Circuit Relay hops
@@ -173,10 +171,6 @@ func (n *NetworkNode) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	n.cancel = cancel
 
-	if _, err := os.Stat("./my-peerstore/LOCK"); err == nil {
-		os.Remove("./my-peerstore/LOCK")
-	}
-
 	seedAddrs, err := n.resolveSeedAddrs()
 	if err != nil {
 		return err
@@ -198,33 +192,15 @@ func (n *NetworkNode) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to parse swarm.key: %v", err)
 	}
 
-	badgerOpts := badger.DefaultOptions
-	badgerOpts.Truncate = true
-	ds, err := badger.NewDatastore("./my-peerstore", &badgerOpts)
-	if err != nil {
-		// Only recreate the datastore for errors that Truncate:true couldn't already
-		// self-heal (that option handles ordinary value-log corruption on open). A
-		// held directory lock means another instance of this process is already
-		// running against the same peerstore -- deleting it would destroy that
-		// other process's data without fixing anything, so fail loudly instead of
-		// silently wiping state out from under it.
-		if strings.Contains(err.Error(), "Cannot acquire directory lock") {
-			return fmt.Errorf("peerstore is locked by another running instance: %v", err)
-		}
-		msg := fmt.Sprintf("Peerstore open failed (%v), recovering by recreating ./my-peerstore", err)
-		n.app.TUI.AddLog("[WARN]", msg)
-		logError("[peerstore] %s", msg)
-		if rmErr := os.RemoveAll("./my-peerstore"); rmErr != nil {
-			return fmt.Errorf("peerstore open failed (%v) and cleanup also failed: %v", err, rmErr)
-		}
-		ds, err = badger.NewDatastore("./my-peerstore", &badgerOpts)
-		if err != nil {
-			return err
-		}
-	}
-	n.ds = ds
-
-	pstore, err := pstoreds.NewPeerstore(ctx, ds, pstoreds.DefaultOpts())
+	// Peer addresses are ephemeral, rediscoverable information (via bootstrap seeds, the
+	// Kademlia DHT, and GossipSub, which every peer re-announces over every ~3s) -- there is
+	// no need to persist them across restarts, and doing so previously made this node's
+	// biggest source of continuous disk writes (every peer connect/gossip update touched
+	// Badger's on-disk value log). A restart now starts with an empty peerstore and
+	// reconverges within a few gossip cycles, the same way PeerCache's hub-side state does
+	// (see peer_cache.go). This also drops an entire class of Badger corruption-recovery
+	// code that only existed because the old backend could get its on-disk state wedged.
+	pstore, err := pstoremem.NewPeerstore()
 	if err != nil {
 		return err
 	}
@@ -944,8 +920,5 @@ func (n *NetworkNode) Stop() {
 	}
 	if n.host != nil {
 		n.host.Close()
-	}
-	if n.ds != nil {
-		n.ds.Close()
 	}
 }

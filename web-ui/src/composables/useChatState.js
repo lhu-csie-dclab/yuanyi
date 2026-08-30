@@ -12,12 +12,25 @@ const STORAGE_KEY_SESSIONS = 'chat_sessions_v1'
 const STORAGE_KEY_CONFIG = 'chat_config_v1'
 const STORAGE_KEY_ENDPOINT_OVERRIDDEN = 'chat_endpoint_overridden_v1'
 
+// The initial default endpoint host must come from window.location.hostname, available
+// synchronously at module load, NOT a hardcoded 'localhost'. A hardcoded default combined
+// with the async /api/node_info-based correction below created a race: on a slower
+// connection (e.g. a phone over WiFi), a message sent before that fetch resolves went out
+// to 'localhost:50006' -- the sending DEVICE's own loopback, not the dashboard's host --
+// and failed with "Failed to fetch". Reading the real host immediately removes the window
+// entirely; only the port (if proxy_port was customized away from the 50006 default) still
+// needs the async correction.
+function defaultEndpoint() {
+  const host = (typeof window !== 'undefined' && window.location.hostname) || '127.0.0.1'
+  return `http://${host}:50006/v1/chat/completions`
+}
+
 const sessions = ref([])
 const activeId = ref(null)
 const streaming = ref(false)
 const error = ref('')
 const cfg = ref({
-  endpoint: 'http://localhost:50006/v1/chat/completions',
+  endpoint: defaultEndpoint(),
   model: '',
   systemPrompt: '',
   temperature: 0.7,
@@ -28,7 +41,16 @@ const cfg = ref({
 const activeSession = computed(() => sessions.value.find((s) => s.id === activeId.value) || null)
 
 function saveSessions() {
-  localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions.value))
+  // Attached images are stored inline as base64 data URLs (see send()'s images param), which
+  // can push a session well past localStorage's ~5-10MB per-origin quota after a handful of
+  // photos. setItem throws QuotaExceededError in that case -- catch it so a save failure
+  // (this call runs mid-stream, inside send()) surfaces as a lost-persistence warning rather
+  // than an uncaught exception breaking the send/receive flow itself.
+  try {
+    localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions.value))
+  } catch (e) {
+    error.value = `Failed to save chat history locally (${e.name || 'error'}) -- it may be too large for browser storage.`
+  }
 }
 function loadSessions() {
   try {
@@ -46,6 +68,22 @@ function loadCfg() {
     const raw = localStorage.getItem(STORAGE_KEY_CONFIG)
     if (raw) Object.assign(cfg.value, JSON.parse(raw))
   } catch {}
+
+  // A saved endpoint whose host no longer matches how this page is currently being
+  // accessed is stale, not intentional -- e.g. a value auto-corrected on a previous visit
+  // from a different network path (localStorage is per-origin, but the auto-corrected
+  // *content* saved into it isn't tied to origin the way the storage itself is), or a
+  // leftover 'localhost' saved by the race this function's caller now fixes on first
+  // render. Only reset it when the user never explicitly chose a custom endpoint
+  // (STORAGE_KEY_ENDPOINT_OVERRIDDEN unset) -- an explicit override always wins.
+  if (!localStorage.getItem(STORAGE_KEY_ENDPOINT_OVERRIDDEN)) {
+    try {
+      const savedHost = new URL(cfg.value.endpoint).hostname
+      if (savedHost !== window.location.hostname) {
+        cfg.value.endpoint = defaultEndpoint()
+      }
+    } catch {}
+  }
 }
 
 let _sid = Date.now()
@@ -74,15 +112,30 @@ function renameSession(id, title) {
   }
 }
 
-async function send(text) {
+// images: [{ dataUrl }] -- base64 data URLs read client-side (ChatView.vue's file input),
+// never touching the server. Sent using the OpenAI vision content-array shape
+// (content: [{type:'text',...}, {type:'image_url',...}]) instead of a plain string only
+// when at least one image is attached, so a text-only message keeps the plain-string shape
+// every existing stored session already uses -- no migration needed for old history.
+// proxy.go forwards the whole request body as an untyped map[string]interface{}, so it never
+// inspects or reshapes `content`; whether the model actually understands the image content
+// depends entirely on that peer's own model (see ChatView.vue's attach-button tooltip).
+async function send(text, images = []) {
   const trimmed = (text ?? '').trim()
   const session = activeSession.value
-  if (!trimmed || streaming.value || !session) return
+  if ((!trimmed && !images.length) || streaming.value || !session) return
   error.value = ''
 
-  session.messages.push({ role: 'user', content: trimmed })
+  const content = images.length
+    ? [
+        ...(trimmed ? [{ type: 'text', text: trimmed }] : []),
+        ...images.map((img) => ({ type: 'image_url', image_url: { url: img.dataUrl } })),
+      ]
+    : trimmed
+  session.messages.push({ role: 'user', content })
   if (session.messages.length === 1) {
-    session.title = trimmed.substring(0, 28) + (trimmed.length > 28 ? '…' : '')
+    const titleSrc = trimmed || (images.length ? `📷 ${images.length} image(s)` : '')
+    session.title = titleSrc.substring(0, 28) + (titleSrc.length > 28 ? '…' : '')
   }
   saveSessions()
 
