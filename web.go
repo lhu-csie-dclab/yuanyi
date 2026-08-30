@@ -181,6 +181,22 @@ func StartClientWebDashboard(app *App) {
 		json.NewEncoder(w).Encode(stats)
 	})
 
+	// 步驟 4.5: API 端點 - 歸零本機累計統計 (POST /api/stats/reset)
+	//
+	// 累計值只增不減，被錯誤計數污染後沒有自然復原途徑（例：健康檢查 ping 曾被計為 API 請求），
+	// 而 hub 端是 keep-max 合併，所以清理必須從各節點自己開始，再清 hub 的
+	// /hub/api/debug/reset_stats——順序相反的話，下一輪 gossip（約 3 秒）就會把舊值還原。
+	mux.HandleFunc("/api/stats/reset", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		app.TUI.ResetStats()
+		app.TUI.AddLog("[INFO]", "本機累計統計已歸零 (POST /api/stats/reset)")
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"ok","note":"Token counters re-sync from vLLM's own Prometheus totals within ~2s unless vLLM is also restarted; request counters stay cleared."}`))
+	})
+
 	// 步驟 5: API 端點 - 取得全套系統日誌副本 (GET /api/logs)
 	mux.HandleFunc("/api/logs", func(w http.ResponseWriter, r *http.Request) {
 		sys, vllm, docker := app.TUI.GetLogs() // 至 tui.go 取得現有日誌

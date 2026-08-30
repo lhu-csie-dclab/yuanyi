@@ -201,6 +201,28 @@ func (pc *PeerCache) IncrementTokensDetail(peerID string, requests int, inTokens
 	p.ContributionScore += addedScore
 }
 
+// ResetStats zeroes every cumulative contribution counter for all cached peers, returning how
+// many were affected. Peer identity, address and health state are untouched -- only the
+// accumulating totals.
+//
+// UpsertGossip merges these fields with a keep-max rule, which makes a polluted value permanent
+// on its own: a peer whose count was inflated by a since-fixed accounting bug keeps
+// broadcasting that inflated total, and keep-max means the hub can only ever adopt it again.
+// Clearing the hub alone is therefore not enough -- reset the source nodes first (their
+// /api/stats/reset), then this, or the next gossip round (~3s) restores what was just cleared.
+func (pc *PeerCache) ResetStats() int {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+	for _, p := range pc.peers {
+		p.TotalRequests = 0
+		p.TotalTokens = 0
+		p.InTokens = 0
+		p.OutTokens = 0
+		p.ContributionScore = 0
+	}
+	return len(pc.peers)
+}
+
 // Snapshot returns a point-in-time copy of every known peer, replacing DBManager.GetAllPeers()
 // as the read source for the proxy backend list, the rank manager, and the dashboard.
 func (pc *PeerCache) Snapshot() []PeerData {

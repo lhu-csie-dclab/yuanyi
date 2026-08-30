@@ -172,6 +172,25 @@ reason.
 `web_port` (50007) only serves the dashboard UI and the node's own `/api/*`, so it can stay
 restricted to operators.
 
+### Resetting cumulative stats
+
+Contribution counters (`total_requests`, `total_tokens`, `contribution_score`) only ever grow,
+and the hub merges them from gossip with a keep-max rule. A value inflated by a past accounting
+bug therefore survives forever unless it is cleared at the source first — **order matters**:
+
+```sh
+# 1. every node that reports an inflated total, one at a time
+curl -X POST http://<node>:50007/api/stats/reset
+
+# 2. only then the hub
+curl -X POST http://<hub>:50008/hub/api/debug/reset_stats
+```
+
+Reversing the order accomplishes nothing: the next gossip round (~3s) re-merges whatever the
+nodes are still broadcasting. Note also that token counters re-sync from vLLM's own Prometheus
+totals within ~2s, so clearing those for real needs a vLLM restart too; request counters have no
+such external source and stay cleared.
+
 The hub dashboard itself has no `server_mode.*` port of its own for its UI — its views are part
 of the same Vue SPA served on the client's existing `web_port` (default `50007`), reached via
 hash routes rather than a real server path. The JSON endpoints it calls (`/hub/api/*`) live on

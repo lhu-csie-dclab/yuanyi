@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -133,6 +134,28 @@ func RegisterHubRoutes(mux *http.ServeMux, app *App) {
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok","message":"Forced rank update and proxy backend reload."}`))
+	})
+
+	// Clears the cumulative contribution counters the hub has accumulated for every peer.
+	// Reset the source nodes first (each node's own POST /api/stats/reset) -- gossip re-merges
+	// with a keep-max rule every ~3s, so a hub-only reset is undone almost immediately by any
+	// peer still broadcasting the old total. See PeerCache.ResetStats.
+	handle("/hub/api/debug/reset_stats", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		n := app.PeerCache.ResetStats()
+		// Persist immediately: the periodic flush is up to flush_interval_sec away, and a
+		// restart before it would reload the old totals straight back out of peers.db.
+		if app.DB != nil {
+			if err := app.PeerCache.Flush(app.DB); err != nil {
+				logError("[hub] reset_stats flush failed: %v", err)
+			}
+		}
+		logInfo("[hub] Cumulative stats reset for %d peers", n)
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"status":"ok","peers_reset":%d,"note":"Reset each node's own /api/stats/reset first, or gossip keep-max will restore the old totals."}`, n)
 	})
 
 	handle("/hub/api/debug/clear_offline", func(w http.ResponseWriter, r *http.Request) {

@@ -75,6 +75,32 @@ func loadStatsDisk() *Stats {
 	return st
 }
 
+// ResetStats 將本機累計統計歸零並立即寫回 stats.json。
+//
+// 這些是「只增不減」的累計值，一旦被錯誤的計數方式污染就沒有任何自然的復原途徑：健康檢查 ping
+// 曾被計為 API 請求，讓一台純 relay 累積出 83 萬筆「請求」，而修正計數邏輯只能停止繼續累加，
+// 無法移除既有數字。加上 hub 端的 PeerCache 對這些欄位採 keep-max 合併，舊的高值會被永久保留
+// ——除非來源節點自己先歸零，所以重置必須從節點端開始。
+//
+// 注意 inTokens/outTokens 只會短暫歸零：sys.go 的 metricScraper 每 2 秒從 vLLM 自己的
+// Prometheus counter 以 keep-max 同步回來，而那個 counter 活在 vLLM 行程的生命週期裡，所以要
+// 真正清掉 token 數必須連同重啟 vLLM。requests/prefill/decode/success/error 沒有這個外部來源，
+// 歸零後就是永久的。
+func (t *TUI) ResetStats() {
+	t.stats.mu.Lock()
+	t.stats.requests = 0
+	t.stats.successCount = 0
+	t.stats.errorCount = 0
+	t.stats.inTokens = 0
+	t.stats.outTokens = 0
+	t.stats.prefill = 0
+	t.stats.decode = 0
+	t.stats.mu.Unlock()
+
+	// 立即落盤：否則行程在下一次 5 秒定期備份前結束，重啟就會從 stats.json 把舊值讀回來。
+	t.saveStatsDisk()
+}
+
 // saveStatsDisk 方法：將目前 Stats 記憶體數據寫入本機 ./stats.json 檔案。
 func (t *TUI) saveStatsDisk() {
 	t.stats.mu.Lock()
