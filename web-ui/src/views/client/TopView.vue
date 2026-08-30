@@ -28,18 +28,28 @@ function setViewMode(mode) {
 const PAGE_SIZE = 25
 const currentPage = ref(1)
 
-// All peers sorted by hardware tier (total VRAM across this node's GPU(s), already summed by
-// sys.go's GetGPUTelemetry -- see vram_total). Previously sorted by gen_speed, a live/momentary
-// value that's 0 whenever a node isn't mid-generation, so idle top-tier cards fell to the
-// bottom and the ranking visibly reshuffled every poll as work moved between nodes. VRAM is a
-// fixed hardware property, not affected by traffic or uptime, matching this page's intent.
+// Ranked by cumulative tokens generated -- the one metric on this page that reflects work
+// actually contributed over time.
+//
+// Two earlier attempts were worse. gen_speed is live and reads 0 the instant a node stops
+// generating, so the ranking reshuffled every poll and idle nodes sank regardless of how much
+// they had done. vram_total is stable but is a property of the hardware, not of any
+// contribution, and on a homogeneous cluster it makes every node tie.
+//
+// total_requests is deliberately NOT used despite sounding equivalent: relay nodes count every
+// request they *forward*, so a GPU-less relay reports numbers orders of magnitude above any
+// real inference node (observed: 830k vs 0). total_tokens is only incremented by nodes that
+// actually generated the tokens.
+//
+// The field is omitempty on the Go side, so it is absent rather than 0 for a node that has
+// served nothing -- hence the || 0. Ties fall back to peer ID for a stable order.
 const sortedPeers = computed(() => {
   return [...peers.value]
     .map(p => ({ ...p, _gpu: parseGpuInfo(p) }))
     .sort((a, b) => {
-      const vramA = a._gpu?.vram_total || 0
-      const vramB = b._gpu?.vram_total || 0
-      return vramB - vramA
+      const diff = (b._gpu?.total_tokens || 0) - (a._gpu?.total_tokens || 0)
+      if (diff !== 0) return diff
+      return (a.peer_id || a.node_id || '').localeCompare(b.peer_id || b.node_id || '')
     })
 })
 

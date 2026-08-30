@@ -24,16 +24,24 @@ function setViewMode(mode) {
   localStorage.setItem(VIEW_MODE_KEY, mode)
 }
 
-// Sorted by hardware tier (total VRAM), same as Top Ranking (TopView.vue) -- the backend
-// (/api/peers) has no ordering guarantee at all: it's built from a Go map, whose iteration
-// order is deliberately randomized by the language, so without a client-side sort here the
-// list visibly reshuffled on every 2s poll for no reason. VRAM is a fixed hardware property,
-// so this order stays stable between polls (peers.value is replaced by refresh() wholesale
-// each tick, but the value sorted on is the same).
+// Sorted by live power draw (watts), highest first. A client-side sort is mandatory here at
+// all: /api/peers is built from a Go map, whose iteration order the language deliberately
+// randomizes, so with no sort the list visibly reshuffled on every 2s poll.
+//
+// Power draw is a live value, so unlike a fixed hardware property the order does legitimately
+// change as load moves between nodes -- that is the point, it surfaces which nodes are
+// actually working. On a homogeneous cluster (identical cards) it is also the only telemetry
+// that differentiates peers at all; sorting by VRAM there produced one big tie, i.e. no
+// meaningful order. Ties still fall back to peer ID so equal-draw (e.g. all-idle) nodes hold a
+// stable order instead of jittering every poll.
 const sortedPeers = computed(() => {
   return [...peers.value]
     .map(p => ({ ...p, _gpu: parseGpuInfo(p) }))
-    .sort((a, b) => (b._gpu?.vram_total || 0) - (a._gpu?.vram_total || 0))
+    .sort((a, b) => {
+      const diff = (b._gpu?.power_draw || 0) - (a._gpu?.power_draw || 0)
+      if (diff !== 0) return diff
+      return (a.peer_id || a.node_id || '').localeCompare(b.peer_id || b.node_id || '')
+    })
 })
 
 // Pagination (25 items per page)
