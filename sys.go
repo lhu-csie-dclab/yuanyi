@@ -267,11 +267,22 @@ type GPUTelemetry struct {
 
 // GetGPUTelemetry 呼叫外部命令 `nvidia-smi` 查詢本機 GPU 狀態並解析 CSV。
 // 【解析邏輯說明】
+// 0. Relay-only 節點直接回傳 "No GPU Detected"，不執行 nvidia-smi。
 // 1. 執行 `nvidia-smi --query-gpu=... --format=csv,noheader,nounits`。
 // 2. 若無 NVIDIA 顯卡或命令失敗，防禦性回傳 "No GPU Detected" 結構體。
 // 3. 逐行解析 CSV 10 個欄位：name, memory.total, memory.used, utilization.gpu, utilization.memory, temperature.gpu, power.draw, power.limit, fan.speed, driver_version。
 // 4. 統計多卡情況下的總 VRAM 與已用 VRAM，取最高溫度/使用率/功耗/風扇轉速，並以 map 統計相同型號顯示卡數量。
 func (s *SysMonitor) GetGPUTelemetry() GPUTelemetry {
+	// Relay-only 節點貢獻的是網路頻寬而非算力，永遠不會啟動本機 vLLM（見 app.go 的
+	// RelayOnly 分支）。即使機器上真的有顯卡，把它報出去也只會造成誤導：其他節點看到
+	// 的 Summary 會是一張實際上不提供推論服務的卡，而 GPUInfo.Summary 同時是
+	// server_proxy.go / proxy.go 用來過濾「不可派工節點」的依據之一。統一回報
+	// "No GPU Detected"，讓廣播內容與這個節點實際提供的能力一致，也省下每 2 秒一次
+	// 的 nvidia-smi 外部程序呼叫。
+	if s.app != nil && s.app.Config != nil && s.app.Config.ServerMode.RelayOnly {
+		return GPUTelemetry{Summary: "No GPU Detected"}
+	}
+
 	cmd := exec.Command("nvidia-smi", "--query-gpu=name,memory.total,memory.used,utilization.gpu,utilization.memory,temperature.gpu,power.draw,power.limit,fan.speed,driver_version", "--format=csv,noheader,nounits")
 	out, err := cmd.Output()
 	if err != nil {
