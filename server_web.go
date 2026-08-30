@@ -25,9 +25,28 @@ type leaderboardEntry struct {
 // "Cluster (Hub Mode)" nav section revealed once /api/node_info reports hub_mode_enabled.
 // Config editing is intentionally not duplicated here: the client dashboard's existing
 // /api/config* endpoints already read and write the same config.json file. Called from
-// StartClientWebDashboard only when server_mode.enabled is true.
+// StartServerDispatch (server_proxy.go), so these live on server_mode.proxy_port.
 func RegisterHubRoutes(mux *http.ServeMux, app *App) {
-	mux.HandleFunc("/hub/api/peers", func(w http.ResponseWriter, r *http.Request) {
+	// The dashboard SPA is served from web_port while this API listens on
+	// server_mode.proxy_port, so every browser call to it is now cross-origin and needs CORS
+	// headers -- without them the hub pages fail with an opaque network error rather than a
+	// readable HTTP status. Same permissive posture as the gateway endpoints in
+	// server_proxy.go: these are unauthenticated read-only endpoints on a private swarm
+	// either way, so "*" adds no exposure that the port being open doesn't already imply.
+	handle := func(path string, h http.HandlerFunc) {
+		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "*")
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			h(w, r)
+		})
+	}
+
+	handle("/hub/api/peers", func(w http.ResponseWriter, r *http.Request) {
 		peers := app.PeerCache.Snapshot()
 		if app.Rank != nil {
 			sort.SliceStable(peers, func(i, j int) bool {
@@ -43,7 +62,7 @@ func RegisterHubRoutes(mux *http.ServeMux, app *App) {
 		json.NewEncoder(w).Encode(peers)
 	})
 
-	mux.HandleFunc("/hub/api/events", func(w http.ResponseWriter, r *http.Request) {
+	handle("/hub/api/events", func(w http.ResponseWriter, r *http.Request) {
 		events, err := app.DB.GetRecentEvents(100)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -53,12 +72,12 @@ func RegisterHubRoutes(mux *http.ServeMux, app *App) {
 		json.NewEncoder(w).Encode(events)
 	})
 
-	mux.HandleFunc("/hub/api/cluster_topology", func(w http.ResponseWriter, r *http.Request) {
+	handle("/hub/api/cluster_topology", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(app.ServerProxy.GetTopologyInfo())
 	})
 
-	mux.HandleFunc("/hub/api/leaderboard", func(w http.ResponseWriter, r *http.Request) {
+	handle("/hub/api/leaderboard", func(w http.ResponseWriter, r *http.Request) {
 		peers := app.PeerCache.Snapshot()
 		// Ranked by hardware tier (VRAM_GB * 300 * count, see RankManager.CalculateScore),
 		// not contribution_score (requests*10 + tokens/10): a relay node with no GPU that
@@ -86,7 +105,7 @@ func RegisterHubRoutes(mux *http.ServeMux, app *App) {
 		json.NewEncoder(w).Encode(board)
 	})
 
-	mux.HandleFunc("/hub/api/stats", func(w http.ResponseWriter, r *http.Request) {
+	handle("/hub/api/stats", func(w http.ResponseWriter, r *http.Request) {
 		peers := app.PeerCache.Snapshot()
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(computeClusterStats(peers))
@@ -95,7 +114,7 @@ func RegisterHubRoutes(mux *http.ServeMux, app *App) {
 	// snapshot is the bulk-export endpoint a newly starting/rejoining hub's
 	// syncPeerCacheFromSeed (peer_cache.go) fetches at boot instead of waiting for gossip to
 	// trickle its state back in.
-	mux.HandleFunc("/hub/api/snapshot", func(w http.ResponseWriter, r *http.Request) {
+	handle("/hub/api/snapshot", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(PeerSnapshot{
 			Version:     1,
@@ -104,7 +123,7 @@ func RegisterHubRoutes(mux *http.ServeMux, app *App) {
 		})
 	})
 
-	mux.HandleFunc("/hub/api/debug/force_rank", func(w http.ResponseWriter, r *http.Request) {
+	handle("/hub/api/debug/force_rank", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -116,7 +135,7 @@ func RegisterHubRoutes(mux *http.ServeMux, app *App) {
 		w.Write([]byte(`{"status":"ok","message":"Forced rank update and proxy backend reload."}`))
 	})
 
-	mux.HandleFunc("/hub/api/debug/clear_offline", func(w http.ResponseWriter, r *http.Request) {
+	handle("/hub/api/debug/clear_offline", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return

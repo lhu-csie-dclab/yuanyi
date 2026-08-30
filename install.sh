@@ -575,7 +575,8 @@ write_config() {
   "proxy_port": $PROXY_PORT,
   "p2p": {
     "server_address": "$BOOTSTRAP",
-    "server_addresses": []
+    "server_addresses": [],
+    "hub_api_port": 50008
   },
   "docker": {
     "container_name": "vllm_node",

@@ -39,16 +39,30 @@ export async function restoreBackup(filename) {
 }
 
 // --- Hub endpoints (server_web.go, only registered when server_mode.enabled) ---
-export const getHubPeers = () => getJSON('/hub/api/peers')
-export const getHubEvents = () => getJSON('/hub/api/events')
-export const getHubStats = () => getJSON('/hub/api/stats')
-export const getHubLeaderboard = () => getJSON('/hub/api/leaderboard')
-export const getHubTopology = () => getJSON('/hub/api/cluster_topology')
+// These are NOT same-origin: the dashboard is served from web_port, but the hub API is
+// mounted on server_mode.proxy_port (see the 步驟 10 comment in web.go for why they were
+// split). So they need an absolute URL with the hub port rather than a relative path --
+// same host, different port. The Go side sends CORS headers for exactly this reason.
+//
+// 50008 matches the server_mode.proxy_port default, so hub pages work before
+// /api/node_info resolves; setHubApiPort() corrects it afterwards if the hub uses a
+// custom port.
+let hubApiPort = 50008
+export function setHubApiPort(port) {
+  if (port > 0) hubApiPort = port
+}
+const hubURL = (path) => `${window.location.protocol}//${window.location.hostname}:${hubApiPort}${path}`
+
+export const getHubPeers = () => getJSON(hubURL('/hub/api/peers'))
+export const getHubEvents = () => getJSON(hubURL('/hub/api/events'))
+export const getHubStats = () => getJSON(hubURL('/hub/api/stats'))
+export const getHubLeaderboard = () => getJSON(hubURL('/hub/api/leaderboard'))
+export const getHubTopology = () => getJSON(hubURL('/hub/api/cluster_topology'))
 export async function hubForceRank() {
-  return getJSON('/hub/api/debug/force_rank', { method: 'POST' })
+  return getJSON(hubURL('/hub/api/debug/force_rank'), { method: 'POST' })
 }
 export async function hubClearOffline() {
-  return getJSON('/hub/api/debug/clear_offline', { method: 'POST' })
+  return getJSON(hubURL('/hub/api/debug/clear_offline'), { method: 'POST' })
 }
 
 // --- Formatting helpers shared across views ---

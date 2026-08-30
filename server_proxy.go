@@ -489,6 +489,12 @@ func StartServerDispatch(app *App, h host.Host) {
 	mux.HandleFunc("/v1/chat/completions", app.ServerProxy.handleProxyRequest)
 	mux.HandleFunc("/v1/chat/completions/", app.ServerProxy.handleProxyRequest)
 	mux.HandleFunc("/mooncake_kv/", app.ServerProxy.handleKVTunnel)
+	// Hub API lives here rather than on web_port: every node in the swarm has to reach
+	// /hub/api/cluster_topology over plain HTTP for P/D disaggregation to activate at all,
+	// so it belongs on the port that is already meant to be swarm-facing (this dispatcher
+	// serves the hub's own OpenAI gateway), not on the operator-facing dashboard port.
+	// See the 步驟 10 comment in web.go for the full reasoning.
+	RegisterHubRoutes(mux, app)
 	mux.HandleFunc("/v1/models", modelsHandler)
 	mux.HandleFunc("/v1/models/", modelsHandler)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

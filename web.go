@@ -96,6 +96,10 @@ func StartClientWebDashboard(app *App) {
 			"vllm_port":  app.Config.VLLM.Port,
 			"proxy_port": app.Config.ProxyPort,
 			"model_name": app.Config.VLLM.ModelName,
+			// Where THIS node serves /hub/api/* when it is a hub (server_mode.proxy_port).
+			// The dashboard is served from web_port but the hub API now lives on a separate
+			// port, so the SPA has to be told which one rather than using a relative path.
+			"hub_api_port": app.Config.ServerMode.ProxyPort,
 		})
 	})
 
@@ -128,7 +132,11 @@ func StartClientWebDashboard(app *App) {
 		if localID != "" {
 			cctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 			defer cancel()
-			reqURL := fmt.Sprintf("http://%s:50007/hub/api/leaderboard", serverHost) // assumes the bootstrap node runs the default web_port with hub mode enabled
+			hubPort := app.Config.P2P.HubAPIPort
+			if hubPort <= 0 {
+				hubPort = 50008
+			}
+			reqURL := fmt.Sprintf("http://%s:%d/hub/api/leaderboard", serverHost, hubPort)
 			req, err := http.NewRequestWithContext(cctx, "GET", reqURL, nil)
 			if err == nil {
 				resp, err := http.DefaultClient.Do(req)
@@ -349,11 +357,15 @@ func StartClientWebDashboard(app *App) {
 	// 步驟 9.5: 掛載聊天記錄伺服器端存檔 API（不受 server_mode 限制，一般 client 也能用）
 	RegisterChatRoutes(mux, app) // 至 chat_history.go 掛載 /api/chat/sessions
 
-	// 步驟 10: 若本機開啟 server_mode，將 Hub 儀表板掛載於同一個 mux 的 /hub/ 路徑下，
-	// 不再另外監聽獨立埠號。
-	if app.Config.ServerMode.Enabled && app.DB != nil {
-		RegisterHubRoutes(mux, app) // 至 server_web.go 掛載 Hub 儀表板路由
-	}
+	// 步驟 10: Hub 的 /hub/api/* 不再掛在這個 web mux 上，改由 server_proxy.go 的
+	// StartServerDispatch 掛到 server_mode.proxy_port（預設 50008）。web_port 只保留儀表板
+	// UI 與 client 自己的 /api/*；Hub 儀表板頁面仍由這裡提供，但改成跨埠呼叫 hub API
+	// （見 web-ui/src/api.js 與下方 node_info 回傳的 hub_api_port）。
+	//
+	// 拆開的理由是兩者的可達性需求本質不同：web_port 通常只要對維運者開放就夠，但 hub API
+	// 必須對 swarm 裡每個節點開放——P/D 拓樸只走 HTTP、不走 libp2p，節點拉不到就會無聲退回
+	// PD-Together。混在同一個埠時，「只開放儀表板給自己看」這個很自然的防火牆設定，會連帶
+	// 讓整個叢集的 P/D 分離失效，而且沒有任何錯誤訊息。
 
 	// 步驟 11: 讀取監聽埠並啟動背景 HTTP 伺服器
 	port := app.Config.WebPort

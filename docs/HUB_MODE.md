@@ -123,7 +123,8 @@ PeerID across restarts. This matters most for hub nodes, since other nodes may c
 {
   "p2p": {
     "server_address": "/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh",
-    "server_addresses": []
+    "server_addresses": [],
+    "hub_api_port": 50008
   },
   "server_mode": {
     "enabled": false,
@@ -143,6 +144,7 @@ PeerID across restarts. This matters most for hub nodes, since other nodes may c
 | Key | Default | Description |
 | :--- | :--- | :--- |
 | `p2p.server_addresses` | `[]` | Preferred list of bootstrap/hub seed multiaddresses. |
+| `p2p.hub_api_port` | `50008` | Port this node calls the **hub's** `/hub/api/*` on. Must match the hub's `server_mode.proxy_port`. |
 | `server_mode.enabled` | `false` | Turns hub mode on for this node. |
 | `server_mode.relay_only` | `false` | Contribute relaying instead of GPU inference: no local vLLM, advertises `role: "relay"` so peers do not dispatch work here. Implies `enabled`. |
 | `server_mode.p2p_port` | `50004` | Fixed libp2p listen port so other nodes can dial in. |
@@ -152,9 +154,29 @@ PeerID across restarts. This matters most for hub nodes, since other nodes may c
 | `server_mode.check_interval_sec` | `30` | Health-check ping interval, in seconds. |
 | `server_mode.cluster.prefill_nodes` / `decode_nodes` | `0` / `0` | Dedicated P/D node caps; both `0` means PD-Together mode. |
 
-The hub dashboard itself has no `server_mode.*` port of its own — its views are part of the
-same Vue SPA served on the client's existing `web_port` (default `50007`), reached via hash
-routes rather than a real server path (only `/hub/api/*`, the JSON endpoints, is a real path).
+### Ports the hub must expose to every node
+
+| Port | Who needs it | If it is blocked |
+| :--- | :--- | :--- |
+| `server_mode.p2p_port` (50004) | every node | Cannot bootstrap into the swarm. |
+| `server_mode.proxy_port` (50008) | every node | **P/D disaggregation silently never activates.** |
+
+`proxy_port` is easy to overlook because it sounds like it only serves the hub's own gateway.
+It also serves `/hub/api/*`, and the cluster topology is fetched from there over plain HTTP —
+the one thing in this system that does not travel over libp2p. A node that cannot reach it
+keeps using its built-in PD-Together default, so `cluster.prefill_nodes`/`decode_nodes` appear
+to do nothing no matter what you set them to. Check for `[SYNC]` lines in a node's logs to
+confirm: a working node logs `同步 Server P/D 拓樸成功` every 10s, and any failure now logs the
+reason.
+
+`web_port` (50007) only serves the dashboard UI and the node's own `/api/*`, so it can stay
+restricted to operators.
+
+The hub dashboard itself has no `server_mode.*` port of its own for its UI — its views are part
+of the same Vue SPA served on the client's existing `web_port` (default `50007`), reached via
+hash routes rather than a real server path. The JSON endpoints it calls (`/hub/api/*`) live on
+`server_mode.proxy_port`, so those calls are cross-origin and the hub answers them with
+permissive CORS headers.
 `LoadOrCreateConfig` defends
 `server_mode.proxy_port`/`p2p_port` against colliding with the client's own `web_port`,
 `proxy_port`, `vllm.port`, or `vllm.mooncake_bootstrap_port`, resetting to the defaults above

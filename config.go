@@ -51,6 +51,17 @@ type P2PConfig struct {
 	// reachable seed is enough to join the mesh and discover the rest via the DHT, so this
 	// list is an entry point rather than a runtime single point of failure.
 	ServerAddresses []string `json:"server_addresses,omitempty"`
+	// HubAPIPort is the port to reach the HUB's /hub/api/* endpoints on (its
+	// server_mode.proxy_port). It is how this node fetches the P/D cluster topology and the
+	// leaderboard -- both travel over plain HTTP rather than libp2p, unlike everything else
+	// in the swarm, so the hub must actually expose this port to its peers or P/D
+	// disaggregation silently never activates (the topology fetch fails quietly and the
+	// dispatcher keeps using its PD-Together default).
+	//
+	// It used to be hardcoded to the hub's web_port, which conflated "the port serving the
+	// dashboard UI" with "the port serving the hub API" and left no way to point a node at a
+	// hub whose ports differ from the defaults.
+	HubAPIPort int `json:"hub_api_port,omitempty"`
 	// AnnounceAddr is the address other nodes should use to reach THIS node, e.g.
 	// "/dns4/relay.example.com/tcp/50004" or "/ip4/203.0.113.7/tcp/50004". Set it when this
 	// node is reachable at an address it cannot discover for itself -- the common case is a
@@ -158,7 +169,8 @@ const defaultClientConfigStr = `{
   "proxy_port": 50006,
   "p2p": {
     "server_address": "/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh",
-    "server_addresses": []
+    "server_addresses": [],
+    "hub_api_port": 50008
   },
   "docker": {
     "container_name": "vllm_node",
@@ -278,6 +290,11 @@ func LoadOrCreateConfig(filename string) (*ClientConfig, error) {
 	}
 	if cfg.ProxyPort <= 0 {
 		cfg.ProxyPort = 50006
+	}
+	// Matches the hub's own server_mode.proxy_port default, so a node joining a
+	// default-configured hub needs no extra setting.
+	if cfg.P2P.HubAPIPort <= 0 {
+		cfg.P2P.HubAPIPort = 50008
 	}
 	if cfg.VLLM.Port <= 0 || cfg.VLLM.Port == cfg.ProxyPort {
 		cfg.VLLM.Port = 8100

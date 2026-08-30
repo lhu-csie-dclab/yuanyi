@@ -563,7 +563,8 @@ CLIENT_WEB_PORT=$($Cfg.WebPort)
   "proxy_port": $($Cfg.ProxyPort),
   "p2p": {
     "server_address": "$($Cfg.Bootstrap)",
-    "server_addresses": []
+    "server_addresses": [],
+    "hub_api_port": 50008
   },
   "docker": {
     "container_name": "vllm_node",

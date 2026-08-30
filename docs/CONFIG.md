@@ -29,7 +29,8 @@ This document provides a detailed reference for configuration handling in the Yu
   "proxy_port": 50006,
   "p2p": {
     "server_address": "/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh",
-    "server_addresses": []
+    "server_addresses": [],
+    "hub_api_port": 50008
   },
   "docker": {
     "container_name": "vllm_node",
@@ -75,6 +76,7 @@ required — see [Reachability](#-reachability-announce_addr--behind_nat).
 | `proxy_port` | `50006` | Integer | HTTP port for OpenAI-compatible API Gateway. |
 | `p2p.server_address` | Multiaddr | String | Single bootstrap seed multiaddress (legacy field, still read as a fallback). |
 | `p2p.server_addresses` | `[]` | String[] | Preferred list of bootstrap/hub seed multiaddresses; any one reachable entry is enough to join the mesh. |
+| `p2p.hub_api_port` | `50008` | Integer | Port to reach the **hub's** `/hub/api/*` on (its `server_mode.proxy_port`). Used to fetch the P/D cluster topology and leaderboard. Unlike the rest of the swarm these travel over plain HTTP, not libp2p — **the hub must expose this port to every node or P/D disaggregation silently never activates.** |
 | `p2p.announce_addr` | *(unset)* | String | The address other nodes should use to reach **this** node, e.g. `/dns4/relay.example.com/tcp/50004`. **Required when running your own relay behind Docker or port-forwarding** — see [Reachability](#-reachability-announce_addr--behind_nat). |
 | `p2p.behind_nat` | *(auto)* | Boolean | Declares this node cannot be dialed from outside its network. Omit it: auto-detection is correct for almost everyone. See [Reachability](#-reachability-announce_addr--behind_nat). |
 | `vllm.port` | `8100` | Integer | Local vLLM engine HTTP endpoint. |
