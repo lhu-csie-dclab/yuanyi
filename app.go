@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 )
 
 // App is the central master application container that orchestrates all subsystems.
@@ -24,6 +25,13 @@ type App struct {
 	PeerCache   *PeerCache
 	Rank        *RankManager
 	ServerProxy *ProxyServer
+
+	// HubMux holds the hub's JSON API routes (/hub/api/*) as a standalone mux, so the same
+	// handlers can be served over two transports: mounted on this node's local HTTP listener,
+	// and served to peers over the HubAPIProtocolID libp2p stream (see setupStreams).
+	// Nil until StartServerDispatch runs, and always nil on a node that is not a hub, so
+	// callers must nil-check.
+	HubMux *http.ServeMux
 }
 
 // NewApp instantiates the App container and initializes its core subsystems.

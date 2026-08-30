@@ -123,8 +123,7 @@ PeerID across restarts. This matters most for hub nodes, since other nodes may c
 {
   "p2p": {
     "server_address": "/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh",
-    "server_addresses": [],
-    "hub_api_port": 50008
+    "server_addresses": []
   },
   "server_mode": {
     "enabled": false,
@@ -144,7 +143,6 @@ PeerID across restarts. This matters most for hub nodes, since other nodes may c
 | Key | Default | Description |
 | :--- | :--- | :--- |
 | `p2p.server_addresses` | `[]` | Preferred list of bootstrap/hub seed multiaddresses. |
-| `p2p.hub_api_port` | `50008` | Port this node calls the **hub's** `/hub/api/*` on. Must match the hub's `server_mode.proxy_port`. |
 | `server_mode.enabled` | `false` | Turns hub mode on for this node. |
 | `server_mode.relay_only` | `false` | Contribute relaying instead of GPU inference: no local vLLM, advertises `role: "relay"` so peers do not dispatch work here. Implies `enabled`. |
 | `server_mode.p2p_port` | `50004` | Fixed libp2p listen port so other nodes can dial in. |
@@ -154,23 +152,32 @@ PeerID across restarts. This matters most for hub nodes, since other nodes may c
 | `server_mode.check_interval_sec` | `30` | Health-check ping interval, in seconds. |
 | `server_mode.cluster.prefill_nodes` / `decode_nodes` | `0` / `0` | Dedicated P/D node caps; both `0` means PD-Together mode. |
 
-### Ports the hub must expose to every node
+### Ports
 
-| Port | Who needs it | If it is blocked |
+| Port | Must be reachable by | If it is blocked |
 | :--- | :--- | :--- |
 | `server_mode.p2p_port` (50004) | every node | Cannot bootstrap into the swarm. |
-| `server_mode.proxy_port` (50008) | every node | **P/D disaggregation silently never activates.** |
+| `server_mode.proxy_port` (50008) | localhost only | Nothing — see below. |
+| `web_port` (50007) | operators only | Dashboard unreachable. |
 
-`proxy_port` is easy to overlook because it sounds like it only serves the hub's own gateway.
-It also serves `/hub/api/*`, and the cluster topology is fetched from there over plain HTTP —
-the one thing in this system that does not travel over libp2p. A node that cannot reach it
-keeps using its built-in PD-Together default, so `cluster.prefill_nodes`/`decode_nodes` appear
-to do nothing no matter what you set them to. Check for `[SYNC]` lines in a node's logs to
-confirm: a working node logs `同步 Server P/D 拓樸成功` every 10s, and any failure now logs the
-reason.
+**The hub API needs no exposed port.** `/hub/api/*` is served to other nodes over libp2p
+(`/hub-api/1.0.0`, see `HubAPIProtocolID` in `p2p.go`), so `proxy_port` can safely bind to
+localhost. This also means the API inherits the swarm's own access control: the PSK in
+`swarm.key` gates who can join the private network at all, so anything able to open that stream
+is already a member — no keys to distribute, and no unauthenticated port facing the internet.
 
-`web_port` (50007) only serves the dashboard UI and the node's own `/api/*`, so it can stay
-restricted to operators.
+Browsers cannot speak libp2p, so the dashboard's hub pages call `/hub/api/*` on **their own
+node's** `web_port`, which fetches the answer from the hub over libp2p (see 步驟 4.2 in
+`web.go`). A useful side effect: any node's dashboard can display hub data, not just the hub's
+own.
+
+The exception is `/hub/api/debug/*`. Those mutate cluster state, so they are deliberately not
+served over libp2p — every node holds the same `swarm.key`, which makes swarm membership a far
+weaker boundary than "an operator with access to this machine". They only answer on the hub's
+own local HTTP listener.
+
+To confirm topology sync is working, look for `[SYNC]` lines in a node's logs: a healthy node
+logs `同步 Server P/D 拓樸成功` every 10s, and every failure path logs its reason.
 
 ### Resetting cumulative stats
 
@@ -193,9 +200,8 @@ such external source and stay cleared.
 
 The hub dashboard itself has no `server_mode.*` port of its own for its UI — its views are part
 of the same Vue SPA served on the client's existing `web_port` (default `50007`), reached via
-hash routes rather than a real server path. The JSON endpoints it calls (`/hub/api/*`) live on
-`server_mode.proxy_port`, so those calls are cross-origin and the hub answers them with
-permissive CORS headers.
+hash routes rather than a real server path. Its JSON calls are same-origin against that same
+`web_port`, which relays them to the hub over libp2p as described above.
 `LoadOrCreateConfig` defends
 `server_mode.proxy_port`/`p2p_port` against colliding with the client's own `web_port`,
 `proxy_port`, `vllm.port`, or `vllm.mooncake_bootstrap_port`, resetting to the defaults above

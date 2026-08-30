@@ -5,6 +5,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
@@ -45,6 +46,25 @@ const (
 
 const GPUProtocolID = "/gpu-service/1.0.0"
 const ProxyProtocolID = "/mooncake-proxy/1.0.0"
+
+// HubAPIProtocolID carries the hub's JSON API (cluster topology, leaderboard, peers, ...)
+// between nodes over libp2p instead of plain HTTP.
+//
+// Everything else in this swarm already travels over libp2p; the hub API was the one exception,
+// fetched over raw HTTP against the hub's port. That single exception carried all the cost:
+// it required the hub to expose a port to every node (so it broke behind NAT, and blocking it
+// silently disabled P/D disaggregation), and it was unauthenticated, since an open HTTP port
+// answers anyone who can route to it.
+//
+// Moving it here fixes both at once. The PSK in swarm.key gates membership of the private
+// network, so anything able to open this stream is already a swarm member -- authentication
+// comes for free, with no keys to distribute. Requests are framed as ordinary HTTP over the
+// stream so the hub can serve them with the very same http.ServeMux it serves locally.
+//
+// Deliberately NOT reusing ProxyProtocolID: that one forwards to a caller-chosen local port,
+// guarded by an allowlist, and widening that allowlist to include the hub port would reopen
+// the SSRF surface the allowlist exists to close.
+const HubAPIProtocolID = "/hub-api/1.0.0"
 
 const (
 	NamespaceDHT    = "/my-gpu-network/v1/gpu-info/"
@@ -493,6 +513,154 @@ func (n *NetworkNode) setupStreams() {
 
 		resp.Write(s)
 	})
+
+	// Serves this node's hub API to peers over libp2p. See HubAPIProtocolID for why the hub
+	// API moved off plain HTTP. Requests are framed as ordinary HTTP so the very same
+	// http.ServeMux that answers local callers answers peers too -- no duplicate routing, and
+	// no second definition of the wire format to keep in sync.
+	n.host.SetStreamHandler(HubAPIProtocolID, func(s network.Stream) {
+		defer s.Close()
+		_ = s.SetDeadline(time.Now().Add(30 * time.Second))
+
+		req, err := http.ReadRequest(bufio.NewReader(s))
+		if err != nil {
+			return
+		}
+
+		mux := n.app.HubMux
+		if mux == nil {
+			// Reached a node that is not running in hub mode. Answer rather than hanging up,
+			// so the caller can log something actionable instead of a bare stream error.
+			(&http.Response{
+				StatusCode: http.StatusNotFound,
+				ProtoMajor: 1, ProtoMinor: 1,
+				Body: io.NopCloser(strings.NewReader(`{"error":"hub mode is not enabled on this node"}`)),
+			}).Write(s)
+			return
+		}
+
+		// Only the read-only hub API is reachable this way. The debug endpoints mutate cluster
+		// state (reset_stats wipes every peer's contribution totals), and while swarm
+		// membership is a real trust boundary it is a much weaker one than "an operator with
+		// access to this machine" -- every node holds the same swarm.key, so exposing them
+		// here would let any node, or anyone who obtained the key, wipe the whole cluster's
+		// history remotely. They stay local-HTTP only.
+		if !strings.HasPrefix(req.URL.Path, "/hub/api/") || strings.HasPrefix(req.URL.Path, "/hub/api/debug/") {
+			(&http.Response{
+				StatusCode: http.StatusForbidden,
+				ProtoMajor: 1, ProtoMinor: 1,
+				Body: io.NopCloser(strings.NewReader(`{"error":"path not served over libp2p"}`)),
+			}).Write(s)
+			return
+		}
+
+		rec := &streamResponseWriter{header: http.Header{}, body: &bytes.Buffer{}}
+		mux.ServeHTTP(rec, req)
+		if rec.code == 0 {
+			rec.code = http.StatusOK
+		}
+		(&http.Response{
+			StatusCode:    rec.code,
+			ProtoMajor:    1,
+			ProtoMinor:    1,
+			Header:        rec.header,
+			Body:          io.NopCloser(rec.body),
+			ContentLength: int64(rec.body.Len()),
+		}).Write(s)
+	})
+}
+
+// streamResponseWriter buffers a handler's output so it can be written back as a single
+// http.Response over a libp2p stream. Buffering (rather than writing through) is deliberate:
+// http.Response.Write needs ContentLength up front to avoid chunked encoding, and hub API
+// responses are small JSON documents where holding one in memory costs nothing.
+type streamResponseWriter struct {
+	header http.Header
+	body   *bytes.Buffer
+	code   int
+}
+
+func (w *streamResponseWriter) Header() http.Header       { return w.header }
+func (w *streamResponseWriter) Write(b []byte) (int, error) {
+	if w.code == 0 {
+		w.code = http.StatusOK
+	}
+	return w.body.Write(b)
+}
+func (w *streamResponseWriter) WriteHeader(code int) {
+	if w.code == 0 {
+		w.code = code
+	}
+}
+
+// FetchHubAPI requests one hub API path from a hub peer over libp2p and returns the raw JSON.
+// Seeds are tried in configured order and the first that answers wins, matching how
+// resolveSeedAddrs treats them: an entry point, not a runtime single point of failure.
+func (n *NetworkNode) FetchHubAPI(ctx context.Context, path string) ([]byte, error) {
+	seeds, err := n.resolveSeedAddrs()
+	if err != nil {
+		return nil, err
+	}
+	if len(seeds) == 0 {
+		return nil, fmt.Errorf("no hub seed configured (p2p.server_address / server_addresses)")
+	}
+
+	var lastErr error
+	for _, seed := range seeds {
+		if seed.ID == n.host.ID() {
+			// We are the hub: answer from our own mux instead of dialling ourselves.
+			if n.app.HubMux == nil {
+				lastErr = fmt.Errorf("hub mode not enabled locally")
+				continue
+			}
+			req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost"+path, nil)
+			if err != nil {
+				return nil, err
+			}
+			rec := &streamResponseWriter{header: http.Header{}, body: &bytes.Buffer{}}
+			n.app.HubMux.ServeHTTP(rec, req)
+			return rec.body.Bytes(), nil
+		}
+
+		body, err := n.fetchHubAPIFromPeer(ctx, seed.ID, path)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		return body, nil
+	}
+	return nil, lastErr
+}
+
+func (n *NetworkNode) fetchHubAPIFromPeer(ctx context.Context, pid peer.ID, path string) ([]byte, error) {
+	stream, err := n.host.NewStream(ctx, pid, HubAPIProtocolID)
+	if err != nil {
+		return nil, fmt.Errorf("open hub-api stream to %s: %w", pid.String()[:8], err)
+	}
+	defer stream.Close()
+	_ = stream.SetDeadline(time.Now().Add(15 * time.Second))
+
+	req, err := http.NewRequest("GET", "http://hub"+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	if err := req.Write(stream); err != nil {
+		return nil, err
+	}
+
+	resp, err := http.ReadResponse(bufio.NewReader(stream), req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("hub returned HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	return body, nil
 }
 
 // bootstrapNode joins the Kademlia DHT and connects to every configured seed address.

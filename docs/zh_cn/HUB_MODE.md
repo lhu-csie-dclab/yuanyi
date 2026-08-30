@@ -33,8 +33,8 @@ Central Server 进程才能做的事：
 - Hub 专属的仪表板页面（排行榜、Peer 列表、审计事件、拓扑），就是 client 仪表板同一个 Vue
   SPA 的一部分，跑在同一个 `web_port`——不占额外端口，也不是真的另一个网址，而是前端用
   hash 路由（`/#/hub`、`/#/hub/history`、`/#/hub/leaderboard`）切换页面。侧边栏检测到 Hub
-  模式开启后，会自动显示"Cluster (Hub Mode)"分区。它调用的 JSON 端点（`/hub/api/*`）则挂在
-  `server_mode.proxy_port`，所以那些调用是跨源的，Hub 会返回宽松的 CORS 头。
+  模式开启后，会自动显示"Cluster (Hub Mode)"分区。它调用的 JSON 端点（`/hub/api/*`）是同源的，
+  由本节点通过 libp2p 代为向 Hub 索取。
 - Circuit Relay v2 中继服务，并固定监听在 `server_mode.p2p_port`——如果这个节点本身公网可达，
   NAT 后方的 Peer 就能通过它连进 Swarm。
 
@@ -111,8 +111,7 @@ Hub 节点也可以配置成空种子列表，这种情况下它就是其他节�
 {
   "p2p": {
     "server_address": "/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh",
-    "server_addresses": [],
-    "hub_api_port": 50008
+    "server_addresses": []
   },
   "server_mode": {
     "enabled": false,
@@ -132,7 +131,6 @@ Hub 节点也可以配置成空种子列表，这种情况下它就是其他节�
 | 字段 | 默认值 | 说明 |
 | :--- | :--- | :--- |
 | `p2p.server_addresses` | `[]` | Bootstrap/Hub 种子节点列表（推荐写法）。 |
-| `p2p.hub_api_port` | `50008` | 这个节点要去哪个端口调用 **Hub 的** `/hub/api/*`。必须与 Hub 的 `server_mode.proxy_port` 一致。 |
 | `server_mode.enabled` | `false` | 是否为这个节点开启 Hub 模式。 |
 | `server_mode.relay_only` | `false` | 改为贡献中继而非 GPU 推理：不启动本机 vLLM，并广播 `role: "relay"` 让其他节点不要派工作过来。会自动隐含 `enabled`。 |
 | `server_mode.p2p_port` | `50004` | 固定 libp2p 监听端口，供其他节点拨入。 |
@@ -142,20 +140,29 @@ Hub 节点也可以配置成空种子列表，这种情况下它就是其他节�
 | `server_mode.check_interval_sec` | `30` | 健康检查 Ping 的轮询间隔秒数。 |
 | `server_mode.cluster.prefill_nodes` / `decode_nodes` | `0` / `0` | 专用 P/D 节点数量上限；两者皆 0 代表 PD-Together 模式。 |
 
-### Hub 必须对所有节点开放的端口
+### 端口
 
-| 端口 | 谁需要 | 被挡掉会怎样 |
+| 端口 | 需要被谁连到 | 被挡掉会怎样 |
 | :--- | :--- | :--- |
 | `server_mode.p2p_port`（50004） | 每个节点 | 无法 bootstrap 进 Swarm。 |
-| `server_mode.proxy_port`（50008） | 每个节点 | **P/D 分离会静默地永远不生效。** |
+| `server_mode.proxy_port`（50008） | 只需 localhost | 没影响，见下。 |
+| `web_port`（50007） | 只需运维者 | 仪表板连不上。 |
 
-`proxy_port` 很容易被忽略，因为名字听起来只是 Hub 自己的网关。但 `/hub/api/*` 也挂在上面，而
-集群拓扑是通过原始 HTTP 从那里获取的——这是整个系统唯一不走 libp2p 的部分。节点拿不到就会继续
-用内置的 PD-Together 默认值，于是不管你把 `cluster.prefill_nodes`/`decode_nodes` 设成什么都像
-是没作用。要确认的话看节点日志里的 `[SYNC]`：正常的节点每 10 秒会记一次
-`同步 Server P/D 拓樸成功`，失败时现在也会记下原因。
+**Hub API 不需要开放任何对外端口。** `/hub/api/*` 是通过 libp2p 提供给其他节点的
+（`/hub-api/1.0.0`，见 `p2p.go` 的 `HubAPIProtocolID`），所以 `proxy_port` 可以安心绑在
+localhost。这同时让 API 直接继承 Swarm 本身的访问控制：`swarm.key` 的 PSK 决定谁能加入这个私有
+网络，能开起那条流的必然已经是成员——不用另外分发密钥，也不会有未验证的端口暴露在外网。
 
-`web_port`（50007）只提供仪表板 UI 与节点自己的 `/api/*`，可以保持只对运维者开放。
+浏览器不会说 libp2p，所以仪表板的 Hub 页面是调用**自己所在节点**的 `web_port` 上的
+`/hub/api/*`，由该节点通过 libp2p 去跟 Hub 取（见 `web.go` 的步骤 4.2）。附带好处是：任何节点的
+仪表板都能看 Hub 数据，不再只有 Hub 自己。
+
+例外是 `/hub/api/debug/*`。那些会变更集群状态，刻意不通过 libp2p 提供——每个节点都持有同一把
+`swarm.key`，所以「swarm 成员」是远比「有这台机器访问权的运维者」宽松的信任边界。它们只在 Hub
+自己的本机 HTTP 监听端口上响应。
+
+要确认拓扑同步是否正常，看节点日志里的 `[SYNC]`：健康的节点每 10 秒会记一次
+`同步 Server P/D 拓樸成功`，而每一条失败路径现在都会记下原因。
 
 ### 重置累计统计
 

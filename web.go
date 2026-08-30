@@ -96,10 +96,6 @@ func StartClientWebDashboard(app *App) {
 			"vllm_port":  app.Config.VLLM.Port,
 			"proxy_port": app.Config.ProxyPort,
 			"model_name": app.Config.VLLM.ModelName,
-			// Where THIS node serves /hub/api/* when it is a hub (server_mode.proxy_port).
-			// The dashboard is served from web_port but the hub API now lives on a separate
-			// port, so the SPA has to be told which one rather than using a relative path.
-			"hub_api_port": app.Config.ServerMode.ProxyPort,
 		})
 	})
 
@@ -119,58 +115,40 @@ func StartClientWebDashboard(app *App) {
 			localID = app.P2P.host.ID().String()
 		}
 
-		serverHost := "127.0.0.1"
-		parts := strings.Split(app.Config.P2P.ServerAddress, "/")
-		for i, p := range parts {
-			if (p == "ip4" || p == "dns4" || p == "dns") && i+1 < len(parts) {
-				serverHost = parts[i+1]
-				break
-			}
-		}
-
-		// 向 Central Server API 查詢排行榜數據以校正本地數值
-		if localID != "" {
-			cctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		// 向 Hub 查詢排行榜數據以校正本地數值。走 libp2p（見 HubAPIProtocolID），所以 Hub
+		// 不必對外開放埠；拿不到就沿用本地數字，這只是校正而非必要資料。
+		if localID != "" && app.P2P != nil {
+			cctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 			defer cancel()
-			hubPort := app.Config.P2P.HubAPIPort
-			if hubPort <= 0 {
-				hubPort = 50008
-			}
-			reqURL := fmt.Sprintf("http://%s:%d/hub/api/leaderboard", serverHost, hubPort)
-			req, err := http.NewRequestWithContext(cctx, "GET", reqURL, nil)
-			if err == nil {
-				resp, err := http.DefaultClient.Do(req)
-				if err == nil {
-					defer resp.Body.Close()
-					var board []struct {
-						PeerID        string `json:"peer_id"`
-						TotalRequests int64  `json:"total_requests"`
-						TotalTokens   int64  `json:"total_tokens"`
-						InTokens      int64  `json:"in_tokens"`
-						OutTokens     int64  `json:"out_tokens"`
-					}
-					if json.NewDecoder(resp.Body).Decode(&board) == nil {
-						for _, item := range board {
-							if item.PeerID == localID {
-								// 取較大者校正本地統計
-								totTok, _ := stats["total_tokens"].(int64)
-								if item.TotalTokens > totTok {
-									stats["total_tokens"] = item.TotalTokens
-								}
-								inTok, _ := stats["in_tokens"].(int64)
-								if item.InTokens > inTok {
-									stats["in_tokens"] = item.InTokens
-								}
-								outTok, _ := stats["out_tokens"].(int64)
-								if item.OutTokens > outTok {
-									stats["out_tokens"] = item.OutTokens
-								}
-								totReq, _ := stats["total_requests"].(int64)
-								if item.TotalRequests > totReq {
-									stats["total_requests"] = item.TotalRequests
-								}
-								break
+			if body, err := app.P2P.FetchHubAPI(cctx, "/hub/api/leaderboard"); err == nil {
+				var board []struct {
+					PeerID        string `json:"peer_id"`
+					TotalRequests int64  `json:"total_requests"`
+					TotalTokens   int64  `json:"total_tokens"`
+					InTokens      int64  `json:"in_tokens"`
+					OutTokens     int64  `json:"out_tokens"`
+				}
+				if json.Unmarshal(body, &board) == nil {
+					for _, item := range board {
+						if item.PeerID == localID {
+							// 取較大者校正本地統計
+							totTok, _ := stats["total_tokens"].(int64)
+							if item.TotalTokens > totTok {
+								stats["total_tokens"] = item.TotalTokens
 							}
+							inTok, _ := stats["in_tokens"].(int64)
+							if item.InTokens > inTok {
+								stats["in_tokens"] = item.InTokens
+							}
+							outTok, _ := stats["out_tokens"].(int64)
+							if item.OutTokens > outTok {
+								stats["out_tokens"] = item.OutTokens
+							}
+							totReq, _ := stats["total_requests"].(int64)
+							if item.TotalRequests > totReq {
+								stats["total_requests"] = item.TotalRequests
+							}
+							break
 						}
 					}
 				}
@@ -179,6 +157,45 @@ func StartClientWebDashboard(app *App) {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(stats)
+	})
+
+	// 步驟 4.2: Hub API 代理 (GET /hub/api/*)
+	//
+	// 瀏覽器不會說 libp2p，所以儀表板的 Hub 頁面改由這裡代抓：前端仍用相對路徑呼叫
+	// /hub/api/*，本節點再透過 libp2p 去問 Hub。三個好處：
+	//   - Hub 完全不需要對外開放任何埠（連 server_mode.proxy_port 都可以只綁 localhost）
+	//   - 不再有跨來源請求，也就不需要 CORS
+	//   - 任何節點的儀表板都能看 Hub 資料，而不是只有 Hub 自己
+	//
+	// 本節點自己就是 Hub 時，FetchHubAPI 會直接走內部 mux，不會繞路撥號自己。
+	mux.HandleFunc("/hub/api/", func(w http.ResponseWriter, r *http.Request) {
+		// 本節點自己就是 Hub：直接交給 Hub 的 mux。這條路徑保留原本的 method 與 body，所以
+		// /hub/api/debug/* 那些 POST 端點只有在這種情況下可用——它們會變更叢集狀態，刻意不
+		// 開放給 libp2p 對端（見 setupStreams 的 HubAPIProtocolID handler）。
+		if app.HubMux != nil {
+			app.HubMux.ServeHTTP(w, r)
+			return
+		}
+		if app.P2P == nil {
+			http.Error(w, `{"error":"p2p not ready"}`, http.StatusServiceUnavailable)
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+		defer cancel()
+
+		path := r.URL.Path
+		if r.URL.RawQuery != "" {
+			path += "?" + r.URL.RawQuery
+		}
+		body, err := app.P2P.FetchHubAPI(ctx, path)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(body)
 	})
 
 	// 步驟 4.5: API 端點 - 歸零本機累計統計 (POST /api/stats/reset)
@@ -373,15 +390,9 @@ func StartClientWebDashboard(app *App) {
 	// 步驟 9.5: 掛載聊天記錄伺服器端存檔 API（不受 server_mode 限制，一般 client 也能用）
 	RegisterChatRoutes(mux, app) // 至 chat_history.go 掛載 /api/chat/sessions
 
-	// 步驟 10: Hub 的 /hub/api/* 不再掛在這個 web mux 上，改由 server_proxy.go 的
-	// StartServerDispatch 掛到 server_mode.proxy_port（預設 50008）。web_port 只保留儀表板
-	// UI 與 client 自己的 /api/*；Hub 儀表板頁面仍由這裡提供，但改成跨埠呼叫 hub API
-	// （見 web-ui/src/api.js 與下方 node_info 回傳的 hub_api_port）。
-	//
-	// 拆開的理由是兩者的可達性需求本質不同：web_port 通常只要對維運者開放就夠，但 hub API
-	// 必須對 swarm 裡每個節點開放——P/D 拓樸只走 HTTP、不走 libp2p，節點拉不到就會無聲退回
-	// PD-Together。混在同一個埠時，「只開放儀表板給自己看」這個很自然的防火牆設定，會連帶
-	// 讓整個叢集的 P/D 分離失效，而且沒有任何錯誤訊息。
+	// 步驟 10: Hub 的 /hub/api/* 本身由 server_proxy.go 的 StartServerDispatch 掛在
+	// server_mode.proxy_port，並透過 libp2p（HubAPIProtocolID）提供給其他節點。這個 web mux
+	// 上的 /hub/api/* 則是給瀏覽器用的代理入口，見上面的步驟 4.2。
 
 	// 步驟 11: 讀取監聽埠並啟動背景 HTTP 伺服器
 	port := app.Config.WebPort

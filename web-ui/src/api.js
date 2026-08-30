@@ -38,31 +38,25 @@ export async function restoreBackup(filename) {
   return data
 }
 
-// --- Hub endpoints (server_web.go, only registered when server_mode.enabled) ---
-// These are NOT same-origin: the dashboard is served from web_port, but the hub API is
-// mounted on server_mode.proxy_port (see the 步驟 10 comment in web.go for why they were
-// split). So they need an absolute URL with the hub port rather than a relative path --
-// same host, different port. The Go side sends CORS headers for exactly this reason.
+// --- Hub endpoints ---
+// Same-origin relative paths: the node serving this dashboard also exposes /hub/api/* (see
+// 步驟 4.2 in web.go) and fetches the answer from the hub over libp2p on our behalf. Browsers
+// cannot speak libp2p, so this proxy hop is what lets the hub keep its own API off any
+// externally reachable port -- and it means any node's dashboard can show hub data, not just
+// the hub's own.
 //
-// 50008 matches the server_mode.proxy_port default, so hub pages work before
-// /api/node_info resolves; setHubApiPort() corrects it afterwards if the hub uses a
-// custom port.
-let hubApiPort = 50008
-export function setHubApiPort(port) {
-  if (port > 0) hubApiPort = port
-}
-const hubURL = (path) => `${window.location.protocol}//${window.location.hostname}:${hubApiPort}${path}`
-
-export const getHubPeers = () => getJSON(hubURL('/hub/api/peers'))
-export const getHubEvents = () => getJSON(hubURL('/hub/api/events'))
-export const getHubStats = () => getJSON(hubURL('/hub/api/stats'))
-export const getHubLeaderboard = () => getJSON(hubURL('/hub/api/leaderboard'))
-export const getHubTopology = () => getJSON(hubURL('/hub/api/cluster_topology'))
+// The debug endpoints are the exception: they mutate cluster state and are deliberately not
+// served over libp2p, so they only work when this dashboard IS the hub's own.
+export const getHubPeers = () => getJSON('/hub/api/peers')
+export const getHubEvents = () => getJSON('/hub/api/events')
+export const getHubStats = () => getJSON('/hub/api/stats')
+export const getHubLeaderboard = () => getJSON('/hub/api/leaderboard')
+export const getHubTopology = () => getJSON('/hub/api/cluster_topology')
 export async function hubForceRank() {
-  return getJSON(hubURL('/hub/api/debug/force_rank'), { method: 'POST' })
+  return getJSON('/hub/api/debug/force_rank', { method: 'POST' })
 }
 export async function hubClearOffline() {
-  return getJSON(hubURL('/hub/api/debug/clear_offline'), { method: 'POST' })
+  return getJSON('/hub/api/debug/clear_offline', { method: 'POST' })
 }
 
 // --- Formatting helpers shared across views ---

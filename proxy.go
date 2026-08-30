@@ -93,65 +93,34 @@ func (d *LocalDispatcher) startVLLMHealthChecker() {
 }
 
 // syncTopologyLoop 背景 Goroutine (每 10 秒執行一次)：
-// 向 Bootstrap/Hub 節點發起 HTTP GET 請求，同步最新的 P/D 叢集拓樸視圖。
-// 【邏輯說明】
-//  1. 從 config.json 的 ServerAddress (Multiaddress) 中拆解出 Bootstrap 節點的 Host 位址。
-//  2. 構造 http://<serverHost>:<p2p.hub_api_port>/hub/api/cluster_topology URL
-//     （Hub API 掛在 Hub 的 server_mode.proxy_port，預設 50008，與儀表板的 web_port 分開）。
-//  3. 發起 5 秒超時的 HTTP 請求，反序列化 response JSON 並更新至 d.topology。
+// 透過 libp2p 向 Bootstrap/Hub 節點索取最新的 P/D 叢集拓樸視圖。
 //
-// 注意：這是整個 swarm 裡少數不走 libp2p 而走原始 HTTP 的路徑，所以 Hub 必須把該埠對所有
-// 節點開放，否則 P/D 分離不會生效（失敗時的日誌見 syncOnce 內各分支）。
+// 走 HubAPIProtocolID 而不是原始 HTTP，所以 Hub 不需要對外開放任何埠，也能穿透 NAT 與 relay；
+// 而且 swarm.key 的 PSK 本身就限制了誰能開起這條串流，等於免費附帶身分驗證。
+//
+// 每個失敗分支都必須留下日誌：這裡原本全部是裸 return，於是「拓樸永遠同步不到」會完全無聲——
+// d.topology 一直停在建構時的 PD-Together 預設值，所有請求退回本機優先派工，表面上看起來只是
+// 「P/D 沒有生效」而查不到任何線索。實測曾因此讓整個叢集的 P/D 分離長期失效而無人察覺。
 func (d *LocalDispatcher) syncTopologyLoop() {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
-	// 步驟 1: 解析 Server 主機 IP/域名
-	serverAddr := d.app.Config.P2P.ServerAddress
-	serverHost := "127.0.0.1"
-	parts := strings.Split(serverAddr, "/")
-	for i, p := range parts {
-		if (p == "ip4" || p == "dns4" || p == "dns") && i+1 < len(parts) {
-			serverHost = parts[i+1]
-			break
-		}
-	}
-
-	hubPort := d.app.Config.P2P.HubAPIPort
-	if hubPort <= 0 {
-		hubPort = 50008
-	}
-	serverURL := fmt.Sprintf("http://%s:%d/hub/api/cluster_topology", serverHost, hubPort)
-
-	// 步驟 2: 發起一次同步的封裝函式
 	syncOnce := func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		// 每個失敗分支都要留下日誌。這裡原本全部是裸 return，於是「拓樸永遠同步不到」會完全
-		// 無聲：d.topology 一直停在建構時的 PD-Together 預設值，所有請求退回本機優先派工，
-		// 表面上看起來只是「P/D 沒有生效」而查不到任何線索。實測曾因此讓整個叢集的 P/D 分離
-		// 長期失效而無人察覺。
-		req, err := http.NewRequestWithContext(ctx, "GET", serverURL, nil)
-		if err != nil {
-			d.app.TUI.AddLog("[SYNC]", fmt.Sprintf("拓樸請求建立失敗 (%s): %v", serverURL, err))
+		if d.app.P2P == nil {
 			return
 		}
-		resp, err := http.DefaultClient.Do(req)
+		body, err := d.app.P2P.FetchHubAPI(ctx, "/hub/api/cluster_topology")
 		if err != nil {
-			d.app.TUI.AddLog("[SYNC]", fmt.Sprintf("無法連線至 Hub 拓樸 API (%s): %v — P/D 分離不會生效，請確認該埠已對節點開放", serverURL, err))
-			return
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			d.app.TUI.AddLog("[SYNC]", fmt.Sprintf("Hub 拓樸 API 回應 HTTP %d (%s) — 請確認該節點已開啟 server_mode", resp.StatusCode, serverURL))
+			d.app.TUI.AddLog("[SYNC]", fmt.Sprintf("無法取得 Hub 拓樸: %v — P/D 分離不會生效（PD-Together 模式不受影響）", err))
 			return
 		}
 
 		var top ClusterTopologyResponse
-		if err := json.NewDecoder(resp.Body).Decode(&top); err != nil {
-			d.app.TUI.AddLog("[SYNC]", fmt.Sprintf("拓樸回應解析失敗 (%s): %v", serverURL, err))
+		if err := json.Unmarshal(body, &top); err != nil {
+			d.app.TUI.AddLog("[SYNC]", fmt.Sprintf("拓樸回應解析失敗: %v", err))
 			return
 		}
 		d.mu.Lock()
