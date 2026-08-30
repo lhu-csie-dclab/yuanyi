@@ -15,9 +15,15 @@
 # or surprising to run unattended (uninstalling, deleting a model, turning this node into a
 # network hub) intentionally still default to "no" even in this mode -- see each
 # Confirm-Action call site's -DefaultYes usage for what actually auto-proceeds.
+#
+# To join an EXISTING swarm fully unattended (rather than always generating a brand-new,
+# isolated swarm.key), pass -SwarmKeyPath pointing at that swarm's key file, e.g.:
+#   install.ps1 install --example -SwarmKeyPath C:\path\to\swarm.key
+# This also works without --example, as a shortcut that skips just that one prompt.
 
 param(
     [string]$Command = "",
+    [string]$SwarmKeyPath = "",
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Rest = @()
 )
@@ -170,7 +176,10 @@ function Setup-SwarmKey {
     Write-Host "  - Joining an existing swarm: give the path to that swarm's key (must match exactly)."
     Write-Host "  - Starting a new swarm:      leave blank and one will be generated."
     Write-Host ""
-    $src = Ask "Path to an existing swarm.key (blank = generate new)" ""
+    if ($script:SwarmKeyPath -ne "") {
+        Write-Host "Using -SwarmKeyPath: $script:SwarmKeyPath"
+    }
+    $src = Ask "Path to an existing swarm.key (blank = generate new)" $script:SwarmKeyPath
 
     if ($src -ne "") {
         if (-not (Test-Path $src)) { Fail "No such file: $src" }

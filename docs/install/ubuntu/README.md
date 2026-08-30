@@ -39,6 +39,10 @@ in the arguments to accept the default answer at each one automatically, e.g.
 Confirmations that would be destructive or surprising to run unattended (uninstalling, deleting
 a model, turning this node into a network hub) still default to "no" even with this flag.
 
+Unattended mode still defaults to generating a brand-new swarm.key, which starts an isolated
+swarm. To join an EXISTING swarm unattended, add `--swarm-key <path>` pointing at that swarm's
+key file, e.g. `bash install.sh install --example --swarm-key /path/to/swarm.key`.
+
 Missing `git` or `docker`? The script offers to install them for you (via `apt`/`dnf`/`yum`/
 `pacman`/`zypper`), so §1's prerequisites are handled automatically. Docker comes from your
 distribution's repository rather than a piped remote script. Because Docker installs stopped

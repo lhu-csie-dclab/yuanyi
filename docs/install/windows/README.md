@@ -45,6 +45,10 @@ command to accept the default answer at each one automatically, e.g.
 Confirmations that would be destructive or surprising to run unattended (uninstalling, deleting
 a model, turning this node into a network hub) still default to "no" even with this flag.
 
+Unattended mode still defaults to generating a brand-new swarm.key, which starts an isolated
+swarm. To join an EXISTING swarm unattended, add `-SwarmKeyPath <path>` pointing at that
+swarm's key file, e.g. `install.ps1 install --example -SwarmKeyPath C:\path\to\swarm.key`.
+
 Missing `git`, `go`, `npm`, or `uv`? The script offers to install them for you via `winget`
 (and `uv`'s official installer), so §1's prerequisites are handled automatically — it also
 refreshes `PATH` in-process so the install continues without reopening the terminal.

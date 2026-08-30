@@ -16,13 +16,26 @@
 # destructive or surprising to run unattended (uninstalling, deleting a model, turning this
 # node into a network hub) intentionally still default to "no" even in this mode -- see each
 # confirm_default_yes call site for what actually auto-proceeds.
+#
+# To join an EXISTING swarm fully unattended (rather than always generating a brand-new,
+# isolated swarm.key), pass --swarm-key <path> pointing at that swarm's key file, e.g.:
+#   bash install.sh install --example --swarm-key /path/to/swarm.key
+# This also works without --example, as a shortcut that skips just that one prompt.
 
 set -euo pipefail
 
 NON_INTERACTIVE=0
-for _arg in "$@"; do
-  case "$_arg" in
+SWARM_KEY_PATH=""
+_args=("$@")
+for _i in "${!_args[@]}"; do
+  case "${_args[$_i]}" in
     --example|-y|--yes) NON_INTERACTIVE=1 ;;
+    --swarm-key)
+      SWARM_KEY_PATH="${_args[$((_i+1))]:-}"
+      ;;
+    --swarm-key=*)
+      SWARM_KEY_PATH="${_args[$_i]#--swarm-key=}"
+      ;;
   esac
 done
 
@@ -311,7 +324,10 @@ setup_swarm_key() {
   echo "  - Starting a new swarm:      leave blank and one will be generated."
   echo
   local path
-  path="$(ask "Path to an existing swarm.key (blank = generate new)" "")"
+  if [ -n "$SWARM_KEY_PATH" ]; then
+    echo "Using --swarm-key: $SWARM_KEY_PATH"
+  fi
+  path="$(ask "Path to an existing swarm.key (blank = generate new)" "$SWARM_KEY_PATH")"
 
   if [ -n "$path" ]; then
     path="${path/#\~/$HOME}"
