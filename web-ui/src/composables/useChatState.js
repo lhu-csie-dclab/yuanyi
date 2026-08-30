@@ -141,7 +141,18 @@ async function send(text, images = []) {
 
   const assistantMsg = { role: 'assistant', content: '', loading: true }
   session.messages.push(assistantMsg)
+  // Re-read the just-pushed message back out through the reactive proxy (session came from
+  // activeSession.value, itself read through the sessions ref's proxy) instead of mutating
+  // the raw `assistantMsg` object literal directly below. Vue 3's reactivity only fires
+  // dependency triggers on writes that go *through* a reactive proxy's set trap -- writing to
+  // the raw closure reference bypasses that trap entirely, so nothing (the <think>-collapse
+  // computed, the auto-scroll watcher, the template itself) ever re-evaluated mid-stream; the
+  // whole reply only ever appeared to "pop in" once, on the next unrelated re-render.
+  const liveMsg = session.messages[session.messages.length - 1]
   streaming.value = true
+
+  let tokenCount = 0
+  let genStartedAt = 0
 
   const apiMessages = []
   if (cfg.value.systemPrompt) {
@@ -193,8 +204,10 @@ async function send(text, images = []) {
           const chunk = JSON.parse(data)
           const delta = chunk.choices?.[0]?.delta?.content
           if (delta) {
-            assistantMsg.content += delta
-            assistantMsg.loading = false
+            if (!genStartedAt) genStartedAt = performance.now()
+            tokenCount++ // one SSE delta chunk == one generated token for vLLM's default streaming granularity
+            liveMsg.content += delta
+            liveMsg.loading = false
             // Persist periodically while streaming, not just once at the end -- the
             // module-singleton above already survives in-SPA navigation on its own, but this
             // also covers an actual full page reload/tab close mid-stream.
@@ -207,11 +220,15 @@ async function send(text, images = []) {
       }
     }
   } catch (e) {
-    assistantMsg.content = ''
+    liveMsg.content = ''
     error.value = e.message
   }
 
-  assistantMsg.loading = false
+  if (tokenCount > 0 && genStartedAt) {
+    const elapsedSec = (performance.now() - genStartedAt) / 1000
+    if (elapsedSec > 0) liveMsg.tokensPerSec = tokenCount / elapsedSec
+  }
+  liveMsg.loading = false
   streaming.value = false
   saveSessions()
 }
