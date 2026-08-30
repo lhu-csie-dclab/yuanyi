@@ -33,7 +33,8 @@ Central Server 程序才能做的事：
 - Hub 專屬的儀表板頁面（排行榜、Peer 清單、稽核事件、拓撲），就是 client 儀表板同一個 Vue
   SPA 的一部分，掛在同一個 `web_port`——不占額外的 port，也不是真的另一個網址，而是前端用
   hash 路由（`/#/hub`、`/#/hub/history`、`/#/hub/leaderboard`）切換頁面。側邊欄偵測到 Hub
-  模式開啟後，會自動顯示「Cluster (Hub Mode)」分區。
+  模式開啟後，會自動顯示「Cluster (Hub Mode)」分區。它呼叫的 JSON 端點（`/hub/api/*`）則掛在
+  `server_mode.proxy_port`，所以那些呼叫是跨來源的，Hub 會回應寬鬆的 CORS 標頭。
 - Circuit Relay v2 中繼服務，並固定監聽在 `server_mode.p2p_port`——如果這個節點本身公網可達，
   NAT 後方的 Peer 就能透過它連進 Swarm。
 
@@ -110,7 +111,8 @@ Hub 節點也可以設定成空種子清單，這種情況下它就是其他節�
 {
   "p2p": {
     "server_address": "/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh",
-    "server_addresses": []
+    "server_addresses": [],
+    "hub_api_port": 50008
   },
   "server_mode": {
     "enabled": false,
@@ -130,6 +132,7 @@ Hub 節點也可以設定成空種子清單，這種情況下它就是其他節�
 | 欄位 | 預設值 | 說明 |
 | :--- | :--- | :--- |
 | `p2p.server_addresses` | `[]` | Bootstrap/Hub 種子節點清單（建議寫法）。 |
+| `p2p.hub_api_port` | `50008` | 這個節點要去哪個埠呼叫 **Hub 的** `/hub/api/*`。必須與 Hub 的 `server_mode.proxy_port` 一致。 |
 | `server_mode.enabled` | `false` | 是否為這個節點開啟 Hub 模式。 |
 | `server_mode.relay_only` | `false` | 改為貢獻中繼而非 GPU 推論：不啟動本機 vLLM，並廣播 `role: "relay"` 讓其他節點不要派工作過來。會自動隱含 `enabled`。 |
 | `server_mode.p2p_port` | `50004` | 固定 libp2p 監聽埠，供其他節點撥入。 |
@@ -139,9 +142,42 @@ Hub 節點也可以設定成空種子清單，這種情況下它就是其他節�
 | `server_mode.check_interval_sec` | `30` | 健康檢查 Ping 的輪詢間隔秒數。 |
 | `server_mode.cluster.prefill_nodes` / `decode_nodes` | `0` / `0` | 專用 P/D 節點數量上限；兩者皆 0 代表 PD-Together 模式。 |
 
-Hub 儀表板本身沒有自己的 `server_mode.*` 埠——它的頁面是同一個 Vue SPA 的一部分，跑在 client
-既有的 `web_port`（預設 `50007`）上，用 hash 路由切換而不是真的另一個伺服器路徑（只有
-`/hub/api/*` 這組 JSON 端點才是真實路徑）。`LoadOrCreateConfig` 會防止
+### Hub 必須對所有節點開放的埠
+
+| 埠 | 誰需要 | 被擋掉會怎樣 |
+| :--- | :--- | :--- |
+| `server_mode.p2p_port`（50004） | 每個節點 | 無法 bootstrap 進 Swarm。 |
+| `server_mode.proxy_port`（50008） | 每個節點 | **P/D 分離會無聲地永遠不生效。** |
+
+`proxy_port` 很容易被忽略，因為名字聽起來只是 Hub 自己的閘道。但 `/hub/api/*` 也掛在上面，而
+叢集拓樸是透過原始 HTTP 從那裡抓的——這是整個系統唯一不走 libp2p 的部分。節點拿不到就會繼續
+用內建的 PD-Together 預設值，於是不管你把 `cluster.prefill_nodes`/`decode_nodes` 設成什麼都像
+是沒作用。要確認的話看節點日誌裡的 `[SYNC]`：正常的節點每 10 秒會記一次
+`同步 Server P/D 拓樸成功`，失敗時現在也會記下原因。
+
+`web_port`（50007）只提供儀表板 UI 與節點自己的 `/api/*`，可以維持只對維運者開放。
+
+### 重置累計統計
+
+貢獻度計數（`total_requests`、`total_tokens`、`contribution_score`）只增不減，而 Hub 是以
+keep-max 規則從 gossip 合併。所以被過去的計數錯誤污染的數值會永遠留著，除非**先從來源清起**
+——順序很重要：
+
+```sh
+# 1. 每一台數字被灌水的節點，逐台執行
+curl -X POST http://<node>:50007/api/stats/reset
+
+# 2. 最後才是 Hub
+curl -X POST http://<hub>:50008/hub/api/debug/reset_stats
+```
+
+順序反過來就毫無作用：下一輪 gossip（約 3 秒）就會把節點還在廣播的舊值重新合併回來。另外要注
+意 token 計數會在約 2 秒內從 vLLM 自己的 Prometheus 累計值同步回來，要真正清掉必須連 vLLM 一起
+重啟；請求計數沒有這種外部來源，清了就是永久的。
+
+Hub 儀表板本身沒有自己的 `server_mode.*` 埠來放 UI——它的頁面是同一個 Vue SPA 的一部分，跑在
+client 既有的 `web_port`（預設 `50007`）上，用 hash 路由切換而不是真的另一個伺服器路徑。它呼
+叫的 JSON 端點（`/hub/api/*`）則在 `server_mode.proxy_port` 上。`LoadOrCreateConfig` 會防止
 `server_mode.proxy_port`/`p2p_port` 跟這個節點
 自己的 `web_port`、`proxy_port`、`vllm.port`、`vllm.mooncake_bootstrap_port` 撞埠，衝突時會重設
 為上面的預設值。
