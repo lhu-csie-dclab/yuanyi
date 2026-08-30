@@ -579,9 +579,8 @@ CLIENT_WEB_PORT=$($Cfg.WebPort)
   },
   "vllm": {
     "model_name": "$($Cfg.ModelName)",
-    "max_model_len": 40960,
+    "max_model_len": 16384,
     "max_num_seqs": 32,
-    "cpu_offload_gb": 16,
     "gpu_memory_utilization": $($Cfg.GpuUtil),
     "port": $($Cfg.VllmPort),
     "tensor_parallel_size": 1,

@@ -64,9 +64,8 @@ if __name__ == "__main__":
         "--model", "Qwen/Qwen3-4B-AWQ",
         "--quantization", "awq",
         "--gpu-memory-utilization", "0.9",
-        "--max-model-len", "40960",
+        "--max-model-len", "16384",
         "--max-num-seqs", "32",
-        "--cpu-offload-gb", "16",
         "--trust-remote-code",
         "--enforce-eager",
         "--port", "8100",  # matches config.go's VLLM.Port default, not vLLM's own convention --

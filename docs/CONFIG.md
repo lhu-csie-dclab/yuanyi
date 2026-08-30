@@ -45,9 +45,8 @@ This document provides a detailed reference for configuration handling in the Yu
   },
   "vllm": {
     "model_name": "Qwen/Qwen3-4B-AWQ",
-    "max_model_len": 40960,
+    "max_model_len": 16384,
     "max_num_seqs": 32,
-    "cpu_offload_gb": 16,
     "gpu_memory_utilization": 0.9,
     "port": 8100,
     "tensor_parallel_size": 1,
@@ -81,7 +80,6 @@ required — see [Reachability](#-reachability-announce_addr--behind_nat).
 | `vllm.port` | `8100` | Integer | Local vLLM engine HTTP endpoint. |
 | `vllm.gpu_memory_utilization` | `0.9` | Float | Maximum VRAM memory allocation ratio reserved for vLLM & KV cache. |
 | `vllm.max_num_seqs` | `32` | Integer | Max concurrent sequences vLLM's scheduler batches at once (`--max-num-seqs`). |
-| `vllm.cpu_offload_gb` | `16` | Integer | GPU memory (GiB) worth of model weights to offload to CPU RAM (`--cpu-offload-gb`); `0` disables offloading. |
 | `vllm.kv_role` | `"kv_both"` | String | P/D disaggregation role: `"kv_prefill"`, `"kv_decode"`, or `"kv_both"`. |
 | `vllm.mooncake_bootstrap_port` | `8998` | Integer | Mooncake KV Cache transfer control port. |
 | `server_mode.enabled` | `false` | Boolean | Opts this node into hub mode (merged Central Server responsibilities). See [`HUB_MODE.md`](HUB_MODE.md) for the full `server_mode.*` reference. |

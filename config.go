@@ -32,7 +32,6 @@ type VLLMConfig struct {
 	ModelName                    string  `json:"model_name"`
 	MaxModelLen                  int     `json:"max_model_len"`
 	MaxNumSeqs                   int     `json:"max_num_seqs,omitempty"`
-	CpuOffloadGB                 int     `json:"cpu_offload_gb,omitempty"`
 	GpuMemoryUtilization         float64 `json:"gpu_memory_utilization"`
 	Port                         int     `json:"port"`
 	TensorParallelSize           int     `json:"tensor_parallel_size"`
@@ -175,9 +174,8 @@ const defaultClientConfigStr = `{
   },
   "vllm": {
     "model_name": "Qwen/Qwen3-4B-AWQ",
-    "max_model_len": 40960,
+    "max_model_len": 16384,
     "max_num_seqs": 32,
-    "cpu_offload_gb": 16,
     "gpu_memory_utilization": 0.9,
     "port": 8100,
     "tensor_parallel_size": 1,
@@ -290,10 +288,6 @@ func LoadOrCreateConfig(filename string) (*ClientConfig, error) {
 	if cfg.VLLM.MaxNumSeqs <= 0 {
 		cfg.VLLM.MaxNumSeqs = 32
 	}
-	if cfg.VLLM.CpuOffloadGB <= 0 {
-		cfg.VLLM.CpuOffloadGB = 16
-	}
-
 	applyServerModeDefaults(&cfg)
 
 	return &cfg, nil

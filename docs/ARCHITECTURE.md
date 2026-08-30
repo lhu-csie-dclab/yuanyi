@@ -136,7 +136,7 @@ This document provides an exhaustive, multi-layered architectural specification 
   - `isDirectExecution()`: Detects whether running inside the All-in-One container (`ALL_IN_ONE=true` or `/opt/dynamo/venv/bin/vllm` present).
   - `startVLLMDirectly(ctx)`:
     1. Direct execution of `/opt/dynamo/venv/bin/ray start --head --dashboard-port 8275 --port 6389`.
-    2. Constructs `vllm serve` arguments (`--gpu-memory-utilization 0.9`, `--max-model-len 40960`, `--max-num-seqs 32`, `--kv-transfer-config MooncakeConnector`).
+    2. Constructs `vllm serve` arguments (`--gpu-memory-utilization 0.9`, `--max-model-len 16384`, `--max-num-seqs 32`, `--kv-transfer-config MooncakeConnector`).
     3. Pipes stdout and stderr in real-time to TUI log buffers.
   - `Stop()`: Sends termination signals (`Kill()`) to Ray and vLLM processes on shutdown.
 
