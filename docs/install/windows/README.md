@@ -221,11 +221,11 @@ node:
 
 - **Model** — `paths.model_path` defaults to the Linux container path `/data/model`, which
   doesn't exist on Windows. When `vllm.model_name` is also left at its default
-  (`cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit`), the agent logs a warning and downloads that same
+  (`Qwen/Qwen2-VL-2B-Instruct-AWQ`), the agent logs a warning and downloads that same
   model straight from Hugging Face on first start, since there's nothing to substitute it
   with (the default *is* the fallback here). If you point `vllm.model_name` at something else
   and Windows has no local weights for it, the agent falls back to
-  `cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit` instead and registers **both** names as aliases, so
+  `Qwen/Qwen2-VL-2B-Instruct-AWQ` instead and registers **both** names as aliases, so
   requests using either name resolve. To use your own local weights, point `paths.model_path`
   at a real Windows directory.
 - **VRAM** — `vllm.gpu_memory_utilization` is a fraction of **total** VRAM, not free VRAM. On
@@ -252,7 +252,7 @@ curl.exe http://127.0.0.1:8100/health
 # OpenAI-compatible gateway
 curl.exe -X POST http://127.0.0.1:50006/v1/chat/completions `
   -H "Content-Type: application/json" `
-  -d '{\"model\":\"cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}],\"max_tokens\":50}'
+  -d '{\"model\":\"Qwen/Qwen2-VL-2B-Instruct-AWQ\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}],\"max_tokens\":50}'
 ```
 
 Dashboard: <http://localhost:50007>

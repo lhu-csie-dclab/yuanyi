@@ -172,7 +172,7 @@ const defaultClientConfigStr = `{
     "mooncake_path": "/data/mooncake.json"
   },
   "vllm": {
-    "model_name": "cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit",
+    "model_name": "Qwen/Qwen2-VL-2B-Instruct-AWQ",
     "max_model_len": 8192,
     "gpu_memory_utilization": 0.75,
     "port": 8100,

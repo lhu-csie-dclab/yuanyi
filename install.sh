@@ -15,7 +15,7 @@ set -euo pipefail
 REPO_URL="https://github.com/lhu-csie-dclab/yuanyi.git"
 
 # Defaults. Every one of these can be overridden interactively during install.
-DEFAULT_MODEL="cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit"
+DEFAULT_MODEL="Qwen/Qwen2-VL-2B-Instruct-AWQ"
 DEFAULT_BOOTSTRAP="/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh"
 DEFAULT_WEB_PORT=50007
 DEFAULT_PROXY_PORT=50006

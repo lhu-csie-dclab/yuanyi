@@ -300,7 +300,7 @@ If that prints your GPU, host → LXC → Docker passthrough is complete.
 apt-get install -y git git-lfs
 git lfs install
 mkdir -p /root/models && cd /root/models
-git clone https://huggingface.co/cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit     # vision-capable default
+git clone https://huggingface.co/Qwen/Qwen2-VL-2B-Instruct-AWQ     # vision-capable default
 ```
 
 ---
@@ -330,7 +330,7 @@ for the full explanation.
 Configure `.env`:
 
 ```env
-ABS_MODEL_PATH=/root/models/Qwen3-VL-4B-Instruct-AWQ-4bit
+ABS_MODEL_PATH=/root/models/Qwen2-VL-2B-Instruct-AWQ
 SERVER_ADDRESS=/dns4/your-bootstrap-host/tcp/50004/p2p/12D3KooW...
 IFACE=eth0
 CLIENT_WEB_PORT=50007
@@ -349,7 +349,7 @@ Verify:
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8100/health      # vLLM
 curl -s http://127.0.0.1:50006/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"model":"cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit","messages":[{"role":"user","content":"Hello"}],"max_tokens":50}'
+  -d '{"model":"Qwen/Qwen2-VL-2B-Instruct-AWQ","messages":[{"role":"user","content":"Hello"}],"max_tokens":50}'
 curl -s http://127.0.0.1:50007/api/peers                                    # mesh peers
 ```
 

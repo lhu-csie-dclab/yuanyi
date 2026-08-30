@@ -18,7 +18,7 @@
   "proxy_port": 50006,
   "vllm": {
     "port": 8100,
-    "model_name": "cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit",
+    "model_name": "Qwen/Qwen2-VL-2B-Instruct-AWQ",
     "gpu_memory_utilization": 0.75,
     "max_model_len": 8192,
     "kv_role": "kv_both",

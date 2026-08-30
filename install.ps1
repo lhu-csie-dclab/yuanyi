@@ -24,7 +24,7 @@ $VerifiedVllmWheel = "vllm-0.9.2+cu124-cp312-cp312-win_amd64.whl"
 $VerifiedTorch     = @("torch==2.6.0+cu124", "torchvision==0.21.0+cu124", "torchaudio==2.6.0+cu124")
 $VerifiedTorchIdx  = "https://download.pytorch.org/whl/cu124"
 
-$DefaultModel        = "cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit"
+$DefaultModel        = "Qwen/Qwen2-VL-2B-Instruct-AWQ"
 $DefaultBootstrap    = "/dns4/host1.niveec.com/tcp/50004/p2p/12D3KooWBaeTNHHUc1RAePLbYJWvxy9xJXBVyYyW5aEY5hNWfzAh"
 $DefaultInstallDir   = Join-Path $HOME "yuanyi-client"
 $DefaultModelDir     = Join-Path $HOME "yuanyi-models"
