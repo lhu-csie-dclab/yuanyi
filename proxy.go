@@ -96,9 +96,12 @@ func (d *LocalDispatcher) startVLLMHealthChecker() {
 // 向 Bootstrap/Hub 節點發起 HTTP GET 請求，同步最新的 P/D 叢集拓樸視圖。
 // 【邏輯說明】
 //  1. 從 config.json 的 ServerAddress (Multiaddress) 中拆解出 Bootstrap 節點的 Host 位址。
-//  2. 構造 http://<serverHost>:50007/hub/api/cluster_topology URL
-//     （Hub 儀表板現在掛在 client 自己的 web_port 底下的 /hub/ 路徑，不再有獨立埠號）。
+//  2. 構造 http://<serverHost>:<p2p.hub_api_port>/hub/api/cluster_topology URL
+//     （Hub API 掛在 Hub 的 server_mode.proxy_port，預設 50008，與儀表板的 web_port 分開）。
 //  3. 發起 5 秒超時的 HTTP 請求，反序列化 response JSON 並更新至 d.topology。
+//
+// 注意：這是整個 swarm 裡少數不走 libp2p 而走原始 HTTP 的路徑，所以 Hub 必須把該埠對所有
+// 節點開放，否則 P/D 分離不會生效（失敗時的日誌見 syncOnce 內各分支）。
 func (d *LocalDispatcher) syncTopologyLoop() {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
@@ -114,31 +117,47 @@ func (d *LocalDispatcher) syncTopologyLoop() {
 		}
 	}
 
-	webPort := 50007 // assumes the bootstrap/hub node runs the default web_port with hub mode enabled
-	serverURL := fmt.Sprintf("http://%s:%d/hub/api/cluster_topology", serverHost, webPort)
+	hubPort := d.app.Config.P2P.HubAPIPort
+	if hubPort <= 0 {
+		hubPort = 50008
+	}
+	serverURL := fmt.Sprintf("http://%s:%d/hub/api/cluster_topology", serverHost, hubPort)
 
 	// 步驟 2: 發起一次同步的封裝函式
 	syncOnce := func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
+		// 每個失敗分支都要留下日誌。這裡原本全部是裸 return，於是「拓樸永遠同步不到」會完全
+		// 無聲：d.topology 一直停在建構時的 PD-Together 預設值，所有請求退回本機優先派工，
+		// 表面上看起來只是「P/D 沒有生效」而查不到任何線索。實測曾因此讓整個叢集的 P/D 分離
+		// 長期失效而無人察覺。
 		req, err := http.NewRequestWithContext(ctx, "GET", serverURL, nil)
 		if err != nil {
+			d.app.TUI.AddLog("[SYNC]", fmt.Sprintf("拓樸請求建立失敗 (%s): %v", serverURL, err))
 			return
 		}
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
+			d.app.TUI.AddLog("[SYNC]", fmt.Sprintf("無法連線至 Hub 拓樸 API (%s): %v — P/D 分離不會生效，請確認該埠已對節點開放", serverURL, err))
 			return
 		}
 		defer resp.Body.Close()
 
-		var top ClusterTopologyResponse
-		if err := json.NewDecoder(resp.Body).Decode(&top); err == nil {
-			d.mu.Lock()
-			d.topology = top
-			d.mu.Unlock()
-			d.app.TUI.AddLog("[SYNC]", fmt.Sprintf("同步 Server P/D 拓樸成功 (IsPDTogether: %v, P: %d, D: %d)", top.IsPDTogether, len(top.PrefillBackends), len(top.DecodeBackends))) // 至 tui.go 記錄同步日誌
+		if resp.StatusCode != http.StatusOK {
+			d.app.TUI.AddLog("[SYNC]", fmt.Sprintf("Hub 拓樸 API 回應 HTTP %d (%s) — 請確認該節點已開啟 server_mode", resp.StatusCode, serverURL))
+			return
 		}
+
+		var top ClusterTopologyResponse
+		if err := json.NewDecoder(resp.Body).Decode(&top); err != nil {
+			d.app.TUI.AddLog("[SYNC]", fmt.Sprintf("拓樸回應解析失敗 (%s): %v", serverURL, err))
+			return
+		}
+		d.mu.Lock()
+		d.topology = top
+		d.mu.Unlock()
+		d.app.TUI.AddLog("[SYNC]", fmt.Sprintf("同步 Server P/D 拓樸成功 (IsPDTogether: %v, P: %d, D: %d)", top.IsPDTogether, len(top.PrefillBackends), len(top.DecodeBackends))) // 至 tui.go 記錄同步日誌
 	}
 
 	// 靜態呼叫首次同步，隨後定時器輪詢
@@ -784,7 +803,8 @@ func (d *LocalDispatcher) handleProxyRequest(w http.ResponseWriter, r *http.Requ
 		decodeBytes, _ := json.Marshal(decodeReq)
 
 		var decodeResp []byte
-		if decodeBackend.PeerID == d.host.ID().String() {
+		decodeIsLocal := decodeBackend.PeerID == d.host.ID().String()
+		if decodeIsLocal {
 			decodeResp, err = d.streamToLocalVLLM(r.Context(), r.URL.Path, decodeBytes) // Decode 本地執行
 		} else {
 			decodeResp, err = d.streamToPeer(r.Context(), decodeBackend.PeerID, r.URL.Path, decodeBytes) // Decode 遠端轉發
@@ -796,7 +816,13 @@ func (d *LocalDispatcher) handleProxyRequest(w http.ResponseWriter, r *http.Requ
 			continue
 		}
 
-		d.recordMetrics(decodeResp, nil, false) // 紀錄成功指標
+		// Only count it when this node's own vLLM produced the answer. When decode ran on a
+		// peer, that peer already counts it in its ProxyProtocolID handler (see p2p.go), so
+		// recording it here too would credit one request to two nodes and inflate exactly the
+		// dispatcher nodes that did the least work.
+		if decodeIsLocal {
+			d.recordMetrics(decodeResp, nil, false) // 紀錄成功指標
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(decodeResp)

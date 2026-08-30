@@ -390,10 +390,15 @@ func (n *NetworkNode) setupStreams() {
 		res := fmt.Sprintf("ACK: %s", string(buf[:nRead]))
 		s.Write([]byte(res))
 
-		n.app.TUI.UpdateStats(func(st *Stats) {
-			st.requests++
-			st.successCount++
-		})
+		// Deliberately no longer touches st.requests/successCount. This protocol carries
+		// health-check pings only (the hub pings every peer every check_interval_sec,
+		// default 30s), so counting them made "requests" a function of swarm size and
+		// uptime rather than of work performed. On a long-lived relay it dwarfed everything
+		// else -- 830,247 "requests" alongside 0 tokens, which is simply what months of
+		// ping traffic looks like once it is mistaken for API traffic. Inference requests
+		// are counted where they are actually served: proxyToLocalVLLMDirect for this
+		// node's own gateway, and the ProxyProtocolID handler below for work forwarded in
+		// from peers.
 	})
 
 	n.host.SetStreamHandler(ProxyProtocolID, func(s network.Stream) {
@@ -443,9 +448,30 @@ func (n *NetworkNode) setupStreams() {
 		req.URL.Host = fmt.Sprintf("127.0.0.1:%d", targetPort)
 		req.RequestURI = ""
 
+		// Inference work forwarded in from a peer is real work this node performs, and it was
+		// previously invisible in the stats: tokens still showed up (sys.go scrapes them from
+		// vLLM's own Prometheus counters, which do not care who asked) but the request count
+		// did not, because nothing on this path ever touched Stats. A node doing nothing but
+		// serving forwarded requests therefore reported tokens against zero requests -- e.g.
+		// 26,686 tokens / 0 requests / 0 success on a live node.
+		//
+		// Only inference counts: the same tunnel also carries Mooncake KV-transfer bootstrap
+		// calls (allowlisted on MooncakeBootstrapPort above), which are internal cache
+		// plumbing rather than API requests, and vLLM's own /health and /v1/models probes.
+		isInference := targetPort == uint16(n.app.Config.VLLM.Port) && strings.Contains(req.URL.Path, "/completions")
+		if isInference {
+			n.app.TUI.UpdateStats(func(st *Stats) {
+				st.requests++
+				st.decode++
+			})
+		}
+
 		client := &http.Client{Timeout: 60 * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
+			if isInference {
+				n.app.TUI.UpdateStats(func(st *Stats) { st.errorCount++ })
+			}
 			errResp := &http.Response{
 				StatusCode: http.StatusBadGateway,
 				Body:       io.NopCloser(strings.NewReader(fmt.Sprintf("Failed to reach local port %d: %v", targetPort, err))),
@@ -454,6 +480,16 @@ func (n *NetworkNode) setupStreams() {
 			return
 		}
 		defer resp.Body.Close()
+
+		if isInference {
+			n.app.TUI.UpdateStats(func(st *Stats) {
+				if resp.StatusCode == http.StatusOK {
+					st.successCount++
+				} else {
+					st.errorCount++
+				}
+			})
+		}
 
 		resp.Write(s)
 	})
