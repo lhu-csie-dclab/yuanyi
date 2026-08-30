@@ -346,6 +346,9 @@ func StartClientWebDashboard(app *App) {
 		w.Write([]byte(`{"status":"ok", "message": "Config restored successfully."}`))
 	})
 
+	// 步驟 9.5: 掛載聊天記錄伺服器端存檔 API（不受 server_mode 限制，一般 client 也能用）
+	RegisterChatRoutes(mux, app) // 至 chat_history.go 掛載 /api/chat/sessions
+
 	// 步驟 10: 若本機開啟 server_mode，將 Hub 儀表板掛載於同一個 mux 的 /hub/ 路徑下，
 	// 不再另外監聽獨立埠號。
 	if app.Config.ServerMode.Enabled && app.DB != nil {
