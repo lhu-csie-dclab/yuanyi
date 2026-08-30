@@ -66,6 +66,8 @@ if __name__ == "__main__":
         "--gpu-memory-utilization", "0.95",
         "--max-model-len", "16384",
         "--max-num-seqs", "32",
+        "--swap-space", "16",
+        "--cpu-offload-gb", "0",
         "--trust-remote-code",
         "--enforce-eager",
         "--disable-frontend-multiprocessing",

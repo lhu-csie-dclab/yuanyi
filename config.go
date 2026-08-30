@@ -32,6 +32,8 @@ type VLLMConfig struct {
 	ModelName                    string  `json:"model_name"`
 	MaxModelLen                  int     `json:"max_model_len"`
 	MaxNumSeqs                   int     `json:"max_num_seqs,omitempty"`
+	SwapSpaceGB                  int     `json:"swap_space_gb,omitempty"`
+	CpuOffloadGB                 int     `json:"cpu_offload_gb,omitempty"`
 	GpuMemoryUtilization         float64 `json:"gpu_memory_utilization"`
 	Port                         int     `json:"port"`
 	TensorParallelSize           int     `json:"tensor_parallel_size"`
@@ -176,6 +178,8 @@ const defaultClientConfigStr = `{
     "model_name": "Qwen/Qwen3-4B-AWQ",
     "max_model_len": 16384,
     "max_num_seqs": 32,
+    "swap_space_gb": 16,
+    "cpu_offload_gb": 0,
     "gpu_memory_utilization": 0.95,
     "port": 8100,
     "tensor_parallel_size": 1,
@@ -288,6 +292,11 @@ func LoadOrCreateConfig(filename string) (*ClientConfig, error) {
 	if cfg.VLLM.MaxNumSeqs <= 0 {
 		cfg.VLLM.MaxNumSeqs = 32
 	}
+	if cfg.VLLM.SwapSpaceGB <= 0 {
+		cfg.VLLM.SwapSpaceGB = 16
+	}
+	// CpuOffloadGB: 0 is vLLM's own default (offloading disabled) and a legitimate explicit
+	// choice, so unlike the fields above it is never overwritten here.
 
 	applyServerModeDefaults(&cfg)
 
