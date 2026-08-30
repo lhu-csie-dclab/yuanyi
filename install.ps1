@@ -8,8 +8,24 @@
 #
 #   irm https://raw.githubusercontent.com/lhu-csie-dclab/yuanyi/main/install.ps1 -OutFile install.ps1
 #   powershell -ExecutionPolicy Bypass -File install.ps1
+#
+# Add --example (or -y / --yes) after the command to skip every interactive prompt and
+# accept the default answer at each one -- e.g. `install.ps1 install --example` installs
+# and starts a node fully unattended, in one shot. Confirmations that would be destructive
+# or surprising to run unattended (uninstalling, deleting a model, turning this node into a
+# network hub) intentionally still default to "no" even in this mode -- see each
+# Confirm-Action call site's -DefaultYes usage for what actually auto-proceeds.
 
-param([string]$Command = "")
+param(
+    [string]$Command = "",
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$Rest = @()
+)
+
+# Double-dash survives PowerShell's parameter binding as a plain positional string (it only
+# ever tries to bind a *single*-dash token to a named parameter), so this also works when
+# piped/invoked in ways that don't go through -Example-style switch binding.
+$script:NonInteractive = ($Rest -contains '--example') -or ($Rest -contains '-y') -or ($Rest -contains '--yes')
 
 $ErrorActionPreference = "Stop"
 
@@ -52,6 +68,7 @@ function Write-Heading {
 
 function Ask {
     param($Prompt, $Default = "")
+    if ($script:NonInteractive) { return $Default }
     if ($Default -ne "") {
         $r = Read-Host "$Prompt [$Default]"
         if ([string]::IsNullOrWhiteSpace($r)) { return $Default }
@@ -62,6 +79,7 @@ function Ask {
 
 function Confirm-Action {
     param($Prompt, [switch]$DefaultYes)
+    if ($script:NonInteractive) { return [bool]$DefaultYes }
     if ($DefaultYes) {
         $r = Read-Host "$Prompt [Y/n]"
         return ($r -eq '' -or $r -match '^[Yy]$')
@@ -230,7 +248,7 @@ function Check-Prereqs {
         return $false
     }
 
-    if (-not (Confirm-Action "Install the recommended versions above automatically now?")) {
+    if (-not (Confirm-Action "Install the recommended versions above automatically now?" -DefaultYes)) {
         return $false
     }
 
@@ -604,7 +622,7 @@ function Do-Install {
             # key below and leaves it alone) -- config.json is NOT: Write-NodeConfig at the
             # end of this function always rewrites it. Whether to keep the old wording or
             # actually overwrite is asked explicitly, later, right before that write happens.
-            if (-not (Confirm-Action "Update it in place (swarm.key is preserved; you'll be asked separately about config.json)?")) { return }
+            if (-not (Confirm-Action "Update it in place (swarm.key is preserved; you'll be asked separately about config.json)?" -DefaultYes)) { return }
             Push-Location $installDir
             try { & git pull --ff-only } catch { Write-Warn "git pull failed; continuing with the existing checkout." }
             Pop-Location
@@ -633,7 +651,7 @@ function Do-Install {
         WebPort = $DefaultWebPort; ProxyPort = $DefaultProxyPort; VllmPort = $DefaultVllmPort
         MooncakePort = $DefaultMooncakePort; HubP2PPort = $DefaultHubP2PPort; HubProxyPort = $DefaultHubProxyPort
     }
-    if (-not (Confirm-Action "Use default ports (web $DefaultWebPort, gateway $DefaultProxyPort, vLLM $DefaultVllmPort)?")) {
+    if (-not (Confirm-Action "Use default ports (web $DefaultWebPort, gateway $DefaultProxyPort, vLLM $DefaultVllmPort)?" -DefaultYes)) {
         $ports.WebPort      = Ask-Port "Web dashboard port" $DefaultWebPort
         $ports.ProxyPort    = Ask-Port "OpenAI gateway port" $DefaultProxyPort
         $ports.VllmPort     = Ask-Port "vLLM engine port" $DefaultVllmPort
@@ -717,7 +735,7 @@ function Do-Install {
     if ($relayOnly) {
         Start-Process -FilePath (Join-Path $installDir "client.exe") -WorkingDirectory $installDir
         Write-Ok "Started (relay-only)."
-    } elseif (Confirm-Action "Start the node now?") {
+    } elseif (Confirm-Action "Start the node now?" -DefaultYes) {
         Start-Process -FilePath (Join-Path $installDir "client.exe") -WorkingDirectory $installDir
         Write-Ok "Started. Model load takes 1-2 minutes before the gateway answers."
     }

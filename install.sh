@@ -9,8 +9,22 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/lhu-csie-dclab/yuanyi/main/install.sh -o install.sh
 #   bash install.sh
+#
+# Add --example (or -y / --yes) anywhere in the arguments to skip every interactive prompt
+# and accept the default answer at each one -- e.g. `bash install.sh install --example`
+# installs and starts a node fully unattended, in one shot. Confirmations that would be
+# destructive or surprising to run unattended (uninstalling, deleting a model, turning this
+# node into a network hub) intentionally still default to "no" even in this mode -- see each
+# confirm_default_yes call site for what actually auto-proceeds.
 
 set -euo pipefail
+
+NON_INTERACTIVE=0
+for _arg in "$@"; do
+  case "$_arg" in
+    --example|-y|--yes) NON_INTERACTIVE=1 ;;
+  esac
+done
 
 REPO_URL="https://github.com/lhu-csie-dclab/yuanyi.git"
 
@@ -59,6 +73,10 @@ heading() {
 # ask <prompt> <default> -- echoes the answer, or the default when input is empty.
 ask() {
   local prompt="$1" default="${2:-}" reply
+  if [ "$NON_INTERACTIVE" = "1" ]; then
+    printf '%s' "$default"
+    return
+  fi
   if [ -n "$default" ]; then
     read -r -p "$prompt [$default]: " reply </dev/tty || reply=""
     printf '%s' "${reply:-$default}"
@@ -70,12 +88,14 @@ ask() {
 
 confirm() {
   local prompt="$1" reply
+  if [ "$NON_INTERACTIVE" = "1" ]; then return 1; fi
   read -r -p "$prompt [y/N]: " reply </dev/tty || reply=""
   [[ "$reply" =~ ^[Yy]$ ]]
 }
 
 confirm_default_yes() {
   local prompt="$1" reply
+  if [ "$NON_INTERACTIVE" = "1" ]; then return 0; fi
   read -r -p "$prompt [Y/n]: " reply </dev/tty || reply=""
   [[ -z "$reply" || "$reply" =~ ^[Yy]$ ]]
 }
@@ -213,7 +233,7 @@ check_prereqs() {
       return 1
     fi
     echo "  Recommended: install them now with $mgr (git, and Docker from your distro repo)."
-    if confirm "Install the missing prerequisites automatically?"; then
+    if confirm_default_yes "Install the missing prerequisites automatically?"; then
       install_prereqs "${missing[@]}" || {
         err "Automatic install failed. Install them manually, then re-run."
         echo "  See docs/install/ubuntu/README.md"
@@ -636,7 +656,7 @@ do_install() {
       # swarm.key is genuinely preserved (setup_swarm_key checks for an existing valid key
       # and leaves it alone) -- config.json is NOT: write_config below always rewrites it.
       # Whether to actually overwrite is asked explicitly, later, right before that happens.
-      confirm "Update it in place (swarm.key is preserved; you'll be asked separately about config.json)?" || return 0
+      confirm_default_yes "Update it in place (swarm.key is preserved; you'll be asked separately about config.json)?" || return 0
       ( cd "$INSTALL_DIR" && git pull --ff-only ) || warn "git pull failed; continuing with the existing checkout."
     else
       die "$INSTALL_DIR exists and is not empty, and is not an installation. Choose another path."
@@ -678,7 +698,7 @@ do_install() {
 
   # --- ports ---------------------------------------------------------------
   echo
-  if confirm "Use default ports (web $DEFAULT_WEB_PORT, gateway $DEFAULT_PROXY_PORT, vLLM $DEFAULT_VLLM_PORT)?"; then
+  if confirm_default_yes "Use default ports (web $DEFAULT_WEB_PORT, gateway $DEFAULT_PROXY_PORT, vLLM $DEFAULT_VLLM_PORT)?"; then
     WEB_PORT=$DEFAULT_WEB_PORT; PROXY_PORT=$DEFAULT_PROXY_PORT
     VLLM_PORT=$DEFAULT_VLLM_PORT; MOONCAKE_PORT=$DEFAULT_MOONCAKE_PORT
     HUB_P2P_PORT=$DEFAULT_HUB_P2P_PORT; HUB_PROXY_PORT=$DEFAULT_HUB_PROXY_PORT

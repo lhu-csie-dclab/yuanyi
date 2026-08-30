@@ -33,6 +33,12 @@ override the install directory, node role (inference or **relay-only**, which ne
 `swarm.key` (paste one to join an existing swarm, or leave blank to generate), all six ports,
 and the model.
 
+Don't want to press Enter through every prompt? Add `--example` (or `-y` / `--yes`) anywhere
+in the arguments to accept the default answer at each one automatically, e.g.
+`bash install.sh install --example` installs and starts a node fully unattended in one shot.
+Confirmations that would be destructive or surprising to run unattended (uninstalling, deleting
+a model, turning this node into a network hub) still default to "no" even with this flag.
+
 Missing `git` or `docker`? The script offers to install them for you (via `apt`/`dnf`/`yum`/
 `pacman`/`zypper`), so §1's prerequisites are handled automatically. Docker comes from your
 distribution's repository rather than a piped remote script. Because Docker installs stopped

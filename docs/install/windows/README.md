@@ -39,6 +39,12 @@ Every prompt has a default — pressing Enter throughout produces a working node
 override the install directory, node role, `swarm.key` (paste one to join an existing swarm, or
 leave blank to generate), all six ports, and the model.
 
+Don't want to press Enter through every prompt? Add `--example` (or `-y` / `--yes`) after the
+command to accept the default answer at each one automatically, e.g.
+`install.ps1 install --example` installs and starts a node fully unattended in one shot.
+Confirmations that would be destructive or surprising to run unattended (uninstalling, deleting
+a model, turning this node into a network hub) still default to "no" even with this flag.
+
 Missing `git`, `go`, `npm`, or `uv`? The script offers to install them for you via `winget`
 (and `uv`'s official installer), so §1's prerequisites are handled automatically — it also
 refreshes `PATH` in-process so the install continues without reopening the terminal.
