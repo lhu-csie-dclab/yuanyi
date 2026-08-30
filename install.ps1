@@ -579,10 +579,9 @@ CLIENT_WEB_PORT=$($Cfg.WebPort)
   },
   "vllm": {
     "model_name": "$($Cfg.ModelName)",
-    "max_model_len": 16384,
+    "max_model_len": 40960,
     "max_num_seqs": 32,
-    "swap_space_gb": 16,
-    "cpu_offload_gb": 0,
+    "cpu_offload_gb": 16,
     "gpu_memory_utilization": $($Cfg.GpuUtil),
     "port": $($Cfg.VllmPort),
     "tensor_parallel_size": 1,
@@ -693,7 +692,7 @@ function Do-Install {
     if ($s -and $s.ModelDir) { $modelDir = $s.ModelDir }
     $modelPath = ""
     $modelName = "relay"
-    $gpuUtil = "0.95"
+    $gpuUtil = "0.9"
 
     if (-not $relayOnly) {
         Setup-VllmEnv $installDir | Out-Null
@@ -701,7 +700,7 @@ function Do-Install {
         Write-Host ""
         $modelDir = Ask "Model storage directory" $modelDir
         $repo = Ask "Hugging Face model to use" $DefaultModel
-        $gpuUtil = Ask "GPU memory utilization (fraction of TOTAL VRAM)" "0.95"
+        $gpuUtil = Ask "GPU memory utilization (fraction of TOTAL VRAM)" "0.9"
         $modelPath = Download-Model $modelDir $installDir $repo
         if (-not $modelPath) { Fail "No model was installed." }
         $modelName = Split-Path -Leaf $modelPath

@@ -239,7 +239,7 @@ node:
   using either name resolve. To use your own local weights, point `paths.model_path` at a real
   Windows directory.
 - **VRAM** — `vllm.gpu_memory_utilization` is a fraction of **total** VRAM, not free VRAM. On
-  an 8 GB card with a desktop session already using ~2 GB, leave headroom below the `0.95`
+  an 8 GB card with a desktop session already using ~2 GB, leave headroom below the `0.9`
   default; raise it only on a dedicated GPU with nothing else drawing VRAM.
 
 ---

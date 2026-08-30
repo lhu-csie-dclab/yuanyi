@@ -591,10 +591,9 @@ write_config() {
   },
   "vllm": {
     "model_name": "$MODEL_NAME",
-    "max_model_len": 16384,
+    "max_model_len": 40960,
     "max_num_seqs": 32,
-    "swap_space_gb": 16,
-    "cpu_offload_gb": 0,
+    "cpu_offload_gb": 16,
     "gpu_memory_utilization": $GPU_UTIL,
     "port": $VLLM_PORT,
     "tensor_parallel_size": 1,
@@ -733,7 +732,7 @@ do_install() {
   MODEL_DIR="${MODEL_DIR:-$DEFAULT_MODEL_DIR}"
   MODEL_NAME="$DEFAULT_MODEL"
   MODEL_PATH="$MODEL_DIR/$(model_dirname "$DEFAULT_MODEL")"
-  GPU_UTIL="0.95"
+  GPU_UTIL="0.9"
 
   if [ "$RELAY_ONLY" = "true" ]; then
     mkdir -p "$MODEL_PATH"   # keeps the compose bind mount valid without weights
@@ -748,7 +747,7 @@ do_install() {
     repo="$(ask "Hugging Face model to use" "$DEFAULT_MODEL")"
     MODEL_NAME="$(model_dirname "$repo")"
     MODEL_PATH="$MODEL_DIR/$MODEL_NAME"
-    GPU_UTIL="$(ask "GPU memory utilization (fraction of TOTAL VRAM)" "0.95")"
+    GPU_UTIL="$(ask "GPU memory utilization (fraction of TOTAL VRAM)" "0.9")"
 
     if [ -d "$MODEL_PATH" ] && [ -n "$(ls -A "$MODEL_PATH" 2>/dev/null)" ]; then
       ok "Model already present: $MODEL_PATH"

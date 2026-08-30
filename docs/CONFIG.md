@@ -45,11 +45,10 @@ This document provides a detailed reference for configuration handling in the Yu
   },
   "vllm": {
     "model_name": "Qwen/Qwen3-4B-AWQ",
-    "max_model_len": 16384,
+    "max_model_len": 40960,
     "max_num_seqs": 32,
-    "swap_space_gb": 16,
-    "cpu_offload_gb": 0,
-    "gpu_memory_utilization": 0.95,
+    "cpu_offload_gb": 16,
+    "gpu_memory_utilization": 0.9,
     "port": 8100,
     "tensor_parallel_size": 1,
     "dtype": "float16",
@@ -80,10 +79,9 @@ required — see [Reachability](#-reachability-announce_addr--behind_nat).
 | `p2p.announce_addr` | *(unset)* | String | The address other nodes should use to reach **this** node, e.g. `/dns4/relay.example.com/tcp/50004`. **Required when running your own relay behind Docker or port-forwarding** — see [Reachability](#-reachability-announce_addr--behind_nat). |
 | `p2p.behind_nat` | *(auto)* | Boolean | Declares this node cannot be dialed from outside its network. Omit it: auto-detection is correct for almost everyone. See [Reachability](#-reachability-announce_addr--behind_nat). |
 | `vllm.port` | `8100` | Integer | Local vLLM engine HTTP endpoint. |
-| `vllm.gpu_memory_utilization` | `0.95` | Float | Maximum VRAM memory allocation ratio reserved for vLLM & KV cache. |
+| `vllm.gpu_memory_utilization` | `0.9` | Float | Maximum VRAM memory allocation ratio reserved for vLLM & KV cache. |
 | `vllm.max_num_seqs` | `32` | Integer | Max concurrent sequences vLLM's scheduler batches at once (`--max-num-seqs`). |
-| `vllm.swap_space_gb` | `16` | Integer | CPU RAM (GiB) reserved per GPU for swapped-out KV cache blocks (`--swap-space`). |
-| `vllm.cpu_offload_gb` | `0` | Integer | GPU memory (GiB) worth of model weights to offload to CPU RAM (`--cpu-offload-gb`); `0` disables offloading. |
+| `vllm.cpu_offload_gb` | `16` | Integer | GPU memory (GiB) worth of model weights to offload to CPU RAM (`--cpu-offload-gb`); `0` disables offloading. |
 | `vllm.kv_role` | `"kv_both"` | String | P/D disaggregation role: `"kv_prefill"`, `"kv_decode"`, or `"kv_both"`. |
 | `vllm.mooncake_bootstrap_port` | `8998` | Integer | Mooncake KV Cache transfer control port. |
 | `server_mode.enabled` | `false` | Boolean | Opts this node into hub mode (merged Central Server responsibilities). See [`HUB_MODE.md`](HUB_MODE.md) for the full `server_mode.*` reference. |

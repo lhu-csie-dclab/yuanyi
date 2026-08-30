@@ -452,11 +452,10 @@ Default settings in `config.json`:
   "vllm": {
     "port": 8100,
     "model_name": "Qwen/Qwen3-4B-AWQ",
-    "gpu_memory_utilization": 0.95,
-    "max_model_len": 16384,
+    "gpu_memory_utilization": 0.9,
+    "max_model_len": 40960,
     "max_num_seqs": 32,
-    "swap_space_gb": 16,
-    "cpu_offload_gb": 0,
+    "cpu_offload_gb": 16,
     "kv_role": "kv_both",
     "mooncake_bootstrap_port": 8998
   },

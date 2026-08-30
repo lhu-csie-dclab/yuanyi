@@ -63,22 +63,18 @@ if __name__ == "__main__":
     default_args = [
         "--model", "Qwen/Qwen3-4B-AWQ",
         "--quantization", "awq",
-        "--gpu-memory-utilization", "0.95",
-        "--max-model-len", "16384",
+        "--gpu-memory-utilization", "0.9",
+        "--max-model-len", "40960",
         "--max-num-seqs", "32",
-        "--swap-space", "16",
-        "--cpu-offload-gb", "0",
+        "--cpu-offload-gb", "16",
         "--trust-remote-code",
         "--enforce-eager",
-        "--disable-frontend-multiprocessing",
         "--port", "8100",  # matches config.go's VLLM.Port default, not vLLM's own convention --
                             # start_vllm.ps1/status_vllm.ps1/stop_vllm.ps1 assume this port too
         "--host", "0.0.0.0"
     ]
     
     cmd_args = sys.argv[1:] if len(sys.argv) > 1 else default_args
-    if "--disable-frontend-multiprocessing" not in cmd_args:
-        cmd_args.append("--disable-frontend-multiprocessing")
 
     cli_env_setup()
     parser = FlexibleArgumentParser(description="vLLM OpenAI-Compatible RESTful API server.")
