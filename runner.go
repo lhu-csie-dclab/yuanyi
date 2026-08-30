@@ -213,6 +213,8 @@ func (r *Runner) startVLLMContainer(ctx context.Context) {
 			"--port", fmt.Sprintf("%d", cfg.VLLM.Port),
 			"--tensor-parallel-size", fmt.Sprintf("%d", cfg.VLLM.TensorParallelSize),
 			"--kv-transfer-config", kvTransferConfig,
+			"--enable-auto-tool-choice",
+			"--tool-call-parser", "qwen3_coder",
 		)
 
 		stdout, err := execCmd.StdoutPipe()
@@ -331,6 +333,8 @@ func (r *Runner) startVLLMDirectly(ctx context.Context) {
 			"--port", fmt.Sprintf("%d", cfg.VLLM.Port),
 			"--tensor-parallel-size", fmt.Sprintf("%d", cfg.VLLM.TensorParallelSize),
 			"--kv-transfer-config", kvConfigJSON,
+			"--enable-auto-tool-choice",
+			"--tool-call-parser", "qwen3_coder",
 		)
 
 		r.vllmCmd.Env = append(os.Environ(),
@@ -537,6 +541,8 @@ func (r *Runner) startVLLMWindows(ctx context.Context) {
 		"--host", "0.0.0.0",
 		"--trust-remote-code",
 		"--enforce-eager",
+		"--enable-auto-tool-choice",
+		"--tool-call-parser", "qwen3_coder",
 	)
 
 	var cmd *exec.Cmd
