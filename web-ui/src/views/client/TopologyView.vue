@@ -24,15 +24,27 @@ function setViewMode(mode) {
   localStorage.setItem(VIEW_MODE_KEY, mode)
 }
 
+// Sorted by hardware tier (total VRAM), same as Top Ranking (TopView.vue) -- the backend
+// (/api/peers) has no ordering guarantee at all: it's built from a Go map, whose iteration
+// order is deliberately randomized by the language, so without a client-side sort here the
+// list visibly reshuffled on every 2s poll for no reason. VRAM is a fixed hardware property,
+// so this order stays stable between polls (peers.value is replaced by refresh() wholesale
+// each tick, but the value sorted on is the same).
+const sortedPeers = computed(() => {
+  return [...peers.value]
+    .map(p => ({ ...p, _gpu: parseGpuInfo(p) }))
+    .sort((a, b) => (b._gpu?.vram_total || 0) - (a._gpu?.vram_total || 0))
+})
+
 // Pagination (25 items per page)
 const PAGE_SIZE = 25
 const currentPage = ref(1)
 
-const totalPages = computed(() => Math.max(1, Math.ceil(peers.value.length / PAGE_SIZE)))
+const totalPages = computed(() => Math.max(1, Math.ceil(sortedPeers.value.length / PAGE_SIZE)))
 
 const paginatedPeers = computed(() => {
   const start = (currentPage.value - 1) * PAGE_SIZE
-  return peers.value.slice(start, start + PAGE_SIZE)
+  return sortedPeers.value.slice(start, start + PAGE_SIZE)
 })
 
 // Top pill-badge counts by category, shown above the peer grid/table.

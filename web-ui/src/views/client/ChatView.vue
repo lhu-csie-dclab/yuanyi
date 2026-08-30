@@ -18,6 +18,11 @@ const {
   newSession, deleteSession, selectSession, renameSession, send: sendMessage, clearSession,
 } = useChatState()
 
+// Temporarily disabled: most nodes in the swarm run text-only models, so an attached image
+// reliably 400s ("not a multimodal model") -- confusing more often than useful right now.
+// Flip back to true to re-enable the attach button and image previews.
+const IMAGE_UPLOAD_ENABLED = false
+
 const input        = ref('')
 const showConfig   = ref(false)
 const messagesEl   = ref(null)
@@ -26,6 +31,14 @@ const pendingImages = ref([]) // [{ name, dataUrl }] -- attached, not yet sent
 
 // ── Computed ─────────────────────────────────────────────────────────────────
 const messages = computed(() => activeSession.value?.messages || [])
+// Pre-splits each assistant message's <think> block once per render instead of calling
+// parseThink() repeatedly inline in the template.
+const displayMessages = computed(() =>
+  messages.value.map((msg) => ({
+    msg,
+    parsedThink: msg.role !== 'user' && !msg.loading ? parseThink(msgText(msg.content)) : null,
+  }))
+)
 
 // ── Message content helpers ─────────────────────────────────────────────────
 // msg.content is a plain string for text-only messages (every message ever stored before
@@ -67,6 +80,28 @@ async function scrollBottom() {
   await nextTick()
   if (messagesEl.value) {
     messagesEl.value.scrollTop = messagesEl.value.scrollHeight
+  }
+}
+
+// ── Reasoning-model <think> blocks ────────────────────────────────────────────
+// Reasoning models (DeepSeek-R1 / Qwen3-thinking style) emit raw <think>...</think>
+// before the actual answer. Split it out so it can render as a collapsible section
+// instead of showing the literal tags as text. Handles the mid-stream case (opened but
+// not yet closed) so the thinking content is visible while it's still being generated.
+function parseThink(text) {
+  if (!text || !text.includes('<think>')) return null
+  const openIdx = text.indexOf('<think>')
+  const before = text.slice(0, openIdx)
+  const afterOpen = text.slice(openIdx + '<think>'.length)
+  const closeIdx = afterOpen.indexOf('</think>')
+  if (closeIdx === -1) {
+    return { before, think: afterOpen, after: '', closed: false }
+  }
+  return {
+    before,
+    think: afterOpen.slice(0, closeIdx),
+    after: afterOpen.slice(closeIdx + '</think>'.length),
+    closed: true,
   }
 }
 
@@ -268,7 +303,7 @@ onMounted(scrollBottom)
         </div>
 
         <div
-          v-for="(msg, i) in messages"
+          v-for="({ msg, parsedThink }, i) in displayMessages"
           :key="i"
           class="flex gap-3"
           :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
@@ -309,11 +344,16 @@ onMounted(scrollBottom)
               <span class="animate-bounce" style="animation-delay:150ms">●</span>
               <span class="animate-bounce" style="animation-delay:300ms">●</span>
             </div>
-            <div
-              v-else
-              class="chat-md"
-              v-html="renderMd(msg.content)"
-            />
+            <div v-else class="chat-md">
+              <details v-if="parsedThink" class="think-block" :open="!parsedThink.closed">
+                <summary class="think-summary">
+                  {{ parsedThink.closed ? t('chat_thought') : t('chat_thinking') }}
+                </summary>
+                <div class="think-content" v-html="renderMd(parsedThink.think)" />
+              </details>
+              <div v-if="!parsedThink || parsedThink.before + parsedThink.after"
+                   v-html="renderMd(parsedThink ? parsedThink.before + parsedThink.after : msg.content)" />
+            </div>
           </div>
 
           <!-- User avatar -->
@@ -327,7 +367,7 @@ onMounted(scrollBottom)
       <!-- Input area -->
       <div class="shrink-0 border-t border-border bg-surface-card px-4 py-3.5">
         <!-- Pending image previews -->
-        <div v-if="pendingImages.length" class="flex flex-wrap gap-2 max-w-3xl mx-auto mb-2">
+        <div v-if="IMAGE_UPLOAD_ENABLED && pendingImages.length" class="flex flex-wrap gap-2 max-w-3xl mx-auto mb-2">
           <div v-for="(img, i) in pendingImages" :key="i" class="relative">
             <img :src="img.dataUrl" class="h-16 w-16 rounded-lg object-cover border border-border" />
             <button
@@ -338,6 +378,7 @@ onMounted(scrollBottom)
           </div>
         </div>
         <input
+          v-if="IMAGE_UPLOAD_ENABLED"
           ref="fileInputEl"
           type="file"
           accept="image/*"
@@ -347,6 +388,7 @@ onMounted(scrollBottom)
         />
         <div class="flex items-end gap-3 max-w-3xl mx-auto">
           <button
+            v-if="IMAGE_UPLOAD_ENABLED"
             class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border text-ink-faint transition-colors hover:bg-white/5 hover:text-ink disabled:opacity-40 disabled:cursor-not-allowed"
             :disabled="streaming"
             :title="t('chat_attach_image')"
@@ -406,6 +448,37 @@ onMounted(scrollBottom)
   padding: 0.1em 0.35em;
   font-size: 0.82em;
   font-family: ui-monospace, monospace;
+}
+
+/* <think> block -- collapsible reasoning trace, auto-open while streaming (no closing tag
+   seen yet), auto-closed once the real answer starts appearing (see parseThink in script). */
+.think-block {
+  margin-bottom: 0.625rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(148, 163, 184, 0.06);
+}
+.think-summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink-faint, #94a3b8);
+  user-select: none;
+}
+.think-summary::-webkit-details-marker {
+  display: none;
+}
+.think-content {
+  padding: 0 0.75rem 0.75rem;
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--ink-faint, #94a3b8);
+  opacity: 0.85;
+  white-space: pre-wrap;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+  padding-top: 0.5rem;
 }
 
 /* Slide transition */
