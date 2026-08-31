@@ -508,9 +508,16 @@ func StartServerDispatch(app *App, h host.Host) {
 	if port <= 0 {
 		port = 50008
 	}
-	logInfo("[ServerDispatch] Listening on :%d", port)
+	// Defaults to localhost-only: see ServerModeConfig.ExposeGateway for why nothing inside
+	// the swarm needs this port reachable any more. Explicit opt-in only, so upgrading an
+	// existing deployment never silently closes something that was working.
+	bindAddr := "127.0.0.1:" + strconv.Itoa(port)
+	if app.Config.ServerMode.ExposeGateway {
+		bindAddr = ":" + strconv.Itoa(port)
+	}
+	logInfo("[ServerDispatch] Listening on %s", bindAddr)
 	go func() {
-		if err := http.ListenAndServe(":"+strconv.Itoa(port), mux); err != nil {
+		if err := http.ListenAndServe(bindAddr, mux); err != nil {
 			logError("[ServerDispatch] Failed to start: %v", err)
 		}
 	}()

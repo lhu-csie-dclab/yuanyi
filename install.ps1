@@ -596,6 +596,7 @@ CLIENT_WEB_PORT=$($Cfg.WebPort)
     "relay_only": $($Cfg.RelayOnly),
     "p2p_port": $($Cfg.HubP2PPort),
     "proxy_port": $($Cfg.HubProxyPort),
+    "expose_gateway": false,
     "database_path": "./peers.db",
     "max_fail_count": 3,
     "check_interval_sec": 30,

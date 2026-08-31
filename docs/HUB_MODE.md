@@ -129,6 +129,7 @@ PeerID across restarts. This matters most for hub nodes, since other nodes may c
     "enabled": false,
     "p2p_port": 50004,
     "proxy_port": 50008,
+    "expose_gateway": false,
     "database_path": "./peers.db",
     "max_fail_count": 3,
     "check_interval_sec": 30,
@@ -147,6 +148,7 @@ PeerID across restarts. This matters most for hub nodes, since other nodes may c
 | `server_mode.relay_only` | `false` | Contribute relaying instead of GPU inference: no local vLLM, advertises `role: "relay"` so peers do not dispatch work here. Implies `enabled`. |
 | `server_mode.p2p_port` | `50004` | Fixed libp2p listen port so other nodes can dial in. |
 | `server_mode.proxy_port` | `50008` | Central prefill/decode dispatcher HTTP port. |
+| `server_mode.expose_gateway` | `false` | Whether `proxy_port`'s central OpenAI-compatible gateway binds to all interfaces instead of `127.0.0.1` only. Nothing inside the swarm calls it, so most deployments never need this. |
 | `server_mode.database_path` | `./peers.db` | SQLite database file path. |
 | `server_mode.max_fail_count` | `3` | Consecutive ping failures before a peer is flagged offline. |
 | `server_mode.check_interval_sec` | `30` | Health-check ping interval, in seconds. |
@@ -161,10 +163,18 @@ PeerID across restarts. This matters most for hub nodes, since other nodes may c
 | `web_port` (50007) | operators only | Dashboard unreachable. |
 
 **The hub API needs no exposed port.** `/hub/api/*` is served to other nodes over libp2p
-(`/hub-api/1.0.0`, see `HubAPIProtocolID` in `p2p.go`), so `proxy_port` can safely bind to
-localhost. This also means the API inherits the swarm's own access control: the PSK in
-`swarm.key` gates who can join the private network at all, so anything able to open that stream
-is already a member — no keys to distribute, and no unauthenticated port facing the internet.
+(`/hub-api/1.0.0`, see `HubAPIProtocolID` in `p2p.go`). This also means the API inherits the
+swarm's own access control: the PSK in `swarm.key` gates who can join the private network at
+all, so anything able to open that stream is already a member — no keys to distribute, and no
+unauthenticated port facing the internet.
+
+`proxy_port` also serves one other thing, unrelated to `/hub/api/*`: the hub's own central
+OpenAI-compatible gateway (`/v1/chat/completions` etc, dispatched using the whole-swarm P/D
+view rather than a single node's gossip-known-peers view). Nothing inside the swarm calls this
+either — every node already runs an equivalent gateway on its own `proxy_port` — so it exists
+purely as an optional external entry point for a client application that specifically wants the
+cluster-wide dispatcher. `proxy_port` therefore defaults to binding `127.0.0.1` only
+(`server_mode.expose_gateway: false`); set it to `true` only if such a client actually exists.
 
 Browsers cannot speak libp2p, so the dashboard's hub pages call `/hub/api/*` on **their own
 node's** `web_port`, which fetches the answer from the hub over libp2p (see 步驟 4.2 in

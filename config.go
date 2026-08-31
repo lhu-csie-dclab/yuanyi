@@ -121,9 +121,19 @@ type ServerModeConfig struct {
 	//
 	// Enabling this implies Enabled, since relaying and hub duties share the same host
 	// configuration. LoadOrCreateConfig sets Enabled automatically.
-	RelayOnly        bool                    `json:"relay_only"`
-	P2PPort          int                     `json:"p2p_port"`
-	ProxyPort        int                     `json:"proxy_port"`
+	RelayOnly bool `json:"relay_only"`
+	P2PPort   int  `json:"p2p_port"`
+	ProxyPort int  `json:"proxy_port"`
+	// ExposeGateway controls whether ProxyPort's central OpenAI-compatible gateway
+	// (/v1/chat/completions etc, dispatched using the full swarm-wide P/D split rather than a
+	// single node's gossip-known-peers view) binds to all interfaces or localhost only.
+	// Nothing inside the swarm calls it: every node already runs the same kind of gateway on
+	// its own proxy_port (see StartLocalDispatcher), and /hub/api/* moved onto libp2p
+	// (HubAPIProtocolID) once that stopped needing an exposed port at all. So it defaults to
+	// false (127.0.0.1 only) -- this listener exists purely as an optional external entry
+	// point for a client application that specifically wants the whole-cluster dispatcher
+	// instead of a single node's, and most deployments have no such client.
+	ExposeGateway    bool                    `json:"expose_gateway,omitempty"`
 	DatabasePath     string                  `json:"database_path"`
 	MaxFailCount     int                     `json:"max_fail_count"`
 	CheckIntervalSec int                     `json:"check_interval_sec"`
@@ -191,6 +201,7 @@ const defaultClientConfigStr = `{
     "relay_only": false,
     "p2p_port": 50004,
     "proxy_port": 50008,
+    "expose_gateway": false,
     "database_path": "./peers.db",
     "max_fail_count": 3,
     "check_interval_sec": 30,

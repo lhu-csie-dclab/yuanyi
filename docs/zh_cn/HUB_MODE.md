@@ -117,6 +117,7 @@ Hub 节点也可以配置成空种子列表，这种情况下它就是其他节�
     "enabled": false,
     "p2p_port": 50004,
     "proxy_port": 50008,
+    "expose_gateway": false,
     "database_path": "./peers.db",
     "max_fail_count": 3,
     "check_interval_sec": 30,
@@ -135,6 +136,7 @@ Hub 节点也可以配置成空种子列表，这种情况下它就是其他节�
 | `server_mode.relay_only` | `false` | 改为贡献中继而非 GPU 推理：不启动本机 vLLM，并广播 `role: "relay"` 让其他节点不要派工作过来。会自动隐含 `enabled`。 |
 | `server_mode.p2p_port` | `50004` | 固定 libp2p 监听端口，供其他节点拨入。 |
 | `server_mode.proxy_port` | `50008` | 中央 Prefill/Decode 派发器 HTTP 端口。 |
+| `server_mode.expose_gateway` | `false` | `proxy_port` 的中央 OpenAI 兼容网关是否绑在所有接口而非只有 `127.0.0.1`。Swarm 内部不会调用它，大多数部署都不需要开。 |
 | `server_mode.database_path` | `./peers.db` | SQLite 数据库文件路径。 |
 | `server_mode.max_fail_count` | `3` | 连续 Ping 失败几次后标记该 Peer 离线。 |
 | `server_mode.check_interval_sec` | `30` | 健康检查 Ping 的轮询间隔秒数。 |
@@ -149,9 +151,16 @@ Hub 节点也可以配置成空种子列表，这种情况下它就是其他节�
 | `web_port`（50007） | 只需运维者 | 仪表板连不上。 |
 
 **Hub API 不需要开放任何对外端口。** `/hub/api/*` 是通过 libp2p 提供给其他节点的
-（`/hub-api/1.0.0`，见 `p2p.go` 的 `HubAPIProtocolID`），所以 `proxy_port` 可以安心绑在
-localhost。这同时让 API 直接继承 Swarm 本身的访问控制：`swarm.key` 的 PSK 决定谁能加入这个私有
-网络，能开起那条流的必然已经是成员——不用另外分发密钥，也不会有未验证的端口暴露在外网。
+（`/hub-api/1.0.0`，见 `p2p.go` 的 `HubAPIProtocolID`）。这同时让 API 直接继承 Swarm 本身的访问
+控制：`swarm.key` 的 PSK 决定谁能加入这个私有网络，能开起那条流的必然已经是成员——不用另外分发
+密钥，也不会有未验证的端口暴露在外网。
+
+`proxy_port` 还挂了另一个跟 `/hub/api/*` 无关的东西：Hub 自己的中央 OpenAI 兼容网关
+（`/v1/chat/completions` 等，用的是全集群的 P/D 视图，不是单一节点的 gossip 已知邻居视图）。这个
+同样没有 swarm 内部会调用——每个节点自己的 `proxy_port` 早就有等价的网关了——所以它纯粹是给
+「特别想要全集群统一派工」的外部应用程序用的可选入口。因此 `proxy_port` 默认只绑
+`127.0.0.1`（`server_mode.expose_gateway: false`）；只有真的有这种外部应用时才需要设成
+`true`。
 
 浏览器不会说 libp2p，所以仪表板的 Hub 页面是调用**自己所在节点**的 `web_port` 上的
 `/hub/api/*`，由该节点通过 libp2p 去跟 Hub 取（见 `web.go` 的步骤 4.2）。附带好处是：任何节点的

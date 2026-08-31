@@ -608,6 +608,7 @@ write_config() {
     "relay_only": $RELAY_ONLY,
     "p2p_port": $HUB_P2P_PORT,
     "proxy_port": $HUB_PROXY_PORT,
+    "expose_gateway": false,
     "database_path": "./peers.db",
     "max_fail_count": 3,
     "check_interval_sec": 30,
