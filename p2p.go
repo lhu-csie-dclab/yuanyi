@@ -809,9 +809,29 @@ func (n *NetworkNode) clearDialBackoff(pid peer.ID) {
 // see startLocalProxyForPeer for what a connection to it actually does.
 func generateVIP(peerID string) string {
 	hash := sha256.Sum256([]byte(peerID))
-	ip3 := (int(hash[0]) % 254) + 1
-	ip4 := (int(hash[1]) % 254) + 1
-	return fmt.Sprintf("127.0.0.%d:%d", ip3, 8000+ip4)
+
+	// Uses the whole 127.0.0.0/8 loopback block (three free octets) plus the full
+	// unprivileged port range, rather than only the last octet and 254 ports. This is the
+	// same trick cryptocurrency addresses rely on: collisions aren't eliminated -- they
+	// can't be, since every node in the swarm must independently compute the identical VIP
+	// for a given peer with no central allocator, which forces this to stay a pure,
+	// coordination-free function of the peer ID -- but the output space is widened far
+	// enough that the birthday-bound probability becomes astronomically small instead of
+	// merely small.
+	//
+	// Old space: 254 x 254 = 64,516 (50% collision risk by ~300 nodes, per the birthday
+	// bound n ~ sqrt(space)). New space: 256^3 x 64,512 =~ 1.08 x 10^12 (50% risk not
+	// reached until ~1.2 million nodes -- for scale, that is roughly the same regime the
+	// 128-bit random component of a UUIDv4 operates in).
+	ip2, ip3, ip4 := hash[0], hash[1], hash[2]
+	// 127.0.0.1 is excluded: every node's own gateway/vLLM/web listeners already live
+	// there, so a VIP landing on it would silently collide with real local services
+	// instead of just another VIP's listener.
+	if ip2 == 0 && ip3 == 0 && ip4 == 1 {
+		ip4 = 2
+	}
+	port := 1024 + int(binary.BigEndian.Uint16(hash[3:5]))%(65536-1024)
+	return fmt.Sprintf("127.%d.%d.%d:%d", ip2, ip3, ip4, port)
 }
 
 // startLocalProxyForPeer gives external, non-libp2p-aware local processes -- concretely,
@@ -1079,7 +1099,17 @@ func (n *NetworkNode) gossipSubscriber(ctx context.Context, sub *pubsub.Subscrip
 		}
 
 		n.app.TUI.RecordPeerInfo(info)
-		n.startLocalProxyForPeer(info.NodeID)
+		// A bind failure here (almost always the VIP address already in use) previously left
+		// no trace anywhere: startLocalProxyForPeer's error was discarded, so this node would
+		// silently have no local tunnel for that peer, and only surface as an opaque
+		// connection-refused from vLLM's Mooncake connector during P/D-split KV transfer, with
+		// nothing in the logs pointing back here. Once bound, activeProxies short-circuits
+		// every later call to a no-op, so only a genuinely stuck peer re-logs on each gossip
+		// (~3s) -- acceptable, since with the widened VIP space (see generateVIP) that should
+		// now be rare enough to be worth seeing rather than something to rate-limit.
+		if _, err := n.startLocalProxyForPeer(info.NodeID); err != nil {
+			n.app.TUI.AddLog("[WARN]", fmt.Sprintf("VIP proxy bind failed for peer %s: %v", info.NodeID[:8], err))
+		}
 
 		// GossipSub relays a peer's identity+address to nodes it has no direct libp2p
 		// connection to (that's the whole point of gossip flooding across relay hops),
