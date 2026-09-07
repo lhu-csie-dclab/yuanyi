@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 )
@@ -224,7 +225,12 @@ func (pc *PeerCache) ResetStats() int {
 }
 
 // Snapshot returns a point-in-time copy of every known peer, replacing DBManager.GetAllPeers()
-// as the read source for the proxy backend list, the rank manager, and the dashboard.
+// as the read source for the proxy backend list, the rank manager, and the dashboard. The
+// result is ordered by ContributionScore descending (PeerID ascending as a deterministic
+// tiebreak) because reloadBackendsFromDB slices this list by position to assign prefill/decode
+// roles -- pc.peers is a map, whose iteration order Go randomizes on every call, so without
+// this sort the P/D role split would reshuffle on every reload even with no peers connecting
+// or disconnecting.
 func (pc *PeerCache) Snapshot() []PeerData {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
@@ -232,6 +238,12 @@ func (pc *PeerCache) Snapshot() []PeerData {
 	for _, p := range pc.peers {
 		out = append(out, *p)
 	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].ContributionScore != out[j].ContributionScore {
+			return out[i].ContributionScore > out[j].ContributionScore
+		}
+		return out[i].PeerID < out[j].PeerID
+	})
 	return out
 }
 
