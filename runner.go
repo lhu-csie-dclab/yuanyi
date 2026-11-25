@@ -215,7 +215,7 @@ func (r *Runner) startVLLMContainer(ctx context.Context) {
 			"--kv-transfer-config", kvTransferConfig,
 			"--enable-auto-tool-choice",
 			"--enable-prompt-tokens-details",
-			"--tool-call-parser", "qwen3_coder",
+			"--tool-call-parser", "hermes",
 		)
 
 		stdout, err := execCmd.StdoutPipe()
@@ -336,7 +336,7 @@ func (r *Runner) startVLLMDirectly(ctx context.Context) {
 			"--kv-transfer-config", kvConfigJSON,
 			"--enable-auto-tool-choice",
 			"--enable-prompt-tokens-details",
-			"--tool-call-parser", "qwen3_coder",
+			"--tool-call-parser", "hermes",
 		)
 
 		r.vllmCmd.Env = append(os.Environ(),
@@ -545,7 +545,7 @@ func (r *Runner) startVLLMWindows(ctx context.Context) {
 		"--enforce-eager",
 		"--enable-auto-tool-choice",
 		"--enable-prompt-tokens-details",
-		"--tool-call-parser", "qwen3_coder",
+		"--tool-call-parser", "hermes",
 	)
 
 	var cmd *exec.Cmd
